@@ -1,0 +1,35 @@
+# Render Blueprint — deploys the web service + a keep-alive cron job
+# so the free instance never spins down (no more "Service waking up" screen).
+#
+# How to use:
+#   1. Push this repo to GitHub.
+#   2. In Render Dashboard → "New" → "Blueprint", select this repo.
+#   3. Set DATABASE_URL (and any other secrets) when prompted.
+#   4. Replace the URL below with your actual app URL (https://your-app.onrender.com).
+#
+# The cron job pings /api/health every 10 minutes, which keeps the
+# web service warm. Free tier spins down after ~15 min of inactivity,
+# so a ping every 10 min prevents that.
+
+services:
+  - type: web
+    name: renttrack
+    runtime: node
+    plan: free
+    buildCommand: npm run build
+    startCommand: npm start
+    healthCheckPath: /api/health
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: NODE_VERSION
+        value: "20"
+
+cronJobs:
+  - type: cron
+    name: renttrack-keep-awake
+    schedule: "*/10 * * * *"
+    startCommand: curl -fsS https://renttrack.onrender.com/api/health
+    envVars: []
+

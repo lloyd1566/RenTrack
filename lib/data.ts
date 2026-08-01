@@ -29,6 +29,7 @@ export interface Unit {
   tenantName?: string;
   tenantId?: string;
   leaseEnd?: string;
+  imageUrl?: string;
 }
 
 export interface TenantRecord {

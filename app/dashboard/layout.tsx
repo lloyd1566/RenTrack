@@ -127,9 +127,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         className={cn(
           "fixed lg:relative z-50 h-screen bg-surface border-r border-border flex flex-col transition-all duration-300 ease-[cubic-bezier(0.21,0.47,0.32,0.98)]",
           "lg:block",
-          mobileSidebarOpen ? "block" : "hidden lg:block",
+          mobileSidebarOpen ? "block translate-x-0" : "hidden lg:block",
           sidebarOpen ? "w-[260px]" : "w-[72px]"
         )}
+        style={{ transform: mobileSidebarOpen ? 'translateX(0)' : undefined }}
       >
 <div className={cn("flex items-center h-16 px-4 border-b border-border", sidebarOpen ? "justify-between" : "justify-center")}>
           {sidebarOpen ? (

@@ -39,12 +39,26 @@ export default function SettingsPage() {
     toast.success(`Dark mode ${next ? "enabled" : "disabled"}`);
   };
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast.success("Profile updated successfully");
+    try {
+      const res = await fetch("/api/auth/update", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: user?.id, name, email, phone }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        toast.success("Profile updated successfully");
+      } else {
+        toast.error(result.error || "Failed to update profile");
+      }
+    } catch {
+      toast.error("An error occurred");
+    }
   };
 
-  const handleChangePassword = (e: React.FormEvent) => {
+  const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!currentPassword || !newPassword) {
       toast.error("Please fill in all password fields");
@@ -54,9 +68,23 @@ export default function SettingsPage() {
       toast.error("New password must be at least 6 characters");
       return;
     }
-    toast.success("Password changed successfully");
-    setCurrentPassword("");
-    setNewPassword("");
+    try {
+      const res = await fetch("/api/auth/update", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: user?.id, currentPassword, newPassword }),
+      });
+      const result = await res.json();
+      if (result.success) {
+        toast.success("Password changed successfully");
+        setCurrentPassword("");
+        setNewPassword("");
+      } else {
+        toast.error(result.error || "Failed to change password");
+      }
+    } catch {
+      toast.error("An error occurred");
+    }
   };
 
   return (

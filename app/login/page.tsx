@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, useEffect, FormEvent, Suspense } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Building2,
   Mail,
   Lock,
   Eye,
@@ -11,7 +10,6 @@ import {
   ArrowRight,
   Home,
   Users,
-  Shield,
   Sparkles,
   User,
   Phone,
@@ -25,17 +23,15 @@ import Link from "next/link";
 import { toast } from "sonner";
 
 const roles: { role: UserRole; label: string; icon: typeof Home; description: string }[] = [
-  { role: "owner", label: "Property Owner", icon: Building2, description: "Manage properties, verify payments, view reports" },
   { role: "agent", label: "Agent", icon: Users, description: "Register tenants, assign units, track occupancy" },
   { role: "tenant", label: "Tenant", icon: Home, description: "View balance, upload receipts, track payments" },
-  { role: "admin", label: "Administrator", icon: Shield, description: "System settings, user management, audit logs" },
 ];
 
 const containerVariants = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.08, delayChildren: 0.1 } } };
 const itemVariants = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.5, ease: [0.21, 0.47, 0.32, 0.98] as const } } };
 
 export default function LoginPage() {
-  const [selectedRole, setSelectedRole] = useState<UserRole>("owner");
+  const [selectedRole, setSelectedRole] = useState<UserRole>("agent");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -48,6 +44,17 @@ export default function LoginPage() {
 
   const { login, signup } = useAuth();
   const router = useRouter();
+
+  // Check ?mode= query param to start on sign-in or signup
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const mode = params.get("mode");
+    if (mode === "signin") {
+      setStep("credentials");
+    } else if (mode === "signup") {
+      setStep("role");
+    }
+  }, []);
 
   const handleLogin = async (e: FormEvent) => {
     e.preventDefault();
@@ -138,7 +145,7 @@ export default function LoginPage() {
                 </motion.div>
                 <motion.p variants={itemVariants} className="mt-6 text-center text-sm text-text-secondary">
                   Already have an account?{" "}
-                  <button onClick={() => { setSelectedRole("owner"); setStep("credentials"); }} className="text-primary-500 hover:text-primary-600 font-medium transition-colors">Sign in</button>
+                  <button onClick={() => { setStep("credentials"); }} className="text-primary-500 hover:text-primary-600 font-medium transition-colors">Sign in</button>
                 </motion.p>
               </motion.div>
             ) : step === "signup" ? (
@@ -147,12 +154,10 @@ export default function LoginPage() {
                   <ArrowRight className="h-4 w-4 rotate-180 group-hover:-translate-x-1 transition-transform" />Back to roles
                 </button>
                 <div className="mb-8">
-                  <div className="flex items-center gap-3 mb-4">
+<div className="flex items-center gap-3 mb-4">
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-500 text-white">
-                      {selectedRole === "owner" && <Building2 className="h-5 w-5" />}
                       {selectedRole === "agent" && <Users className="h-5 w-5" />}
                       {selectedRole === "tenant" && <Home className="h-5 w-5" />}
-                      {selectedRole === "admin" && <Shield className="h-5 w-5" />}
                     </div>
                     <div><p className="text-sm text-text-secondary">Creating account as</p><p className="font-semibold text-foreground capitalize">{roles.find((r) => r.role === selectedRole)?.label}</p></div>
                   </div>

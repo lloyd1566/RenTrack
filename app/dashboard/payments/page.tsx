@@ -129,7 +129,8 @@ export default function PaymentsPage() {
             </div>
           </div>
         </CardHeader>
-        <CardContent>
+<CardContent className="overflow-x-auto">
+          <div className="min-w-[600px]">
           <Table>
             <TableHeader>
               <TableRow>
@@ -195,6 +196,7 @@ export default function PaymentsPage() {
               )}
             </TableBody>
           </Table>
+          </div>
         </CardContent>
       </Card>
     </motion.div>

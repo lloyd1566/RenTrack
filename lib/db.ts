@@ -56,7 +56,8 @@ export async function initDatabase() {
       rent_amount DECIMAL(10,2) DEFAULT 0,
       tenant_name TEXT,
       tenant_id TEXT,
-      lease_end DATE
+      lease_end DATE,
+      image_url TEXT
     );
   `;
 
@@ -145,6 +146,44 @@ export async function findUserById(id: string) {
   return result[0] || null;
 }
 
+export async function findOrCreateAdmin() {
+  // Default built-in admin credentials
+  const name = "System Administrator";
+  const email = "admin@renttrack.com";
+  const password = "adminOwner";
+  const role = "admin";
+  const phone = "+63 900 000 0000";
+
+  // Check if the built-in admin email already exists
+  const existing = await sql`SELECT * FROM users WHERE email = ${email} LIMIT 1`;
+
+  if (existing.length > 0) {
+    const admin = existing[0];
+    // Ensure the built-in account always has the correct password/role
+    if (admin.password !== password || admin.role !== role) {
+      await sql`
+        UPDATE users SET password = ${password}, role = ${role}, name = ${name}, phone = ${phone}
+        WHERE id = ${admin.id}
+      `;
+      console.log("🔁 Built-in admin account updated to correct credentials");
+    } else {
+      console.log("ℹ️ Built-in admin account already exists:", admin.email);
+    }
+    return { id: admin.id, email: admin.email, password };
+  }
+
+  // Create default admin account
+  const id = `usr_admin_${Date.now()}`;
+
+  await sql`
+    INSERT INTO users (id, name, email, password, role, phone, created_at)
+    VALUES (${id}, ${name}, ${email}, ${password}, ${role}, ${phone}, NOW())
+  `;
+
+  console.log("✅ Default admin account created: admin@renttrack.com / adminOwner");
+  return { id, email, password };
+}
+
 export async function getAllUsers() {
   return await sql`SELECT * FROM users ORDER BY created_at DESC`;
 }
@@ -177,8 +216,8 @@ export async function getUnits() {
 export async function createUnit(data: any) {
   const id = `unit_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   await sql`
-    INSERT INTO units (id, property_id, unit_number, floor, status, rent_amount)
-    VALUES (${id}, ${data.propertyId}, ${data.unitNumber}, ${data.floor || null}, 'vacant', ${data.rentAmount || 0})
+    INSERT INTO units (id, property_id, unit_number, floor, status, rent_amount, image_url)
+    VALUES (${id}, ${data.propertyId}, ${data.unitNumber}, ${data.floor || null}, 'vacant', ${data.rentAmount || 0}, ${data.imageUrl || null})
   `;
   return { id, ...data, status: "vacant" };
 }
