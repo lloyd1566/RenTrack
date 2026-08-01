@@ -4,16 +4,16 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Building2, Users, CreditCard, BarChart3, Bell, Shield, ChevronRight, ArrowUpRight, Menu, X, Sparkles, MapPin, Mail, Sun, Moon } from "lucide-react";
+import { Building2, Users, CreditCard, BarChart3, Bell, Shield, ChevronRight, ArrowUpRight, Menu, Sparkles, MapPin, Mail, Search, BedDouble, Bath, Wifi, Car, PawPrint, Clock, Home, Star, Quote, CheckCircle2, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 
 const navItems = [
-  { label: "Features", href: "#features" },
-  { label: "Units", href: "#dashboard-preview" },
+  { label: "Listings", href: "#featured" },
+  { label: "Benefits", href: "#why-us" },
   { label: "How It Works", href: "#how-it-works" },
-  { label: "Dashboard", href: "/" },
+  { label: "Reviews", href: "#testimonials" },
   { label: "Contact", href: "#contact" },
 ];
 
@@ -27,28 +27,66 @@ const featureList = [
 ];
 
 const howItWorksData = [
-  { title: "Find Your Home", desc: "Browse houses and condo units with clear pricing, photos, and availability — pick the place that fits your lifestyle.", num: 1, img: "https://images.unsplash.com/photo-1512917774080-9991f1c4c750?w=600&q=80" },
-  { title: "Move In Fast", desc: "Register and apply in minutes with a simple, paperless process — get approved and move in without the hassle.", num: 2, img: "https://images.unsplash.com/photo-1600585154340-be6161a56a0c?w=600&q=80" },
-  { title: "Pay in a Tap", desc: "Upload your rent receipts in seconds, track your balance in real-time, and never lose a payment record again.", num: 3, img: "https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?w=600&q=80" },
-  { title: "Live Worry-Free", desc: "Get instant confirmations, due-date reminders, and a transparent history of every transaction — all in one app.", num: 4, img: "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600&q=80" },
+  { icon: Search, title: "Browse Listings", desc: "Explore houses and condominium units with photos, pricing, and location details.", num: 1 },
+  { icon: KeyRound, title: "Move In", desc: "Agents register tenants, assign units, and manage contracts pending owner approval.", num: 2 },
+  { icon: CreditCard, title: "Pay Online", desc: "Tenants upload receipts. Owners verify. Balances update automatically in real-time.", num: 3 },
+  { icon: BarChart3, title: "Track Everything", desc: "Dashboards show receivables, occupancy, and performance. Generate reports instantly.", num: 4 },
 ];
 
-// ─── Unsplash images for property cards ───
-const unitImages = [
-  "https://images.unsplash.com/photo-1522708323590-d24dbb6b0267?w=600&q=80",
-  "https://images.unsplash.com/photo-1502672260266-1c1ef2d93688?w=600&q=80",
-  "https://images.unsplash.com/photo-1493809842364-78817add7ffb?w=600&q=80",
-  "https://images.unsplash.com/photo-1568605114967-8130f3a36994?w=600&q=80",
-  "https://images.unsplash.com/photo-1570129477492-45c003edd2be?w=600&q=80",
-  "https://images.unsplash.com/photo-1560448204-e02f11c3d0e2?w=600&q=80",
-  "https://images.unsplash.com/photo-1505691938895-1758d7feb511?w=600&q=80",
+// ─── Local images (downloaded into public/images/landing) ───
+const heroImages = [
+  "/images/landing/hero-1.jpg",
+  "/images/landing/hero-2.jpg",
+  "/images/landing/hero-3.jpg",
+  "/images/landing/hero-4.jpg",
 ];
+
+const unitImages = [
+  "/images/landing/prop-1.jpg",
+  "/images/landing/prop-2.jpg",
+  "/images/landing/prop-3.jpg",
+  "/images/landing/prop-4.jpg",
+  "/images/landing/prop-5.jpg",
+  "/images/landing/prop-6.jpg",
+];
+
+// Featured listings shown to prospective tenants
+const featuredListings = [
+  { img: "/images/landing/prop-1.jpg", name: "Modern Family House", location: "Ampayon, Butuan City", price: "₱12,500", beds: 3, baths: 2, sqm: "120", badge: "For Rent", featured: true },
+  { img: "/images/landing/prop-2.jpg", name: "Cozy Condo Studio", location: "Langihan, Butuan City", price: "₱8,000", beds: 1, baths: 1, sqm: "32", badge: "For Rent", featured: false },
+  { img: "/images/landing/prop-3.jpg", name: "Spacious 2BR Apartment", location: "Doongan, Butuan City", price: "₱10,500", beds: 2, baths: 1, sqm: "85", badge: "For Rent", featured: false },
+  { img: "/images/landing/prop-4.jpg", name: "Gated Community House", location: "Libertad, Butuan City", price: "₱15,000", beds: 4, baths: 2, sqm: "150", badge: "For Rent", featured: true },
+  { img: "/images/landing/prop-5.jpg", name: "Executive Condo 2BR", location: "Butuan City Center", price: "₱14,000", beds: 2, baths: 2, sqm: "68", badge: "For Rent", featured: false },
+  { img: "/images/landing/prop-6.jpg", name: "Charming Townhouse", location: "Baan Riverside, Butuan", price: "₱9,800", beds: 2, baths: 2, sqm: "96", badge: "For Rent", featured: false },
+];
+
+// Tenant benefits strip
+const tenantBenefits = [
+  { icon: MapPin, title: "Prime Locations", desc: "Near schools, malls, and business districts" },
+  { icon: Shield, title: "Secure & Verified", desc: "Gated communities with strict screening" },
+  { icon: Wifi, title: "Fast Internet", desc: "Fiber-ready units for work-from-home" },
+  { icon: PawPrint, title: "Pet Friendly", desc: "Many units welcome your furry friends" },
+  { icon: Car, title: "Parking Available", desc: "Designated slots and garages" },
+  { icon: Clock, title: "24/7 Support", desc: "Responsive agents & maintenance help" },
+];
+
+// Testimonials from tenants
+const testimonials = [
+  { img: "/images/landing/avatar-1.jpg", name: "Marian R.", role: "Tenant — Condo Studio", quote: "Found my dream studio in days! The online payment tracking makes rent stress-free. Highly recommended!" },
+  { img: "/images/landing/avatar-2.jpg", name: "Joshua D.", role: "Tenant — Family House", quote: "Transparent pricing, no hidden fees. The landlord verified everything through RentTrack before I moved in." },
+  { img: "/images/landing/avatar-3.jpg", name: "Andrea L.", role: "Tenant — 2BR Apartment", quote: "I love the reminders and digital receipts. I can pay online and my balance updates instantly. Amazing!" },
+];
+
+// Normal app theme styles (matches login/dashboard pages)
+const card = "rounded-2xl border border-border bg-surface shadow-card";
+const chip = "inline-flex items-center gap-2 rounded-full bg-primary-50 px-4 py-1.5 text-sm font-medium mb-4 text-primary-600";
+const heading = "text-3xl sm:text-4xl font-bold text-text-primary";
+const sub = "mt-4 text-lg max-w-2xl mx-auto text-text-secondary";
 
 export default function LandingPage() {
   const router = useRouter();
-  const [isDark, setIsDark] = useState(true);
-  const [mounted, setMounted] = useState(false);
   const [units, setUnits] = useState<any[]>([]);
+  const [heroIndex, setHeroIndex] = useState(0);
 
   // Redirect to dashboard if the user is already logged in (including on refresh)
   useEffect(() => {
@@ -65,10 +103,12 @@ export default function LandingPage() {
     }
   }, [router]);
 
+  // Rotate hero background images
   useEffect(() => {
-    const saved = localStorage.getItem("landing_theme");
-    if (saved !== null) setIsDark(saved === "dark");
-    setMounted(true);
+    const timer = setInterval(() => {
+      setHeroIndex((prev) => (prev + 1) % heroImages.length);
+    }, 6000);
+    return () => clearInterval(timer);
   }, []);
 
   // Fetch real units from the database
@@ -86,374 +126,517 @@ export default function LandingPage() {
     })();
   }, []);
 
-  const toggleTheme = () => {
-    const next = !isDark;
-    setIsDark(next);
-    localStorage.setItem("landing_theme", next ? "dark" : "light");
-  };
-
-  // Theme-aware styles
-  const theme = {
-    pageBg: isDark ? "bg-slate-950" : "bg-slate-100",
-    textPrimary: isDark ? "text-white" : "text-slate-900",
-    textSecondary: isDark ? "text-slate-300" : "text-slate-600",
-    textTertiary: isDark ? "text-slate-400" : "text-slate-500",
-    navBg: isDark ? "bg-slate-950/80" : "bg-white/80",
-    navBorder: isDark ? "border-slate-800" : "border-slate-200",
-    cardBg: isDark ? "bg-slate-900 border-slate-700" : "bg-white border-slate-200",
-    cardShadow: isDark ? "shadow-xl shadow-black/30" : "shadow-xl shadow-slate-200",
-    cardIconBg: isDark ? "bg-primary-500/30" : "bg-primary-100",
-    cardIconColor: isDark ? "text-primary-300" : "text-primary-700",
-    chipBg: isDark ? "bg-white/10 text-white" : "bg-slate-900 text-white",
-    sectionHeading: isDark ? "text-white" : "text-slate-900",
-    footerBg: isDark ? "bg-slate-950 border-slate-800" : "bg-slate-900 border-slate-700",
-  };
-
-  if (!mounted) {
-    return <div className="min-h-screen bg-slate-950" />;
-  }
-
   return (
-    <main className={cn("min-h-screen relative transition-colors duration-300", theme.pageBg)}>
-      {/* Fixed background with subtle pattern */}
-      <div className="fixed inset-0 z-0 pointer-events-none">
-        <div className={cn(
-          "absolute inset-0 opacity-[0.03]",
-          isDark ? "bg-white" : "bg-slate-900"
-        )} style={{ backgroundImage: "linear-gradient(rgba(255,255,255,0.4) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.4) 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
-        {isDark && (
-          <motion.div animate={{ opacity: [0.1, 0.2, 0.1] }} transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-            className="absolute inset-0 bg-gradient-to-b from-primary-900/40 via-transparent to-secondary-900/40" />
-        )}
-      </div>
-
-      <div className="relative z-10">
-        {/* ─── Navigation ─── */}
-        <motion.nav
-          initial={{ opacity: 0, y: -20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5 }}
-          className={cn("fixed top-0 left-0 right-0 z-50 px-4 sm:px-6 lg:px-8 border-b backdrop-blur-xl transition-colors duration-300", theme.navBg, theme.navBorder)}
-        >
-          <div className="mx-auto max-w-7xl flex h-16 items-center justify-between">
-            <Link href="/" className="flex items-center gap-2 group">
-              <div className="relative h-9 w-9 overflow-hidden rounded-xl">
-                <Image src="/images/favicon/logo.png" alt="RentTrack Logo" fill className="object-contain" />
-              </div>
-              <span className={cn("text-lg font-bold", theme.textPrimary)}>Rent<span className="text-primary-500">Track</span></span>
-            </Link>
-
-            <div className="hidden md:flex items-center gap-8">
-              {navItems.map((item) => (
-                <a key={item.label} href={item.href} className={cn("text-sm font-medium transition-colors relative group", theme.textSecondary, isDark ? "hover:text-white" : "hover:text-slate-900")}>
-                  {item.label}
-                  <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-primary-500 rounded-full group-hover:w-full transition-all duration-300" />
-                </a>
-              ))}
+    <main className="min-h-screen bg-surface-secondary text-text-primary overflow-x-hidden">
+      {/* ─── Navigation ─── */}
+      <motion.nav
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+        className="fixed top-0 left-0 right-0 z-50 px-4 sm:px-6 lg:px-8 border-b border-border bg-surface/80 backdrop-blur-xl"
+      >
+        <div className="mx-auto max-w-7xl flex h-16 items-center justify-between">
+          <Link href="/" className="flex items-center gap-2 group">
+            <div className="relative h-9 w-9 overflow-hidden rounded-xl">
+              <Image src="/images/favicon/logo.png" alt="RentTrack Logo" fill className="object-contain" />
             </div>
+            <span className="text-lg font-bold text-text-primary">Rent<span className="text-primary-500">Track</span></span>
+          </Link>
 
-            <div className="hidden md:flex items-center gap-2">
-              <button onClick={toggleTheme} aria-label="Toggle theme"
-                className={cn("p-2 rounded-lg transition-colors", isDark ? "text-slate-300 hover:text-white hover:bg-white/10" : "text-slate-600 hover:text-slate-900 hover:bg-slate-200")}>
-                {isDark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-              </button>
-              <Link href="/login?mode=signin"><Button variant="ghost" size="sm" className={cn(isDark ? "text-slate-300 hover:text-white hover:bg-white/10" : "text-slate-600 hover:text-slate-900 hover:bg-slate-200")}>Sign In</Button></Link>
-              <Link href="/login?mode=signup"><Button size="sm" className="group bg-primary-500 hover:bg-primary-600 text-white shadow-lg shadow-primary-500/30">Get Started<ArrowUpRight className="ml-1.5 h-4 w-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" /></Button></Link>
-            </div>
-
-            <button onClick={() => document.getElementById("mobile-menu")?.classList.toggle("hidden")} className="md:hidden p-2 rounded-lg hover:bg-white/10 transition-colors text-slate-300">
-              <Menu className="h-5 w-5" />
-            </button>
-          </div>
-
-          <div id="mobile-menu" className="hidden md:hidden pb-4 space-y-2">
+          <div className="hidden md:flex items-center gap-8">
             {navItems.map((item) => (
-              <a key={item.label} href={item.href} className={cn("block px-4 py-2.5 rounded-lg text-sm font-medium transition-colors", theme.textSecondary, isDark ? "hover:text-white hover:bg-white/10" : "hover:text-slate-900 hover:bg-slate-200")}>{item.label}</a>
+              <a key={item.label} href={item.href} className="text-sm font-medium text-text-secondary transition-colors hover:text-text-primary relative group">
+                {item.label}
+                <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-primary-500 rounded-full group-hover:w-full transition-all duration-300" />
+              </a>
             ))}
-            <div className="pt-2 px-4 space-y-2">
-              <Link href="/login"><Button variant="outline" className="w-full border-slate-300 text-slate-700 hover:bg-slate-100">Sign In</Button></Link>
-              <Link href="/login"><Button className="w-full bg-primary-500 hover:bg-primary-600 text-white">Get Started</Button></Link>
+          </div>
+
+          <div className="hidden md:flex items-center gap-2">
+            <Link href="/login?mode=signin"><Button variant="ghost" size="sm" className="text-text-secondary hover:text-text-primary hover:bg-surface-tertiary">Sign In</Button></Link>
+            <Link href="/login?mode=signup"><Button size="sm" className="group bg-primary-600 hover:bg-primary-700 text-white shadow-lg shadow-primary-600/30">Get Started<ArrowUpRight className="ml-1.5 h-4 w-4 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" /></Button></Link>
+          </div>
+
+          <button onClick={() => document.getElementById("mobile-menu")?.classList.toggle("hidden")} className="md:hidden p-2 rounded-lg hover:bg-surface-tertiary transition-colors text-text-secondary">
+            <Menu className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div id="mobile-menu" className="hidden md:hidden pb-4 space-y-2">
+          {navItems.map((item) => (
+            <a key={item.label} href={item.href} className="block px-4 py-2.5 rounded-lg text-sm font-medium text-text-secondary transition-colors hover:text-text-primary hover:bg-surface-tertiary">{item.label}</a>
+          ))}
+          <div className="pt-2 px-4 space-y-2">
+            <Link href="/login"><Button variant="outline" className="w-full border-border text-text-primary hover:bg-surface-tertiary">Sign In</Button></Link>
+            <Link href="/login"><Button className="w-full bg-primary-600 hover:bg-primary-700 text-white">Get Started</Button></Link>
+          </div>
+        </div>
+      </motion.nav>
+
+      {/* ─── Hero (rotating photo slideshow for tenants) ─── */}
+      <section className="relative flex min-h-screen items-center justify-center overflow-hidden pt-16">
+        {heroImages.map((src, i) => (
+          <motion.div
+            key={src}
+            className="absolute inset-0"
+            initial={false}
+            animate={{ opacity: i === heroIndex ? 1 : 0, scale: i === heroIndex ? 1.05 : 1.1 }}
+            transition={{ duration: 1.6, ease: "easeInOut" }}
+          >
+            <Image src={src} alt="Available rental home" fill className="object-cover" priority={i === 0} />
+          </motion.div>
+        ))}
+        <div className="absolute inset-0 bg-gradient-to-b from-slate-900/70 via-slate-900/45 to-slate-900/70" />
+        <motion.div animate={{ x: [0, 30, 0], y: [0, -40, 0] }} transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }} className="absolute top-20 left-[10%] w-64 h-64 rounded-full bg-primary-500/20 blur-3xl" />
+        <motion.div animate={{ x: [0, -40, 0], y: [0, 30, 0] }} transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }} className="absolute top-40 right-[15%] w-80 h-80 rounded-full bg-secondary-500/20 blur-3xl" />
+        <motion.div animate={{ x: [0, 20, 0], y: [0, -20, 0] }} transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }} className="absolute bottom-20 left-[40%] w-72 h-72 rounded-full bg-accent-500/15 blur-3xl" />
+
+        <div className="relative z-10 mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 text-center">
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.1 }}
+            className="inline-flex items-center gap-2 rounded-full border border-white/30 bg-black/30 backdrop-blur-sm px-4 py-1.5 text-sm font-medium text-white mb-8">
+            <Home className="h-4 w-4 text-primary-300" />HedgeHomes Realty and Brokerage — Find your next home
+          </motion.div>
+          <motion.h1 initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.2 }}
+            className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold leading-tight tracking-tight drop-shadow-[0_2px_12px_rgba(0,0,0,0.6)]">
+            <span className="text-white">Find Your Perfect</span><br /><span className="bg-gradient-to-r from-primary-300 via-secondary-300 to-accent-300 bg-clip-text text-transparent">Rental Home</span>
+          </motion.h1>
+          <motion.p initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.35 }}
+            className="mx-auto mt-6 max-w-2xl text-lg sm:text-xl text-white leading-relaxed drop-shadow-[0_2px_8px_rgba(0,0,0,0.7)]">
+            Browse verified houses and condominium units. Pay rent online, track your balance, and get instant notifications — all from one simple platform.
+          </motion.p>
+
+          {/* Search bar mock */}
+          <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.45 }}
+            className="mt-10 mx-auto max-w-3xl bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-3 text-left">
+            <div className="flex items-center gap-3 rounded-xl bg-slate-100 px-4 py-3">
+              <Search className="h-5 w-5 text-primary-600 shrink-0" />
+              <div>
+                <div className="text-xs font-semibold text-text-tertiary">Location</div>
+                <input placeholder="Butuan City" className="w-full bg-transparent text-sm font-medium text-text-primary outline-none placeholder:text-text-tertiary" />
+              </div>
             </div>
-          </div>
-        </motion.nav>
-
-        {/* ─── Hero ─── */}
-        <section className="relative min-h-screen flex items-center justify-center overflow-hidden pt-16">
-          <div className="absolute inset-0">
-            <Image src="/images/favicon/landingpage.png" alt="Rental properties background" fill className="object-cover" priority />
-            <div className="absolute inset-0 bg-gradient-to-b from-slate-950/70 via-slate-950/40 to-slate-950/70" />
-          </div>
-          <motion.div animate={{ x: [0, 30, 0], y: [0, -40, 0] }} transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }} className="absolute top-20 left-[10%] w-64 h-64 rounded-full bg-primary-500/20 blur-3xl" />
-          <motion.div animate={{ x: [0, -40, 0], y: [0, 30, 0] }} transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }} className="absolute top-40 right-[15%] w-80 h-80 rounded-full bg-secondary-500/20 blur-3xl" />
-          <motion.div animate={{ x: [0, 20, 0], y: [0, -20, 0] }} transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }} className="absolute bottom-20 left-[40%] w-72 h-72 rounded-full bg-accent-500/15 blur-3xl" />
-
-          <div className="relative z-10 mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 text-center">
-            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6, delay: 0.1 }}
-              className="inline-flex items-center gap-2 rounded-full border border-white/25 bg-black/40 backdrop-blur-sm px-4 py-1.5 text-sm font-medium text-white mb-8">
-              <Sparkles className="h-4 w-4 text-primary-300" />HedgeHomes Realty and Brokerage — by RentTrack
-            </motion.div>
-            <motion.h1 initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.2 }}
-              className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-bold leading-tight tracking-tight drop-shadow-[0_2px_12px_rgba(0,0,0,0.6)]">
-              <span className="text-white">Streamline Your</span><br /><span className="bg-gradient-to-r from-primary-300 via-secondary-300 to-accent-300 bg-clip-text text-transparent">Rental Management</span>
-            </motion.h1>
-            <motion.p initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.35 }}
-              className="mx-auto mt-6 max-w-2xl text-lg sm:text-xl text-white/95 leading-relaxed drop-shadow-[0_2px_8px_rgba(0,0,0,0.7)]">
-              Track payments, manage properties, and monitor receivables in real-time. From owner to tenant - every role, every transaction, every notification.
-            </motion.p>
-            <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.5 }} className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link href="/login"><Button size="lg" className="group h-12 px-8 text-base bg-primary-500 hover:bg-primary-600 text-white shadow-lg shadow-primary-500/30 hover:shadow-primary-500/50 transition-all">Get Started Free<ChevronRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" /></Button></Link>
-              <a href="#features"><Button size="lg" className="h-12 px-8 text-base border-2 border-white/80 bg-black/40 backdrop-blur-sm text-white font-semibold hover:bg-black/60 hover:border-white">Explore Features</Button></a>
-            </motion.div>
-            <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.65 }} className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-8 max-w-3xl mx-auto">
-              {[
-                { value: "100%", label: "Digital Tracking" },
-                { value: "Real-time", label: "Notifications" },
-                { value: "4 Roles", label: "User Access" },
-                { value: "Zero", label: "Paper Records" },
-              ].map((stat, i) => (
-                <div key={i} className="text-center">
-                  <div className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-primary-300 to-secondary-300 bg-clip-text text-transparent drop-shadow-[0_2px_6px_rgba(0,0,0,0.6)]">{stat.value}</div>
-                  <div className="mt-1 text-sm text-white/90 drop-shadow-[0_1px_4px_rgba(0,0,0,0.8)]">{stat.label}</div>
-                </div>
-              ))}
-            </motion.div>
-          </div>
-        </section>
-
-        {/* ─── Features ─── */}
-        <section id="features" className="relative py-24 sm:py-32">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-16">
-              <span className={cn("inline-block rounded-full px-4 py-1.5 text-sm font-medium mb-4", theme.chipBg)}>Everything You Need</span>
-              <h2 className={cn("text-3xl sm:text-4xl font-bold", theme.sectionHeading)}>Powerful Features for <span className="bg-gradient-to-r from-primary-500 to-secondary-500 bg-clip-text text-transparent">Smart Management</span></h2>
-              <p className={cn("mt-4 text-lg max-w-2xl mx-auto", theme.textSecondary)}>From property tracking to payment verification, RentTrack covers every aspect of rental management with an intuitive, role-based interface.</p>
+            <div className="flex items-center gap-3 rounded-xl bg-slate-100 px-4 py-3">
+              <Home className="h-5 w-5 text-primary-600 shrink-0" />
+              <div>
+                <div className="text-xs font-semibold text-text-tertiary">Property Type</div>
+                <input placeholder="House / Condo / Studio" className="w-full bg-transparent text-sm font-medium text-text-primary outline-none placeholder:text-text-tertiary" />
+              </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {featureList.map((feature, i) => (
-                <motion.div key={i}
-                  initial={{ opacity: 0, y: 30 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.5, delay: i * 0.08 }}
-                  className={cn("rounded-2xl border p-8 transition-all duration-300 hover:-translate-y-1", theme.cardBg, theme.cardShadow)}>
-                  <div className={cn("mb-5 flex h-12 w-12 items-center justify-center rounded-xl", theme.cardIconBg)}>
-                    <feature.icon className={cn("h-6 w-6", theme.cardIconColor)} />
+            <Link href="#featured">
+              <Button size="lg" className="w-full sm:w-auto h-full bg-primary-600 hover:bg-primary-700 text-white shadow-lg shadow-primary-600/40">Search</Button>
+            </Link>
+          </motion.div>
+
+          <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.55 }} className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
+            <Link href="/login"><Button size="lg" className="group h-12 px-8 text-base bg-primary-600 hover:bg-primary-700 text-white shadow-lg shadow-primary-600/40 hover:shadow-primary-600/60 transition-all">Create Free Account<ChevronRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" /></Button></Link>
+            <a href="#featured"><Button size="lg" className="h-12 px-8 text-base border-2 border-white bg-black/30 backdrop-blur-sm text-white font-semibold hover:bg-black/50">Browse Listings</Button></a>
+          </motion.div>
+          <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.65 }} className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-8 max-w-3xl mx-auto">
+            {[
+              { value: "500+", label: "Happy Tenants" },
+              { value: "50+", label: "Verified Units" },
+              { value: "100%", label: "Online Payments" },
+              { value: "24/7", label: "Tenant Support" },
+            ].map((stat, i) => (
+              <div key={i} className="text-center">
+                <div className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-primary-300 to-secondary-300 bg-clip-text text-transparent drop-shadow-[0_2px_6px_rgba(0,0,0,0.6)]">{stat.value}</div>
+                <div className="mt-1 text-sm text-white drop-shadow-[0_1px_4px_rgba(0,0,0,0.8)]">{stat.label}</div>
+              </div>
+            ))}
+          </motion.div>
+        </div>
+      </section>
+
+      {/* ─── Featured Listings ─── */}
+      <section id="featured" className="py-24 sm:py-32">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <span className={chip}><Home className="h-4 w-4" />Available Now</span>
+            <h2 className={heading}>Featured <span className="bg-gradient-to-r from-primary-500 to-secondary-500 bg-clip-text text-transparent">Rental Units</span></h2>
+            <p className={sub}>Hand-picked houses and condominium units ready for you to move in.</p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+            {featuredListings.map((listing, i) => (
+              <motion.div
+                key={i}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: i * 0.08 }}
+                className={cn("group overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-card-hover", card)}
+              >
+                <div className="relative h-52 overflow-hidden">
+                  <Image src={listing.img} alt={listing.name} fill className="object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy" />
+                  <div className="absolute top-3 right-3">
+                    <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-600 text-white shadow">{listing.badge}</span>
                   </div>
-                  <h3 className={cn("text-lg font-semibold mb-3", theme.textPrimary)}>{feature.title}</h3>
-                  <p className={cn("text-sm leading-relaxed", theme.textSecondary)}>{feature.desc}</p>
-                </motion.div>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        {/* ─── Units Preview (from DB) ─── */}
-        <section id="dashboard-preview" className="relative py-24 sm:py-32">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-16">
-              <span className={cn("inline-block rounded-full px-4 py-1.5 text-sm font-medium mb-4", theme.chipBg)}>Live Preview</span>
-              <h2 className={cn("text-3xl sm:text-4xl font-bold", theme.sectionHeading)}>Units <span className="bg-gradient-to-r from-primary-500 to-secondary-500 bg-clip-text text-transparent">Preview</span></h2>
-              <p className={cn("mt-4 text-lg max-w-2xl mx-auto", theme.textSecondary)}>Units added by the admin/owner — displayed live from the database.</p>
-            </div>
-
-            {units.length === 0 ? (
-              <div className={cn("text-center py-20 rounded-2xl border", theme.cardBg, theme.cardShadow)}>
-                <Building2 className="h-16 w-16 mx-auto mb-4 text-text-tertiary" />
-                <h3 className={cn("text-xl font-semibold mb-2", theme.textPrimary)}>No Units Yet</h3>
-                <p className={cn("text-sm max-w-md mx-auto", theme.textSecondary)}>Units will appear here once the admin/owner adds them from the dashboard.</p>
-                <div className="mt-6">
-                  <Link href="/login?mode=signin">
-                    <Button size="lg" className="bg-primary-500 hover:bg-primary-600 text-white shadow-lg shadow-primary-500/30">
-                      Sign in as Admin <ChevronRight className="ml-2 h-4 w-4" />
+                  {listing.featured && (
+                    <div className="absolute top-3 left-3">
+                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-accent-500 text-white shadow">
+                        <Star className="h-3 w-3 fill-current" /> Featured
+                      </span>
+                    </div>
+                  )}
+                  <div className="absolute bottom-3 left-3">
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-sm font-bold bg-white/95 text-text-primary shadow">₱{listing.price.replace("₱", "")}<span className="text-xs font-medium text-text-tertiary">/mo</span></span>
+                  </div>
+                </div>
+                <div className="p-5">
+                  <h3 className="text-lg font-semibold text-text-primary">{listing.name}</h3>
+                  <p className="text-sm mt-1 flex items-center gap-1.5 text-text-secondary"><MapPin className="h-4 w-4 text-primary-600" />{listing.location}</p>
+                  <div className="flex items-center gap-4 mt-4 pt-4 border-t border-border text-xs text-text-tertiary">
+                    <span className="flex items-center gap-1.5"><BedDouble className="h-4 w-4 text-primary-500" />{listing.beds} Beds</span>
+                    <span className="flex items-center gap-1.5"><Bath className="h-4 w-4 text-primary-500" />{listing.baths} Baths</span>
+                    <span className="flex items-center gap-1.5"><Building2 className="h-4 w-4 text-primary-500" />{listing.sqm} m²</span>
+                  </div>
+                  <Link href="/login?mode=signup" className="mt-4 block w-full">
+                    <Button className="w-full bg-primary-600 hover:bg-primary-700 text-white group/btn">
+                      Reserve Now<ArrowUpRight className="ml-1.5 h-4 w-4 group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5 transition-transform" />
                     </Button>
                   </Link>
                 </div>
-              </div>
-            ) : (
-              <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {units.map((unit: any, i: number) => {
-                    const status = unit.status || "vacant";
-                    const isOccupied = status === "occupied";
-                    const statusColor = isOccupied ? "text-green-400 bg-green-500/10" : "text-amber-400 bg-amber-500/10";
-                    const img = unitImages[i % unitImages.length];
-                    // Handle both camelCase (client-side) and snake_case (raw DB) field names
-                    const unitNumber = unit.unitNumber || unit.unit_number || "Unit";
-                    const rentAmount = unit.rentAmount ?? unit.rent_amount ?? 0;
-                    const rent = rentAmount ? `₱${Number(rentAmount).toLocaleString()}` : "₱0";
-                    const propName = unit.propertyName || unit.property_name || unit.propertyId || unit.property_id || "—";
-                    const tenantName = unit.tenantName || unit.tenant_name || unit.tenantId || unit.tenant_id || "— Vacant —";
-                    return (
-                      <motion.div
-                        key={unit.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        whileInView={{ opacity: 1, y: 0 }}
-                        viewport={{ once: true }}
-                        transition={{ duration: 0.4, delay: (i % 7) * 0.05 }}
-                        className={cn("group overflow-hidden rounded-2xl border transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl", theme.cardBg, theme.cardShadow)}
-                      >
-                        <div className="relative h-44 overflow-hidden">
-                          <img src={img} alt={unitNumber} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy" />
-                          <div className="absolute top-3 right-3">
-                            <span className={cn("inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium", statusColor)}>
-                              {status.charAt(0).toUpperCase() + status.slice(1)}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="p-5">
-                          <div className="flex items-center justify-between mb-2">
-                            <h3 className={cn("text-lg font-semibold", theme.textPrimary)}>{unitNumber}</h3>
-                            <span className={cn("text-sm font-semibold", theme.textPrimary)}>{rent}<span className="text-xs text-text-tertiary">/mo</span></span>
-                          </div>
-                          <p className={cn("text-sm mb-3", theme.textSecondary)}>{propName}</p>
-                          <div className={cn("flex items-center justify-between pt-3 border-t text-xs", isDark ? "border-slate-700" : "border-slate-100")}>
-                            <span className={theme.textTertiary}>{tenantName}</span>
-                            <span className="text-primary-500 font-medium">View Details →</span>
-                          </div>
-                        </div>
-                      </motion.div>
-                    );
-                  })}
-                </div>
-                <div className="text-center mt-10">
-                  <Link href="/login?mode=signin">
-                    <Button size="lg" className="bg-primary-500 hover:bg-primary-600 text-white shadow-lg shadow-primary-500/30">
-                      Sign in to Manage <ChevronRight className="ml-2 h-4 w-4" />
-                    </Button>
-                  </Link>
-                </div>
-              </>
-            )}
+              </motion.div>
+            ))}
           </div>
-        </section>
-
-        {/* ─── How It Works ─── */}
-        <section id="how-it-works" className="relative py-24 sm:py-32">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-16">
-              <span className={cn("inline-block rounded-full px-4 py-1.5 text-sm font-medium mb-4", theme.chipBg)}>Tenant-Friendly Process</span>
-              <h2 className={cn("text-3xl sm:text-4xl font-bold", theme.sectionHeading)}>Renting Made <span className="bg-gradient-to-r from-primary-500 to-secondary-500 bg-clip-text text-transparent">Easy</span></h2>
-              <p className={cn("mt-4 text-lg max-w-2xl mx-auto", theme.textSecondary)}>From finding your perfect place to paying rent in seconds — everything you need in four simple steps.</p>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-              {howItWorksData.map((step, i) => (
-                <motion.div key={i}
-                  initial={{ opacity: 0, y: 30 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.5, delay: i * 0.1 }}
-                  className={cn("relative flex flex-col items-center text-center p-6 rounded-2xl border", theme.cardBg, theme.cardShadow)}>
-                  <div className="relative mb-6 w-full overflow-hidden rounded-2xl">
-                    <img src={step.img} alt={step.title} className="h-40 w-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy" />
-                    <div className="absolute top-3 right-3 flex h-8 w-8 items-center justify-center rounded-full bg-accent-500 text-white text-sm font-bold shadow-lg">{step.num}</div>
-                  </div>
-                  <h3 className={cn("text-lg font-semibold mb-2", theme.textPrimary)}>{step.title}</h3>
-                  <p className={cn("text-sm leading-relaxed max-w-xs", theme.textSecondary)}>{step.desc}</p>
-                </motion.div>
-              ))}
-            </div>
+          <div className="text-center mt-10">
+            <Link href="/login?mode=signin">
+              <Button variant="outline" size="lg" className="border-border text-text-primary hover:bg-surface-tertiary">View All Units<ChevronRight className="ml-2 h-4 w-4" /></Button>
+            </Link>
           </div>
-        </section>
+        </div>
+      </section>
 
-        {/* ─── CTA ─── */}
-        <section className="relative py-24 sm:py-32 overflow-hidden">
-          <div className="relative z-10 mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 text-center">
-            <span className={cn("inline-block rounded-full px-4 py-1.5 text-sm font-medium mb-4", theme.chipBg)}>Get Started
-            </span>
-            <h2 className={cn("text-3xl sm:text-4xl font-bold", theme.sectionHeading)}>
-              Ready to Take Control of Your <span className="bg-gradient-to-r from-primary-500 to-secondary-500 bg-clip-text text-transparent">Rental Management?</span>
-            </h2>
-            <p className={cn("mt-4 text-lg max-w-2xl mx-auto", theme.textSecondary)}>
-              Join property owners who have streamlined their rental operations with RentTrack. Sign up in minutes and start managing everything from one place.
-            </p>
-            <div className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
-              <Link href="/login?mode=signup">
-                <Button size="lg" className="group h-12 px-8 text-base bg-primary-500 hover:bg-primary-600 text-white shadow-lg shadow-primary-500/30">
-                  Get Started Free<ChevronRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" />
-                </Button>
-              </Link>
-              <Link href="/login?mode=signin">
-                <Button size="lg" className="h-12 px-8 text-base border-2 border-slate-300 text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800">
-                  Sign In
-                </Button>
-              </Link>
-            </div>
+      {/* ─── Why Tenants Choose Us ─── */}
+      <section id="why-us" className="py-24 sm:py-32 bg-surface">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            <motion.div initial={{ opacity: 0, x: -30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }} className="relative">
+              <div className="relative rounded-2xl overflow-hidden shadow-2xl">
+                <Image src="/images/landing/neighborhood.jpg" alt="Safe residential neighborhood" width={800} height={600} className="w-full h-auto object-cover" loading="lazy" />
+              </div>
+              <motion.div animate={{ y: [0, -10, 0] }} transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                className="absolute -bottom-6 -right-4 sm:-right-6 bg-surface rounded-2xl shadow-card-hover border border-border p-4 flex items-center gap-3 max-w-[240px]">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-secondary-50">
+                  <KeyRound className="h-5 w-5 text-secondary-600" />
+                </div>
+                <div>
+                  <div className="text-sm font-bold text-text-primary">Move-in Ready</div>
+                  <div className="text-xs text-text-tertiary">Verified & fully inspected</div>
+                </div>
+              </motion.div>
+            </motion.div>
+            <motion.div initial={{ opacity: 0, x: 30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }}>
+              <span className={chip}><Sparkles className="h-4 w-4" />Why Tenants Love Us</span>
+              <h2 className={heading}>A Better Way to <span className="bg-gradient-to-r from-primary-500 to-secondary-500 bg-clip-text text-transparent">Find & Pay for Your Home</span></h2>
+              <p className={sub + " !max-w-lg !mx-0"}>No more confusing listings or messy manual rent payments. We connect tenants with verified landlords and make everything digital.</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8">
+                {tenantBenefits.map((b, i) => (
+                  <motion.div key={i} initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }} transition={{ duration: 0.4, delay: i * 0.05 }}
+                    className={cn("p-4 flex items-start gap-3", card)}>
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-primary-50">
+                      <b.icon className="h-5 w-5 text-primary-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-semibold text-text-primary">{b.title}</h3>
+                      <p className="text-xs mt-0.5 text-text-secondary">{b.desc}</p>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
           </div>
-        </section>
+        </div>
+      </section>
 
-        {/* ─── Contact ─── */}
-        <section id="contact" className="relative py-24 sm:py-32">
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div className="text-center mb-16">
-              <span className={cn("inline-block rounded-full px-4 py-1.5 text-sm font-medium mb-4", theme.chipBg)}>Contact Us</span>
-              <h2 className={cn("text-3xl sm:text-4xl font-bold", theme.sectionHeading)}>Get in <span className="bg-gradient-to-r from-primary-500 to-secondary-500 bg-clip-text text-transparent">Touch</span></h2>
-              <p className={cn("mt-4 text-lg max-w-2xl mx-auto", theme.textSecondary)}>Have questions about RentTrack? Our team is ready to help.</p>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <div className={cn("rounded-2xl border p-8 text-center", theme.cardBg, theme.cardShadow)}>
-                <div className={cn("mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-xl", theme.cardIconBg)}>
-                  <MapPin className={cn("h-6 w-6", theme.cardIconColor)} />
-                </div>
-                <h3 className={cn("text-lg font-semibold mb-3", theme.textPrimary)}>Location</h3>
-                <p className={cn("text-sm leading-relaxed", theme.textSecondary)}>Butuan City, Philippines</p>
-              </div>
-              <div className={cn("rounded-2xl border p-8 text-center", theme.cardBg, theme.cardShadow)}>
-                <div className={cn("mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-xl", theme.cardIconBg)}>
-                  <Mail className={cn("h-6 w-6", theme.cardIconColor)} />
-                </div>
-                <h3 className={cn("text-lg font-semibold mb-3", theme.textPrimary)}>Email</h3>
-                <p className={cn("text-sm leading-relaxed", theme.textSecondary)}>hello@renttrack.ph</p>
-              </div>
-              <div className={cn("rounded-2xl border p-8 text-center", theme.cardBg, theme.cardShadow)}>
-                <div className={cn("mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-xl", theme.cardIconBg)}>
-                  <Bell className={cn("h-6 w-6", theme.cardIconColor)} />
-                </div>
-                <h3 className={cn("text-lg font-semibold mb-3", theme.textPrimary)}>Support</h3>
-                <p className={cn("text-sm leading-relaxed", theme.textSecondary)}>We typically respond within 24 hours.</p>
-              </div>
-            </div>
+      {/* ─── Features ─── */}
+      <section id="features" className="py-24 sm:py-32">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <span className={chip}><Sparkles className="h-4 w-4" />Everything You Need</span>
+            <h2 className={heading}>Powerful Features for <span className="bg-gradient-to-r from-primary-500 to-secondary-500 bg-clip-text text-transparent">Smart Management</span></h2>
+            <p className={sub}>From property tracking to payment verification, RentTrack covers every aspect of rental management with an intuitive, role-based interface.</p>
           </div>
-        </section>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {featureList.map((feature, i) => (
+              <motion.div key={i}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: i * 0.08 }}
+                className={cn("p-8 transition-all duration-300 hover:-translate-y-1 hover:shadow-card-hover", card)}>
+                <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-primary-50">
+                  <feature.icon className="h-6 w-6 text-primary-600" />
+                </div>
+                <h3 className="text-lg font-semibold mb-3 text-text-primary">{feature.title}</h3>
+                <p className="text-sm leading-relaxed text-text-secondary">{feature.desc}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
 
-        {/* ─── Footer ─── */}
-        <footer id="footer" className={cn("border-t py-12", theme.footerBg)}>
-          <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-              <div className="md:col-span-2">
-                <Link href="/" className="flex items-center gap-2 mb-4">
-                  <div className="relative h-9 w-9 overflow-hidden rounded-xl">
-                    <Image src="/images/favicon/logo.png" alt="RentTrack Logo" fill className="object-contain" />
-                  </div>
-                  <span className={cn("text-lg font-bold", theme.textPrimary)}>Rent<span className="text-primary-500">Track</span></span>
+      {/* ─── Live Units Preview (from DB) ─── */}
+      <section id="dashboard-preview" className="py-24 sm:py-32 bg-surface">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <span className={chip}><Building2 className="h-4 w-4" />Live Preview</span>
+            <h2 className={heading}>Units <span className="bg-gradient-to-r from-primary-500 to-secondary-500 bg-clip-text text-transparent">Preview</span></h2>
+            <p className={sub}>Units added by the admin/owner — displayed live from the database.</p>
+          </div>
+
+          {units.length === 0 ? (
+            <div className={cn("text-center py-16", card)}>
+              <div className="relative w-40 h-40 mx-auto mb-6 rounded-2xl overflow-hidden">
+                <Image src="/images/landing/keys.jpg" alt="Ready for new tenants" fill className="object-cover" />
+              </div>
+              <h3 className="text-xl font-semibold mb-2 text-text-primary">Be One of Our First Tenants</h3>
+              <p className="text-sm max-w-md mx-auto text-text-secondary">New verified units are being added. Browse our featured listings above or sign up to get notified when new homes become available.</p>
+              <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
+                <Link href="/login?mode=signup">
+                  <Button size="lg" className="bg-primary-600 hover:bg-primary-700 text-white shadow-lg shadow-primary-600/30">
+                    Get Notified<ChevronRight className="ml-2 h-4 w-4" />
+                  </Button>
                 </Link>
-                <p className={cn("text-sm max-w-md leading-relaxed", theme.textSecondary)}>
-                  HedgeHomes Realty and Brokerage — powered by RentTrack. A Rental Payment, Receivables, and Property Monitoring System for House and Condominium Room Rentals.
-                </p>
-              </div>
-              <div>
-                <h4 className={cn("font-semibold text-sm mb-4", theme.textPrimary)}>Quick Links</h4>
-                <ul className="space-y-3">
-                  {navItems.map((item) => (
-                    <li key={item.label}>
-                      <a href={item.href} className={cn("text-sm transition-colors", theme.textSecondary, isDark ? "hover:text-white" : "hover:text-slate-900")}>{item.label}</a>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div>
-                <h4 className={cn("font-semibold text-sm mb-4", theme.textPrimary)}>Contact</h4>
-                <ul className="space-y-3">
-                  <li className={cn("flex items-center gap-2 text-sm", theme.textSecondary)}><MapPin className="h-4 w-4 text-primary-500" /> Butuan City, Philippines</li>
-                  <li className={cn("flex items-center gap-2 text-sm", theme.textSecondary)}><Mail className="h-4 w-4 text-primary-500" /> hello@renttrack.ph</li>
-                </ul>
+                <Link href="#featured">
+                  <Button variant="outline" size="lg" className="border-border text-text-primary hover:bg-surface-tertiary">See Featured Units</Button>
+                </Link>
               </div>
             </div>
-            <div className={cn("mt-10 pt-6 border-t text-center text-sm", theme.textTertiary, isDark ? "border-slate-800" : "border-slate-200")}>
-              © {new Date().getFullYear()} RentTrack. All rights reserved.
+          ) : (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                {units.map((unit: any, i: number) => {
+                  const status = unit.status || "vacant";
+                  const isOccupied = status === "occupied";
+                  const statusColor = isOccupied ? "text-green-700 bg-green-100" : "text-amber-700 bg-amber-100";
+                  const img = unitImages[i % unitImages.length];
+                  // Handle both camelCase (client-side) and snake_case (raw DB) field names
+                  const unitNumber = unit.unitNumber || unit.unit_number || "Unit";
+                  const rentAmount = unit.rentAmount ?? unit.rent_amount ?? 0;
+                  const rent = rentAmount ? `₱${Number(rentAmount).toLocaleString()}` : "₱0";
+                  const propName = unit.propertyName || unit.property_name || unit.propertyId || unit.property_id || "—";
+                  const tenantName = unit.tenantName || unit.tenant_name || unit.tenantId || unit.tenant_id || "— Vacant —";
+                  return (
+                    <motion.div
+                      key={unit.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      whileInView={{ opacity: 1, y: 0 }}
+                      viewport={{ once: true }}
+                      transition={{ duration: 0.4, delay: (i % 7) * 0.05 }}
+                      className={cn("group overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-card-hover", card)}
+                    >
+                      <div className="relative h-44 overflow-hidden">
+                        <Image src={img} alt={`${unitNumber} photo`} fill className="object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy" />
+                        <div className="absolute top-3 right-3">
+                          <span className={cn("inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium", statusColor)}>
+                            {status.charAt(0).toUpperCase() + status.slice(1)}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="p-5">
+                        <div className="flex items-center justify-between mb-2">
+                          <h3 className="text-lg font-semibold text-text-primary">{unitNumber}</h3>
+                          <span className="text-sm font-semibold text-text-primary">{rent}<span className="text-xs text-text-tertiary">/mo</span></span>
+                        </div>
+                        <p className="text-sm mb-3 text-text-secondary">{propName}</p>
+                        <div className="flex items-center justify-between pt-3 border-t border-border text-xs">
+                          <span className="text-text-tertiary">{tenantName}</span>
+                          <span className="text-primary-600 font-medium">View Details →</span>
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+              <div className="text-center mt-10">
+                <Link href="/login?mode=signin">
+                  <Button size="lg" className="bg-primary-600 hover:bg-primary-700 text-white shadow-lg shadow-primary-600/30">
+                    Sign in to Manage <ChevronRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </Link>
+              </div>
+            </>
+          )}
+        </div>
+      </section>
+
+      {/* ─── How It Works ─── */}
+      <section id="how-it-works" className="py-24 sm:py-32">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <span className={chip}><Users className="h-4 w-4" />Simple Process</span>
+            <h2 className={heading}>Moving In Is <span className="bg-gradient-to-r from-primary-500 to-secondary-500 bg-clip-text text-transparent">Easy</span></h2>
+            <p className={sub}>Get into your new home in four simple steps</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+            {howItWorksData.map((step, i) => (
+              <motion.div key={i}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: i * 0.1 }}
+                className={cn("relative flex flex-col items-center text-center p-6", card)}>
+                <div className="relative mb-6">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-500 to-primary-600 text-white shadow-lg shadow-primary-500/25">
+                    <step.icon className="h-7 w-7" />
+                  </div>
+                  <div className="absolute -top-2 -right-2 flex h-7 w-7 items-center justify-center rounded-full bg-accent-500 text-white text-xs font-bold shadow-lg">{step.num}</div>
+                </div>
+                <h3 className="text-lg font-semibold mb-2 text-text-primary">{step.title}</h3>
+                <p className="text-sm leading-relaxed max-w-xs text-text-secondary">{step.desc}</p>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ─── Testimonials ─── */}
+      <section id="testimonials" className="py-24 sm:py-32 bg-surface">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <span className={chip}><Star className="h-4 w-4" />Happy Tenants</span>
+            <h2 className={heading}>What Our <span className="bg-gradient-to-r from-primary-500 to-secondary-500 bg-clip-text text-transparent">Tenants Say</span></h2>
+            <p className={sub}>Real experiences from tenants who found their home through RentTrack.</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {testimonials.map((t, i) => (
+              <motion.div key={i}
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: i * 0.1 }}
+                className={cn("relative p-8", card)}>
+                <Quote className="h-8 w-8 text-primary-200 mb-4" />
+                <div className="flex items-center gap-1 mb-4">
+                  {[...Array(5)].map((_, s) => (
+                    <Star key={s} className="h-4 w-4 text-amber-400 fill-current" />
+                  ))}
+                </div>
+                <p className="text-sm leading-relaxed text-text-secondary mb-6">"{t.quote}"</p>
+                <div className="flex items-center gap-3">
+                  <div className="relative h-11 w-11 rounded-full overflow-hidden">
+                    <Image src={t.img} alt={t.name} fill className="object-cover" loading="lazy" />
+                  </div>
+                  <div>
+                    <div className="text-sm font-semibold text-text-primary">{t.name}</div>
+                    <div className="text-xs text-text-tertiary">{t.role}</div>
+                  </div>
+                </div>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ─── Tenant CTA ─── */}
+      <section className="py-24 sm:py-28">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            whileInView={{ opacity: 1, y: 0 }}
+            viewport={{ once: true }}
+            transition={{ duration: 0.6 }}
+            className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-primary-600 via-primary-700 to-secondary-700 px-6 py-16 sm:px-16 text-center"
+          >
+            <div className="absolute inset-0 opacity-10">
+              <Image src="/images/landing/hero-4.jpg" alt="" fill className="object-cover" />
+            </div>
+            <motion.div animate={{ x: [0, 30, 0], y: [0, -30, 0] }} transition={{ duration: 9, repeat: Infinity, ease: "easeInOut" }} className="absolute top-8 left-10 w-40 h-40 rounded-full bg-white/10 blur-3xl" />
+            <motion.div animate={{ x: [0, -30, 0], y: [0, 30, 0] }} transition={{ duration: 11, repeat: Infinity, ease: "easeInOut" }} className="absolute bottom-8 right-10 w-56 h-56 rounded-full bg-white/10 blur-3xl" />
+            <div className="relative z-10">
+              <CheckCircle2 className="h-12 w-12 mx-auto mb-6 text-secondary-300" />
+              <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white leading-tight">Ready to Move In?</h2>
+              <p className="mx-auto mt-4 max-w-xl text-base sm:text-lg text-white/85">
+                Create a free account today to browse units, submit rental applications, and pay your rent online — all in one place.
+              </p>
+              <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
+                <Link href="/login?mode=signup">
+                  <Button size="lg" className="h-12 px-8 text-base bg-white text-primary-700 hover:bg-slate-100 shadow-xl">
+                    Get Started Free<ArrowUpRight className="ml-2 h-4 w-4" />
+                  </Button>
+                </Link>
+                <Link href="#contact">
+                  <Button size="lg" className="h-12 px-8 text-base border-2 border-white/70 bg-transparent text-white hover:bg-white/10">Contact an Agent</Button>
+                </Link>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      </section>
+
+      {/* ─── Contact ─── */}
+      <section id="contact" className="py-24 sm:py-32">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="text-center mb-16">
+            <span className={chip}><Mail className="h-4 w-4" />Contact Us</span>
+            <h2 className={heading}>Get in <span className="bg-gradient-to-r from-primary-500 to-secondary-500 bg-clip-text text-transparent">Touch</span></h2>
+            <p className={sub}>Have questions about RentTrack? Our team is ready to help.</p>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className={cn("p-8 text-center", card)}>
+              <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-primary-50">
+                <MapPin className="h-6 w-6 text-primary-600" />
+              </div>
+              <h3 className="text-lg font-semibold mb-3 text-text-primary">Location</h3>
+              <p className="text-sm leading-relaxed text-text-secondary">Butuan City, Philippines</p>
+            </div>
+            <div className={cn("p-8 text-center", card)}>
+              <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-primary-50">
+                <Mail className="h-6 w-6 text-primary-600" />
+              </div>
+              <h3 className="text-lg font-semibold mb-3 text-text-primary">Email</h3>
+              <p className="text-sm leading-relaxed text-text-secondary">hello@renttrack.ph</p>
+            </div>
+            <div className={cn("p-8 text-center", card)}>
+              <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-primary-50">
+                <Bell className="h-6 w-6 text-primary-600" />
+              </div>
+              <h3 className="text-lg font-semibold mb-3 text-text-primary">Support</h3>
+              <p className="text-sm leading-relaxed text-text-secondary">We typically respond within 24 hours.</p>
             </div>
           </div>
-        </footer>
-      </div>
+        </div>
+      </section>
+
+      {/* ─── Footer ─── */}
+      <footer id="footer" className="border-t border-border bg-surface py-12">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+            <div className="md:col-span-2">
+              <Link href="/" className="flex items-center gap-2 mb-4">
+                <div className="relative h-9 w-9 overflow-hidden rounded-xl">
+                  <Image src="/images/favicon/logo.png" alt="RentTrack Logo" fill className="object-contain" />
+                </div>
+                <span className="text-lg font-bold text-text-primary">Rent<span className="text-primary-500">Track</span></span>
+              </Link>
+              <p className="text-sm max-w-md leading-relaxed text-text-secondary">
+                HedgeHomes Realty and Brokerage — powered by RentTrack. A Rental Payment, Receivables, and Property Monitoring System for House and Condominium Room Rentals.
+              </p>
+            </div>
+            <div>
+              <h4 className="font-semibold text-sm mb-4 text-text-primary">Quick Links</h4>
+              <ul className="space-y-3">
+                {navItems.map((item) => (
+                  <li key={item.label}>
+                    <a href={item.href} className="text-sm text-text-secondary transition-colors hover:text-text-primary">{item.label}</a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+            <div>
+              <h4 className="font-semibold text-sm mb-4 text-text-primary">Contact</h4>
+              <ul className="space-y-3">
+                <li className="flex items-center gap-2 text-sm text-text-secondary"><MapPin className="h-4 w-4 text-primary-600" /> Butuan City, Philippines</li>
+                <li className="flex items-center gap-2 text-sm text-text-secondary"><Mail className="h-4 w-4 text-primary-600" /> hello@renttrack.ph</li>
+              </ul>
+            </div>
+          </div>
+          <div className="mt-10 pt-6 border-t border-border text-center text-sm text-text-tertiary">
+            © {new Date().getFullYear()} RentTrack. All rights reserved.
+          </div>
+        </div>
+      </footer>
     </main>
   );
 }
+
