@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import { Building2, Users, CreditCard, BarChart3, Bell, Shield, ChevronRight, ArrowUpRight, Menu, Sparkles, MapPin, Mail, Search, Wifi, Car, PawPrint, Clock, Home, CheckCircle2, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -59,7 +60,23 @@ const heading = "text-3xl sm:text-4xl font-bold text-text-primary";
 const sub = "mt-4 text-lg max-w-2xl mx-auto text-text-secondary";
 
 export default function LandingPage() {
+  const router = useRouter();
   const [units, setUnits] = useState<any[]>([]);
+
+  // Redirect to dashboard if the user is already logged in (including on refresh)
+  useEffect(() => {
+    const session = localStorage.getItem("renttrack_session");
+    if (session) {
+      try {
+        const parsed = JSON.parse(session);
+        if (parsed && parsed.id) {
+          router.replace("/dashboard");
+        }
+      } catch {
+        // invalid session — ignore
+      }
+    }
+  }, [router]);
 
   // Fetch real units from the database
   useEffect(() => {
