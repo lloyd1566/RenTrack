@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { Building2, Users, CreditCard, BarChart3, Bell, Shield, ChevronRight, ArrowUpRight, Menu, Sparkles, MapPin, Mail, Search, Wifi, Car, PawPrint, Clock, Home, CheckCircle2, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/lib/auth";
 import Link from "next/link";
 
 const navItems = [
@@ -61,28 +62,19 @@ const sub = "mt-4 text-lg max-w-2xl mx-auto text-text-secondary";
 
 export default function LandingPage() {
   const router = useRouter();
+  const { user, isLoading } = useAuth();
   const [units, setUnits] = useState<any[]>([]);
-  const [hasSession, setHasSession] = useState(false);
 
   // Redirect to dashboard if the user is already logged in (including on refresh)
   useEffect(() => {
-    const session = localStorage.getItem("renttrack_session");
-    if (session) {
-      try {
-        const parsed = JSON.parse(session);
-        if (parsed && parsed.id) {
-          router.replace("/dashboard");
-          setHasSession(true);
-        }
-      } catch {
-        // invalid session — ignore
-      }
+    if (!isLoading && user) {
+      router.replace("/dashboard");
     }
-  }, [router]);
+  }, [isLoading, user, router]);
 
   // Resolve navbar href so Dashboard goes to Sign In when logged out
   const hrefFor = (item: { label: string; href: string }) =>
-    item.label === "Dashboard" && !hasSession ? "/login?mode=signin" : item.href;
+    item.label === "Dashboard" && !user ? "/login?mode=signin" : item.href;
 
   // Fetch real units from the database
   useEffect(() => {
@@ -459,14 +451,14 @@ export default function LandingPage() {
                 <MapPin className="h-6 w-6 text-primary-600" />
               </div>
               <h3 className="text-lg font-semibold mb-3 text-text-primary">Location</h3>
-              <p className="text-sm leading-relaxed text-text-secondary">Butuan City, Philippines</p>
+              <p className="text-sm leading-relaxed text-text-secondary">Butuan City, Agusan del Norte, Philippines</p>
             </div>
             <div className={cn("p-8 text-center", card)}>
               <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-primary-50">
                 <Mail className="h-6 w-6 text-primary-600" />
               </div>
               <h3 className="text-lg font-semibold mb-3 text-text-primary">Email</h3>
-              <p className="text-sm leading-relaxed text-text-secondary">hello@renttrack.ph</p>
+              <p className="text-sm leading-relaxed text-text-secondary">admin@renttrack.com</p>
             </div>
             <div className={cn("p-8 text-center", card)}>
               <div className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-primary-50">
@@ -507,8 +499,8 @@ export default function LandingPage() {
             <div>
               <h4 className="font-semibold text-sm mb-4 text-text-primary">Contact</h4>
               <ul className="space-y-3">
-                <li className="flex items-center gap-2 text-sm text-text-secondary"><MapPin className="h-4 w-4 text-primary-600" /> Butuan City, Philippines</li>
-                <li className="flex items-center gap-2 text-sm text-text-secondary"><Mail className="h-4 w-4 text-primary-600" /> hello@renttrack.ph</li>
+                <li className="flex items-center gap-2 text-sm text-text-secondary"><MapPin className="h-4 w-4 text-primary-600" /> Butuan City, Agusan del Norte, Philippines</li>
+                <li className="flex items-center gap-2 text-sm text-text-secondary"><Mail className="h-4 w-4 text-primary-600" /> admin@renttrack.com</li>
               </ul>
             </div>
           </div>
