@@ -3,15 +3,13 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 import { Building2, Users, CreditCard, BarChart3, Bell, Shield, ChevronRight, ArrowUpRight, Menu, Sparkles, MapPin, Mail, Search, Wifi, Car, PawPrint, Clock, Home, CheckCircle2, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useAuth } from "@/lib/auth";
 import Link from "next/link";
 
 const navItems = [
-  { label: "Dashboard", href: "/dashboard" },
+  { label: "Dashboard", href: "/" },
   { label: "Units", href: "#units" },
   { label: "Benefits", href: "#why-us" },
   { label: "How It Works", href: "#how-it-works" },
@@ -61,21 +59,7 @@ const heading = "text-3xl sm:text-4xl font-bold text-text-primary";
 const sub = "mt-4 text-lg max-w-2xl mx-auto text-text-secondary";
 
 export default function LandingPage() {
-  const router = useRouter();
-  const { user, isLoading } = useAuth();
   const [units, setUnits] = useState<any[]>([]);
-
-  // Redirect to dashboard if the user is already logged in (including on refresh)
-  useEffect(() => {
-    if (!isLoading && user) {
-      router.replace("/dashboard");
-    }
-  }, [isLoading, user, router]);
-
-  // Navigation links always point to their real destinations.
-  // The dashboard route itself is protected (its layout sends guests to Sign In),
-  // so we don't pre-redirect here — clicking Dashboard always goes to /dashboard.
-
 
   // Fetch real units from the database
   useEffect(() => {
