@@ -3,32 +3,33 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import Image from "next/image";
-import { useRouter } from "next/navigation";
 import { Building2, Users, CreditCard, BarChart3, Bell, Shield, ChevronRight, ArrowUpRight, Menu, Sparkles, MapPin, Mail, Search, Wifi, Car, PawPrint, Clock, Home, CheckCircle2, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
 
 const navItems = [
+  { label: "Dashboard", href: "/dashboard" },
+  { label: "Units", href: "#units" },
   { label: "Benefits", href: "#why-us" },
   { label: "How It Works", href: "#how-it-works" },
   { label: "Contact", href: "#contact" },
 ];
 
 const featureList = [
-  { icon: Building2, title: "Property Management", desc: "Manage multiple properties and units across different locations. Track occupancy, maintenance, and lease details." },
-  { icon: Users, title: "Tenant Management", desc: "Register tenants, assign units, manage contracts, and maintain complete tenant profiles with ease." },
-  { icon: CreditCard, title: "Payment Tracking", desc: "Full, partial, and advance payment support. Upload receipts, auto-calculate balances, and maintain ledgers." },
-  { icon: BarChart3, title: "Dashboard Analytics", desc: "Real-time dashboards with charts, aging reports, and performance metrics tailored to each user role." },
-  { icon: Bell, title: "Smart Notifications", desc: "Automated email and SMS alerts for payment confirmations, due dates, overdue reminders, and approvals." },
-  { icon: Shield, title: "Role-Based Access", desc: "Secure RBAC with Admin, Owner, Agent, and Tenant roles. Audit logs for full accountability and transparency." },
+  { icon: Building2, title: "Property Management", desc: "Manage multiple properties and units across different locations. Track occupancy, maintenance, and lease details.", image: "/images/landing/feature-property.jpg" },
+  { icon: Users, title: "Tenant Management", desc: "Register tenants, assign units, manage contracts, and maintain complete tenant profiles with ease.", image: "/images/landing/feature-tenant.jpg" },
+  { icon: CreditCard, title: "Payment Tracking", desc: "Full, partial, and advance payment support. Upload receipts, auto-calculate balances, and maintain ledgers.", image: "/images/landing/feature-payment.jpg" },
+  { icon: BarChart3, title: "Dashboard Analytics", desc: "Real-time dashboards with charts, aging reports, and performance metrics tailored to each user role.", image: "/images/landing/feature-dashboard.jpg" },
+  { icon: Bell, title: "Smart Notifications", desc: "Automated email and SMS alerts for payment confirmations, due dates, overdue reminders, and approvals.", image: "/images/landing/feature-notifications.jpg" },
+  { icon: Shield, title: "Role-Based Access", desc: "Secure RBAC with Admin, Owner, Agent, and Tenant roles. Audit logs for full accountability and transparency.", image: "/images/landing/feature-security.jpg" },
 ];
 
 const howItWorksData = [
-  { icon: Search, title: "Browse Listings", desc: "Explore houses and condominium units with photos, pricing, and location details.", num: 1 },
-  { icon: KeyRound, title: "Move In", desc: "Agents register tenants, assign units, and manage contracts pending owner approval.", num: 2 },
-  { icon: CreditCard, title: "Pay Online", desc: "Tenants upload receipts. Owners verify. Balances update automatically in real-time.", num: 3 },
-  { icon: BarChart3, title: "Track Everything", desc: "Dashboards show receivables, occupancy, and performance. Generate reports instantly.", num: 4 },
+  { icon: Search, title: "Browse Listings", desc: "Explore houses and condominium units with photos, pricing, and location details.", num: 1, image: "/images/landing/step-browse.jpg" },
+  { icon: KeyRound, title: "Move In", desc: "Agents register tenants, assign units, and manage contracts pending owner approval.", num: 2, image: "/images/landing/step-movein.jpg" },
+  { icon: CreditCard, title: "Pay Online", desc: "Tenants upload receipts. Owners verify. Balances update automatically in real-time.", num: 3, image: "/images/landing/step-pay.jpg" },
+  { icon: BarChart3, title: "Track Everything", desc: "Dashboards show receivables, occupancy, and performance. Generate reports instantly.", num: 4, image: "/images/landing/step-track.jpg" },
 ];
 
 // ─── Local images (downloaded into public/images/landing) ───
@@ -52,29 +53,13 @@ const tenantBenefits = [
 ];
 
 // Normal app theme styles (matches login/dashboard pages)
-const card = "rounded-2xl border border-border bg-surface shadow-card";
+const card = "rounded-2xl border border-border bg-white/80 backdrop-blur-sm shadow-card";
 const chip = "inline-flex items-center gap-2 rounded-full bg-primary-50 px-4 py-1.5 text-sm font-medium mb-4 text-primary-600";
 const heading = "text-3xl sm:text-4xl font-bold text-text-primary";
 const sub = "mt-4 text-lg max-w-2xl mx-auto text-text-secondary";
 
 export default function LandingPage() {
-  const router = useRouter();
   const [units, setUnits] = useState<any[]>([]);
-
-  // Redirect to dashboard if the user is already logged in (including on refresh)
-  useEffect(() => {
-    const session = localStorage.getItem("renttrack_session");
-    if (session) {
-      try {
-        const parsed = JSON.parse(session);
-        if (parsed && parsed.id) {
-          router.replace("/dashboard");
-        }
-      } catch {
-        // invalid session — ignore
-      }
-    }
-  }, [router]);
 
   // Fetch real units from the database
   useEffect(() => {
@@ -92,7 +77,13 @@ export default function LandingPage() {
   }, []);
 
   return (
-    <main className="min-h-screen bg-surface-secondary text-text-primary overflow-x-hidden">
+    <main className="relative min-h-screen bg-surface-secondary text-text-primary overflow-x-hidden">
+      {/* ─── Landing page background displayed across the whole page ─── */}
+      <div className="fixed inset-0 -z-10">
+        <Image src="/images/favicon/landingpage.png" alt="" fill className="object-cover" priority />
+        <div className="absolute inset-0 bg-gradient-to-b from-surface-secondary/90 via-surface-secondary/80 to-surface-secondary/90" />
+      </div>
+
       {/* ─── Navigation ─── */}
       <motion.nav
         initial={{ opacity: 0, y: -20 }}
@@ -206,7 +197,7 @@ export default function LandingPage() {
       <section id="why-us" className="py-24 sm:py-32">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-<motion.div initial={{ opacity: 0, x: -30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }} className="relative">
+            <motion.div initial={{ opacity: 0, x: -30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }} className="relative">
               <div className="relative rounded-2xl overflow-hidden shadow-2xl">
                 <Image src="/images/Move-in%20Ready.png" alt="Move-in Ready property" width={800} height={600} className="w-full h-auto object-cover" loading="lazy" />
               </div>
@@ -245,7 +236,7 @@ export default function LandingPage() {
       </section>
 
       {/* ─── Features ─── */}
-      <section id="features" className="py-24 sm:py-32 bg-surface">
+      <section id="features" className="py-24 sm:py-32">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <span className={chip}><Sparkles className="h-4 w-4" />Everything You Need</span>
@@ -259,12 +250,18 @@ export default function LandingPage() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.5, delay: i * 0.08 }}
-                className={cn("p-8 transition-all duration-300 hover:-translate-y-1 hover:shadow-card-hover", card)}>
-                <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-xl bg-primary-50">
-                  <feature.icon className="h-6 w-6 text-primary-600" />
+                className={cn("group overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-card-hover", card)}>
+                <div className="relative h-44 overflow-hidden">
+                  <Image src={feature.image} alt={feature.title} fill className="object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
+                  <div className="absolute bottom-3 left-4 flex h-11 w-11 items-center justify-center rounded-xl bg-white/95 shadow">
+                    <feature.icon className="h-5 w-5 text-primary-600" />
+                  </div>
                 </div>
-                <h3 className="text-lg font-semibold mb-3 text-text-primary">{feature.title}</h3>
-                <p className="text-sm leading-relaxed text-text-secondary">{feature.desc}</p>
+                <div className="p-6">
+                  <h3 className="text-lg font-semibold mb-3 text-text-primary">{feature.title}</h3>
+                  <p className="text-sm leading-relaxed text-text-secondary">{feature.desc}</p>
+                </div>
               </motion.div>
             ))}
           </div>
@@ -354,7 +351,7 @@ export default function LandingPage() {
       </section>
 
       {/* ─── How It Works ─── */}
-      <section id="how-it-works" className="py-24 sm:py-32 bg-surface">
+      <section id="how-it-works" className="py-24 sm:py-32">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <span className={chip}><Users className="h-4 w-4" />Simple Process</span>
@@ -368,15 +365,21 @@ export default function LandingPage() {
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
                 transition={{ duration: 0.5, delay: i * 0.1 }}
-                className={cn("relative flex flex-col items-center text-center p-6", card)}>
-                <div className="relative mb-6">
-                  <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-500 to-primary-600 text-white shadow-lg shadow-primary-500/25">
-                    <step.icon className="h-7 w-7" />
-                  </div>
-                  <div className="absolute -top-2 -right-2 flex h-7 w-7 items-center justify-center rounded-full bg-accent-500 text-white text-xs font-bold shadow-lg">{step.num}</div>
+                className={cn("relative group overflow-hidden flex flex-col items-center text-center", card)}>
+                <div className="relative w-full h-36 overflow-hidden">
+                  <Image src={step.image} alt={step.title} fill className="object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
+                  <div className="absolute top-3 right-3 flex h-7 w-7 items-center justify-center rounded-full bg-accent-500 text-white text-xs font-bold shadow-lg">{step.num}</div>
                 </div>
-                <h3 className="text-lg font-semibold mb-2 text-text-primary">{step.title}</h3>
-                <p className="text-sm leading-relaxed max-w-xs text-text-secondary">{step.desc}</p>
+                <div className="p-6 flex flex-col items-center">
+                  <div className="-mt-10 relative mb-4">
+                    <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-primary-500 to-primary-600 text-white shadow-lg shadow-primary-500/25">
+                      <step.icon className="h-7 w-7" />
+                    </div>
+                  </div>
+                  <h3 className="text-lg font-semibold mb-2 text-text-primary">{step.title}</h3>
+                  <p className="text-sm leading-relaxed max-w-xs text-text-secondary">{step.desc}</p>
+                </div>
               </motion.div>
             ))}
           </div>
@@ -384,7 +387,7 @@ export default function LandingPage() {
       </section>
 
       {/* ─── Tenant CTA ─── */}
-      <section className="py-24 sm:py-28 bg-surface">
+      <section className="py-24 sm:py-28">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
@@ -454,7 +457,7 @@ export default function LandingPage() {
       </section>
 
       {/* ─── Footer ─── */}
-      <footer id="footer" className="border-t border-border bg-surface py-12">
+      <footer id="footer" className="border-t border-border bg-white/80 backdrop-blur-sm py-12">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
             <div className="md:col-span-2">
