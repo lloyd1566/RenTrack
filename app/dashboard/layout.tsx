@@ -64,7 +64,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
-      router.push("/login");
+      router.push("/login?mode=signin");
     }
   }, [isLoading, isAuthenticated, router]);
 

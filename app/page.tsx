@@ -62,6 +62,7 @@ const sub = "mt-4 text-lg max-w-2xl mx-auto text-text-secondary";
 export default function LandingPage() {
   const router = useRouter();
   const [units, setUnits] = useState<any[]>([]);
+  const [hasSession, setHasSession] = useState(false);
 
   // Redirect to dashboard if the user is already logged in (including on refresh)
   useEffect(() => {
@@ -71,12 +72,17 @@ export default function LandingPage() {
         const parsed = JSON.parse(session);
         if (parsed && parsed.id) {
           router.replace("/dashboard");
+          setHasSession(true);
         }
       } catch {
         // invalid session — ignore
       }
     }
   }, [router]);
+
+  // Resolve navbar href so Dashboard goes to Sign In when logged out
+  const hrefFor = (item: { label: string; href: string }) =>
+    item.label === "Dashboard" && !hasSession ? "/login?mode=signin" : item.href;
 
   // Fetch real units from the database
   useEffect(() => {
@@ -118,7 +124,7 @@ export default function LandingPage() {
 
           <div className="hidden md:flex items-center gap-8">
             {navItems.map((item) => (
-              <a key={item.label} href={item.href} className="text-sm font-medium text-text-secondary transition-colors hover:text-text-primary relative group">
+              <a key={item.label} href={hrefFor(item)} className="text-sm font-medium text-text-secondary transition-colors hover:text-text-primary relative group">
                 {item.label}
                 <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-primary-500 rounded-full group-hover:w-full transition-all duration-300" />
               </a>
@@ -137,7 +143,7 @@ export default function LandingPage() {
 
         <div id="mobile-menu" className="hidden md:hidden pb-4 space-y-2">
           {navItems.map((item) => (
-            <a key={item.label} href={item.href} className="block px-4 py-2.5 rounded-lg text-sm font-medium text-text-secondary transition-colors hover:text-text-primary hover:bg-surface-tertiary">{item.label}</a>
+            <a key={item.label} href={hrefFor(item)} className="block px-4 py-2.5 rounded-lg text-sm font-medium text-text-secondary transition-colors hover:text-text-primary hover:bg-surface-tertiary">{item.label}</a>
           ))}
           <div className="pt-2 px-4 space-y-2">
             <Link href="/login"><Button variant="outline" className="w-full border-border text-text-primary hover:bg-surface-tertiary">Sign In</Button></Link>
@@ -493,7 +499,7 @@ export default function LandingPage() {
               <ul className="space-y-3">
                 {navItems.map((item) => (
                   <li key={item.label}>
-                    <a href={item.href} className="text-sm text-text-secondary transition-colors hover:text-text-primary">{item.label}</a>
+                    <a href={hrefFor(item)} className="text-sm text-text-secondary transition-colors hover:text-text-primary">{item.label}</a>
                   </li>
                 ))}
               </ul>
