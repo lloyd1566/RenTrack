@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createUser, findUserByEmail } from "@/lib/db";
+import { createUser, findUserByEmail, initDatabase, findOrCreateAdmin } from "@/lib/db";
 
 export async function POST(request: NextRequest) {
   try {
+    // Self-bootstrap: ensure tables exist before creating a user.
+    await initDatabase();
+    await findOrCreateAdmin();
+
     const { name, email, password, role, phone } = await request.json();
 
     if (!name || !email || !password || !role) {
