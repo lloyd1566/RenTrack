@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Building2, Users, CreditCard, BarChart3, Bell, Shield, ChevronRight, ArrowUpRight, Menu, Sparkles, MapPin, Mail, Search, BedDouble, Bath, Wifi, Car, PawPrint, Clock, Home, Star, Quote, CheckCircle2, KeyRound } from "lucide-react";
+import { Building2, Users, CreditCard, BarChart3, Bell, Shield, ChevronRight, ArrowUpRight, Menu, Sparkles, MapPin, Mail, Search, Wifi, Car, PawPrint, Clock, Home, CheckCircle2, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
@@ -12,7 +12,6 @@ import Link from "next/link";
 const navItems = [
   { label: "Benefits", href: "#why-us" },
   { label: "How It Works", href: "#how-it-works" },
-  { label: "Reviews", href: "#testimonials" },
   { label: "Contact", href: "#contact" },
 ];
 
@@ -50,13 +49,6 @@ const tenantBenefits = [
   { icon: PawPrint, title: "Pet Friendly", desc: "Many units welcome your furry friends" },
   { icon: Car, title: "Parking Available", desc: "Designated slots and garages" },
   { icon: Clock, title: "24/7 Support", desc: "Responsive agents & maintenance help" },
-];
-
-// Testimonials from tenants
-const testimonials = [
-  { img: "/images/landing/avatar-1.jpg", name: "Marian R.", role: "Tenant — Condo Studio", quote: "Found my dream studio in days! The online payment tracking makes rent stress-free. Highly recommended!" },
-  { img: "/images/landing/avatar-2.jpg", name: "Joshua D.", role: "Tenant — Family House", quote: "Transparent pricing, no hidden fees. The landlord verified everything through RentTrack before I moved in." },
-  { img: "/images/landing/avatar-3.jpg", name: "Andrea L.", role: "Tenant — 2BR Apartment", quote: "I love the reminders and digital receipts. I can pay online and my balance updates instantly. Amazing!" },
 ];
 
 // Normal app theme styles (matches login/dashboard pages)
@@ -391,44 +383,6 @@ export default function LandingPage() {
                 </div>
                 <h3 className="text-lg font-semibold mb-2 text-text-primary">{step.title}</h3>
                 <p className="text-sm leading-relaxed max-w-xs text-text-secondary">{step.desc}</p>
-              </motion.div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* ─── Testimonials ─── */}
-      <section id="testimonials" className="py-24 sm:py-32">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <span className={chip}><Star className="h-4 w-4" />Happy Tenants</span>
-            <h2 className={heading}>What Our <span className="bg-gradient-to-r from-primary-500 to-secondary-500 bg-clip-text text-transparent">Tenants Say</span></h2>
-            <p className={sub}>Real experiences from tenants who found their home through RentTrack.</p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {testimonials.map((t, i) => (
-              <motion.div key={i}
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: i * 0.1 }}
-                className={cn("relative p-8", card)}>
-                <Quote className="h-8 w-8 text-primary-200 mb-4" />
-                <div className="flex items-center gap-1 mb-4">
-                  {[...Array(5)].map((_, s) => (
-                    <Star key={s} className="h-4 w-4 text-amber-400 fill-current" />
-                  ))}
-                </div>
-                <p className="text-sm leading-relaxed text-text-secondary mb-6">"{t.quote}"</p>
-                <div className="flex items-center gap-3">
-                  <div className="relative h-11 w-11 rounded-full overflow-hidden">
-                    <Image src={t.img} alt={t.name} fill className="object-cover" loading="lazy" />
-                  </div>
-                  <div>
-                    <div className="text-sm font-semibold text-text-primary">{t.name}</div>
-                    <div className="text-xs text-text-tertiary">{t.role}</div>
-                  </div>
-                </div>
               </motion.div>
             ))}
           </div>
