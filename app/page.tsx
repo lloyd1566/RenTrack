@@ -72,9 +72,10 @@ export default function LandingPage() {
     }
   }, [isLoading, user, router]);
 
-  // Resolve navbar href so Dashboard goes to Sign In when logged out
-  const hrefFor = (item: { label: string; href: string }) =>
-    item.label === "Dashboard" && !user ? "/login?mode=signin" : item.href;
+  // Navigation links always point to their real destinations.
+  // The dashboard route itself is protected (its layout sends guests to Sign In),
+  // so we don't pre-redirect here — clicking Dashboard always goes to /dashboard.
+
 
   // Fetch real units from the database
   useEffect(() => {
@@ -116,7 +117,7 @@ export default function LandingPage() {
 
           <div className="hidden md:flex items-center gap-8">
             {navItems.map((item) => (
-              <a key={item.label} href={hrefFor(item)} className="text-sm font-medium text-text-secondary transition-colors hover:text-text-primary relative group">
+              <a key={item.label} href={item.href} className="text-sm font-medium text-text-secondary transition-colors hover:text-text-primary relative group">
                 {item.label}
                 <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-primary-500 rounded-full group-hover:w-full transition-all duration-300" />
               </a>
@@ -135,7 +136,7 @@ export default function LandingPage() {
 
         <div id="mobile-menu" className="hidden md:hidden pb-4 space-y-2">
           {navItems.map((item) => (
-            <a key={item.label} href={hrefFor(item)} className="block px-4 py-2.5 rounded-lg text-sm font-medium text-text-secondary transition-colors hover:text-text-primary hover:bg-surface-tertiary">{item.label}</a>
+            <a key={item.label} href={item.href} className="block px-4 py-2.5 rounded-lg text-sm font-medium text-text-secondary transition-colors hover:text-text-primary hover:bg-surface-tertiary">{item.label}</a>
           ))}
           <div className="pt-2 px-4 space-y-2">
             <Link href="/login"><Button variant="outline" className="w-full border-border text-text-primary hover:bg-surface-tertiary">Sign In</Button></Link>
@@ -491,7 +492,7 @@ export default function LandingPage() {
               <ul className="space-y-3">
                 {navItems.map((item) => (
                   <li key={item.label}>
-                    <a href={hrefFor(item)} className="text-sm text-text-secondary transition-colors hover:text-text-primary">{item.label}</a>
+                    <a href={item.href} className="text-sm text-text-secondary transition-colors hover:text-text-primary">{item.label}</a>
                   </li>
                 ))}
               </ul>
