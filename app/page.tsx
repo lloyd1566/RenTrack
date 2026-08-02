@@ -206,9 +206,9 @@ export default function LandingPage() {
       <section id="why-us" className="py-24 sm:py-32">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-            <motion.div initial={{ opacity: 0, x: -30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }} className="relative">
+<motion.div initial={{ opacity: 0, x: -30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }} className="relative">
               <div className="relative rounded-2xl overflow-hidden shadow-2xl">
-                <Image src="/images/landing/neighborhood.jpg" alt="Safe residential neighborhood" width={800} height={600} className="w-full h-auto object-cover" loading="lazy" />
+                <Image src="/images/Move-in%20Ready.png" alt="Move-in Ready property" width={800} height={600} className="w-full h-auto object-cover" loading="lazy" />
               </div>
               <motion.div animate={{ y: [0, -10, 0] }} transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
                 className="absolute -bottom-6 -right-4 sm:-right-6 bg-surface rounded-2xl shadow-card-hover border border-border p-3 flex items-center gap-3 max-w-[280px]">
