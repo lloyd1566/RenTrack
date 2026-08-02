@@ -166,25 +166,19 @@ export default function LandingPage() {
             Browse verified houses and condominium units. Pay rent online, track your balance, and get instant notifications — all from one simple platform.
           </motion.p>
 
-          {/* Search bar mock */}
+          {/* Search bar */}
           <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.45 }}
-            className="mt-10 mx-auto max-w-3xl bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl p-3 sm:p-4 grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-3 text-left">
-            <div className="flex items-center gap-3 rounded-xl bg-slate-100 px-4 py-3">
-              <Search className="h-5 w-5 text-primary-600 shrink-0" />
-              <div>
-                <div className="text-xs font-semibold text-text-tertiary">Location</div>
-                <input placeholder="Butuan City" className="w-full bg-transparent text-sm font-medium text-text-primary outline-none placeholder:text-text-tertiary" />
-              </div>
+            className="mt-8 mx-auto max-w-2xl bg-white/95 backdrop-blur-md rounded-full shadow-lg p-1.5 grid grid-cols-1 sm:grid-cols-[1fr_1fr_auto] gap-1 text-left">
+            <div className="flex items-center gap-2 rounded-full bg-slate-100 px-4 py-2">
+              <Search className="h-4 w-4 text-primary-600 shrink-0" />
+              <input placeholder="Butuan City" className="w-full bg-transparent text-sm text-text-primary outline-none placeholder:text-text-tertiary" />
             </div>
-            <div className="flex items-center gap-3 rounded-xl bg-slate-100 px-4 py-3">
-              <Home className="h-5 w-5 text-primary-600 shrink-0" />
-              <div>
-                <div className="text-xs font-semibold text-text-tertiary">Property Type</div>
-                <input placeholder="House / Condo / Studio" className="w-full bg-transparent text-sm font-medium text-text-primary outline-none placeholder:text-text-tertiary" />
-              </div>
+            <div className="flex items-center gap-2 rounded-full bg-slate-100 px-4 py-2">
+              <Home className="h-4 w-4 text-primary-600 shrink-0" />
+              <input placeholder="House / Condo / Studio" className="w-full bg-transparent text-sm text-text-primary outline-none placeholder:text-text-tertiary" />
             </div>
             <a href="#units">
-              <Button size="lg" className="w-full sm:w-auto h-full bg-primary-600 hover:bg-primary-700 text-white shadow-lg shadow-primary-600/40">Search</Button>
+              <Button size="sm" className="w-full sm:w-auto h-full rounded-full bg-primary-600 hover:bg-primary-700 text-white shadow-md shadow-primary-600/30">Search</Button>
             </a>
           </motion.div>
 
@@ -217,9 +211,9 @@ export default function LandingPage() {
                 <Image src="/images/landing/neighborhood.jpg" alt="Safe residential neighborhood" width={800} height={600} className="w-full h-auto object-cover" loading="lazy" />
               </div>
               <motion.div animate={{ y: [0, -10, 0] }} transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                className="absolute -bottom-6 -right-4 sm:-right-6 bg-surface rounded-2xl shadow-card-hover border border-border p-4 flex items-center gap-3 max-w-[240px]">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-secondary-50">
-                  <KeyRound className="h-5 w-5 text-secondary-600" />
+                className="absolute -bottom-6 -right-4 sm:-right-6 bg-surface rounded-2xl shadow-card-hover border border-border p-3 flex items-center gap-3 max-w-[280px]">
+                <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl">
+                  <Image src="/images/Move-in%20Ready.png" alt="Move-in Ready" fill className="object-cover" />
                 </div>
                 <div>
                   <div className="text-sm font-bold text-text-primary">Move-in Ready</div>
