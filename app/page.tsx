@@ -10,7 +10,6 @@ import { cn } from "@/lib/utils";
 import Link from "next/link";
 
 const navItems = [
-  { label: "Listings", href: "#featured" },
   { label: "Benefits", href: "#why-us" },
   { label: "How It Works", href: "#how-it-works" },
   { label: "Reviews", href: "#testimonials" },
@@ -34,13 +33,6 @@ const howItWorksData = [
 ];
 
 // ─── Local images (downloaded into public/images/landing) ───
-const heroImages = [
-  "/images/landing/hero-1.jpg",
-  "/images/landing/hero-2.jpg",
-  "/images/landing/hero-3.jpg",
-  "/images/landing/hero-4.jpg",
-];
-
 const unitImages = [
   "/images/landing/prop-1.jpg",
   "/images/landing/prop-2.jpg",
@@ -48,16 +40,6 @@ const unitImages = [
   "/images/landing/prop-4.jpg",
   "/images/landing/prop-5.jpg",
   "/images/landing/prop-6.jpg",
-];
-
-// Featured listings shown to prospective tenants
-const featuredListings = [
-  { img: "/images/landing/prop-1.jpg", name: "Modern Family House", location: "Ampayon, Butuan City", price: "₱12,500", beds: 3, baths: 2, sqm: "120", badge: "For Rent", featured: true },
-  { img: "/images/landing/prop-2.jpg", name: "Cozy Condo Studio", location: "Langihan, Butuan City", price: "₱8,000", beds: 1, baths: 1, sqm: "32", badge: "For Rent", featured: false },
-  { img: "/images/landing/prop-3.jpg", name: "Spacious 2BR Apartment", location: "Doongan, Butuan City", price: "₱10,500", beds: 2, baths: 1, sqm: "85", badge: "For Rent", featured: false },
-  { img: "/images/landing/prop-4.jpg", name: "Gated Community House", location: "Libertad, Butuan City", price: "₱15,000", beds: 4, baths: 2, sqm: "150", badge: "For Rent", featured: true },
-  { img: "/images/landing/prop-5.jpg", name: "Executive Condo 2BR", location: "Butuan City Center", price: "₱14,000", beds: 2, baths: 2, sqm: "68", badge: "For Rent", featured: false },
-  { img: "/images/landing/prop-6.jpg", name: "Charming Townhouse", location: "Baan Riverside, Butuan", price: "₱9,800", beds: 2, baths: 2, sqm: "96", badge: "For Rent", featured: false },
 ];
 
 // Tenant benefits strip
@@ -86,7 +68,6 @@ const sub = "mt-4 text-lg max-w-2xl mx-auto text-text-secondary";
 export default function LandingPage() {
   const router = useRouter();
   const [units, setUnits] = useState<any[]>([]);
-  const [heroIndex, setHeroIndex] = useState(0);
 
   // Redirect to dashboard if the user is already logged in (including on refresh)
   useEffect(() => {
@@ -102,14 +83,6 @@ export default function LandingPage() {
       }
     }
   }, [router]);
-
-  // Rotate hero background images
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setHeroIndex((prev) => (prev + 1) % heroImages.length);
-    }, 6000);
-    return () => clearInterval(timer);
-  }, []);
 
   // Fetch real units from the database
   useEffect(() => {
@@ -173,19 +146,15 @@ export default function LandingPage() {
         </div>
       </motion.nav>
 
-      {/* ─── Hero (rotating photo slideshow for tenants) ─── */}
+      {/* ─── Hero (uses the uploaded landingpage.png background) ─── */}
       <section className="relative flex min-h-screen items-center justify-center overflow-hidden pt-16">
-        {heroImages.map((src, i) => (
-          <motion.div
-            key={src}
-            className="absolute inset-0"
-            initial={false}
-            animate={{ opacity: i === heroIndex ? 1 : 0, scale: i === heroIndex ? 1.05 : 1.1 }}
-            transition={{ duration: 1.6, ease: "easeInOut" }}
-          >
-            <Image src={src} alt="Available rental home" fill className="object-cover" priority={i === 0} />
-          </motion.div>
-        ))}
+        <motion.div
+          className="absolute inset-0"
+          animate={{ scale: [1, 1.08, 1], x: [0, -12, 0], y: [0, -8, 0] }}
+          transition={{ duration: 30, repeat: Infinity, ease: "easeInOut" }}
+        >
+          <Image src="/images/favicon/landingpage.png" alt="Rental properties background" fill className="object-cover" priority />
+        </motion.div>
         <div className="absolute inset-0 bg-gradient-to-b from-slate-900/70 via-slate-900/45 to-slate-900/70" />
         <motion.div animate={{ x: [0, 30, 0], y: [0, -40, 0] }} transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }} className="absolute top-20 left-[10%] w-64 h-64 rounded-full bg-primary-500/20 blur-3xl" />
         <motion.div animate={{ x: [0, -40, 0], y: [0, 30, 0] }} transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }} className="absolute top-40 right-[15%] w-80 h-80 rounded-full bg-secondary-500/20 blur-3xl" />
@@ -222,14 +191,14 @@ export default function LandingPage() {
                 <input placeholder="House / Condo / Studio" className="w-full bg-transparent text-sm font-medium text-text-primary outline-none placeholder:text-text-tertiary" />
               </div>
             </div>
-            <Link href="#featured">
+            <a href="#units">
               <Button size="lg" className="w-full sm:w-auto h-full bg-primary-600 hover:bg-primary-700 text-white shadow-lg shadow-primary-600/40">Search</Button>
-            </Link>
+            </a>
           </motion.div>
 
           <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.55 }} className="mt-10 flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link href="/login"><Button size="lg" className="group h-12 px-8 text-base bg-primary-600 hover:bg-primary-700 text-white shadow-lg shadow-primary-600/40 hover:shadow-primary-600/60 transition-all">Create Free Account<ChevronRight className="ml-2 h-4 w-4 group-hover:translate-x-1 transition-transform" /></Button></Link>
-            <a href="#featured"><Button size="lg" className="h-12 px-8 text-base border-2 border-white bg-black/30 backdrop-blur-sm text-white font-semibold hover:bg-black/50">Browse Listings</Button></a>
+            <a href="#units"><Button size="lg" className="h-12 px-8 text-base border-2 border-white bg-black/30 backdrop-blur-sm text-white font-semibold hover:bg-black/50">Browse Units</Button></a>
           </motion.div>
           <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.65 }} className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-8 max-w-3xl mx-auto">
             {[
@@ -247,67 +216,8 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── Featured Listings ─── */}
-      <section id="featured" className="py-24 sm:py-32">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-16">
-            <span className={chip}><Home className="h-4 w-4" />Available Now</span>
-            <h2 className={heading}>Featured <span className="bg-gradient-to-r from-primary-500 to-secondary-500 bg-clip-text text-transparent">Rental Units</span></h2>
-            <p className={sub}>Hand-picked houses and condominium units ready for you to move in.</p>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {featuredListings.map((listing, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: i * 0.08 }}
-                className={cn("group overflow-hidden transition-all duration-300 hover:-translate-y-1 hover:shadow-card-hover", card)}
-              >
-                <div className="relative h-52 overflow-hidden">
-                  <Image src={listing.img} alt={listing.name} fill className="object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy" />
-                  <div className="absolute top-3 right-3">
-                    <span className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium bg-primary-600 text-white shadow">{listing.badge}</span>
-                  </div>
-                  {listing.featured && (
-                    <div className="absolute top-3 left-3">
-                      <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-accent-500 text-white shadow">
-                        <Star className="h-3 w-3 fill-current" /> Featured
-                      </span>
-                    </div>
-                  )}
-                  <div className="absolute bottom-3 left-3">
-                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-sm font-bold bg-white/95 text-text-primary shadow">₱{listing.price.replace("₱", "")}<span className="text-xs font-medium text-text-tertiary">/mo</span></span>
-                  </div>
-                </div>
-                <div className="p-5">
-                  <h3 className="text-lg font-semibold text-text-primary">{listing.name}</h3>
-                  <p className="text-sm mt-1 flex items-center gap-1.5 text-text-secondary"><MapPin className="h-4 w-4 text-primary-600" />{listing.location}</p>
-                  <div className="flex items-center gap-4 mt-4 pt-4 border-t border-border text-xs text-text-tertiary">
-                    <span className="flex items-center gap-1.5"><BedDouble className="h-4 w-4 text-primary-500" />{listing.beds} Beds</span>
-                    <span className="flex items-center gap-1.5"><Bath className="h-4 w-4 text-primary-500" />{listing.baths} Baths</span>
-                    <span className="flex items-center gap-1.5"><Building2 className="h-4 w-4 text-primary-500" />{listing.sqm} m²</span>
-                  </div>
-                  <Link href="/login?mode=signup" className="mt-4 block w-full">
-                    <Button className="w-full bg-primary-600 hover:bg-primary-700 text-white group/btn">
-                      Reserve Now<ArrowUpRight className="ml-1.5 h-4 w-4 group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5 transition-transform" />
-                    </Button>
-                  </Link>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-          <div className="text-center mt-10">
-            <Link href="/login?mode=signin">
-              <Button variant="outline" size="lg" className="border-border text-text-primary hover:bg-surface-tertiary">View All Units<ChevronRight className="ml-2 h-4 w-4" /></Button>
-            </Link>
-          </div>
-        </div>
-      </section>
-
       {/* ─── Why Tenants Choose Us ─── */}
-      <section id="why-us" className="py-24 sm:py-32 bg-surface">
+      <section id="why-us" className="py-24 sm:py-32">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <motion.div initial={{ opacity: 0, x: -30 }} whileInView={{ opacity: 1, x: 0 }} viewport={{ once: true }} transition={{ duration: 0.6 }} className="relative">
@@ -349,7 +259,7 @@ export default function LandingPage() {
       </section>
 
       {/* ─── Features ─── */}
-      <section id="features" className="py-24 sm:py-32">
+      <section id="features" className="py-24 sm:py-32 bg-surface">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <span className={chip}><Sparkles className="h-4 w-4" />Everything You Need</span>
@@ -375,13 +285,13 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── Live Units Preview (from DB) ─── */}
-      <section id="dashboard-preview" className="py-24 sm:py-32 bg-surface">
+      {/* ─── Live Units Preview (from DB only — real units) ─── */}
+      <section id="units" className="py-24 sm:py-32">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
-            <span className={chip}><Building2 className="h-4 w-4" />Live Preview</span>
-            <h2 className={heading}>Units <span className="bg-gradient-to-r from-primary-500 to-secondary-500 bg-clip-text text-transparent">Preview</span></h2>
-            <p className={sub}>Units added by the admin/owner — displayed live from the database.</p>
+            <span className={chip}><Building2 className="h-4 w-4" />Available Now</span>
+            <h2 className={heading}>Units <span className="bg-gradient-to-r from-primary-500 to-secondary-500 bg-clip-text text-transparent">For Rent</span></h2>
+            <p className={sub}>Browse verified houses and condominium units. New units are added regularly.</p>
           </div>
 
           {units.length === 0 ? (
@@ -390,15 +300,12 @@ export default function LandingPage() {
                 <Image src="/images/landing/keys.jpg" alt="Ready for new tenants" fill className="object-cover" />
               </div>
               <h3 className="text-xl font-semibold mb-2 text-text-primary">Be One of Our First Tenants</h3>
-              <p className="text-sm max-w-md mx-auto text-text-secondary">New verified units are being added. Browse our featured listings above or sign up to get notified when new homes become available.</p>
+              <p className="text-sm max-w-md mx-auto text-text-secondary">New verified units are being added. Sign up to get notified when new homes become available.</p>
               <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
                 <Link href="/login?mode=signup">
                   <Button size="lg" className="bg-primary-600 hover:bg-primary-700 text-white shadow-lg shadow-primary-600/30">
                     Get Notified<ChevronRight className="ml-2 h-4 w-4" />
                   </Button>
-                </Link>
-                <Link href="#featured">
-                  <Button variant="outline" size="lg" className="border-border text-text-primary hover:bg-surface-tertiary">See Featured Units</Button>
                 </Link>
               </div>
             </div>
@@ -409,7 +316,7 @@ export default function LandingPage() {
                   const status = unit.status || "vacant";
                   const isOccupied = status === "occupied";
                   const statusColor = isOccupied ? "text-green-700 bg-green-100" : "text-amber-700 bg-amber-100";
-                  const img = unitImages[i % unitImages.length];
+                  const img = unit.image_url || unitImages[i % unitImages.length];
                   // Handle both camelCase (client-side) and snake_case (raw DB) field names
                   const unitNumber = unit.unitNumber || unit.unit_number || "Unit";
                   const rentAmount = unit.rentAmount ?? unit.rent_amount ?? 0;
@@ -461,7 +368,7 @@ export default function LandingPage() {
       </section>
 
       {/* ─── How It Works ─── */}
-      <section id="how-it-works" className="py-24 sm:py-32">
+      <section id="how-it-works" className="py-24 sm:py-32 bg-surface">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <span className={chip}><Users className="h-4 w-4" />Simple Process</span>
@@ -491,7 +398,7 @@ export default function LandingPage() {
       </section>
 
       {/* ─── Testimonials ─── */}
-      <section id="testimonials" className="py-24 sm:py-32 bg-surface">
+      <section id="testimonials" className="py-24 sm:py-32">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-16">
             <span className={chip}><Star className="h-4 w-4" />Happy Tenants</span>
@@ -529,7 +436,7 @@ export default function LandingPage() {
       </section>
 
       {/* ─── Tenant CTA ─── */}
-      <section className="py-24 sm:py-28">
+      <section className="py-24 sm:py-28 bg-surface">
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <motion.div
             initial={{ opacity: 0, y: 30 }}
