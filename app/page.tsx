@@ -211,9 +211,9 @@ export default function LandingPage() {
                 <Image src="/images/Move-in%20Ready.png" alt="Move-in Ready property" width={800} height={600} className="w-full h-auto object-cover" loading="lazy" />
               </div>
               <motion.div animate={{ y: [0, -10, 0] }} transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-                className="absolute -bottom-6 -right-4 sm:-right-6 bg-surface rounded-2xl shadow-card-hover border border-border p-3 flex items-center gap-3 max-w-[280px]">
-                <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl">
-                  <Image src="/images/Move-in%20Ready.png" alt="Move-in Ready" fill className="object-cover" />
+                className="absolute -bottom-6 -right-4 sm:-right-6 bg-surface rounded-2xl shadow-card-hover border border-border p-4 flex items-center gap-3 max-w-[280px]">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-secondary-50">
+                  <KeyRound className="h-5 w-5 text-secondary-600" />
                 </div>
                 <div>
                   <div className="text-sm font-bold text-text-primary">Move-in Ready</div>
