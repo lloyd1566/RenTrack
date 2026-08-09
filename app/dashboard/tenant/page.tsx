@@ -35,7 +35,6 @@ export default function TenantDashboard() {
     }
     setIsUploading(true);
 
-    // Actually read the file as base64 data URL so it persists
     const reader = new FileReader();
     reader.onload = (e) => {
       const base64Data = e.target?.result as string;
@@ -52,7 +51,7 @@ export default function TenantDashboard() {
           status: "pending", paymentMethod: "other", notes: "Receipt uploaded",
           receiptUrl: base64Data,
           createdBy: user.id,
-        }, user.id);
+        }, undefined, user.id);
         addNotification({
           userId: user.id, title: "Payment Receipt Uploaded",
           message: `Your payment of ${formatCurrency(Number(paymentAmount))} has been submitted for verification`,
@@ -73,7 +72,6 @@ export default function TenantDashboard() {
 
   return (
     <div className="space-y-6 p-6">
-      {/* 🏠 Tenant Hero — Warm Welcome */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-600 p-8">
         <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full blur-2xl" />
         <div className="absolute bottom-0 left-0 w-32 h-32 bg-fuchsia-300/20 rounded-full blur-xl" />
@@ -82,7 +80,7 @@ export default function TenantDashboard() {
             <Home className="h-3 w-3" />
             Welcome Back
           </div>
-          <h2 className="text-3xl font-bold text-white">Hello, {user?.name?.split(' ')[0]}! 👋</h2>
+          <h2 className="text-3xl font-bold text-white">Hello, {user?.name?.split(' ')[0]}!</h2>
           <p className="text-white/70 text-sm mt-1">Here's your rental summary</p>
         </div>
       </div>
@@ -162,4 +160,3 @@ export default function TenantDashboard() {
     </div>
   );
 }
-

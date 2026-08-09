@@ -32,7 +32,7 @@ export function Modal({ isOpen, onClose, title, description, children, className
   }, [isOpen, onClose]);
 
   return (
-    <AnimatePresence>
+    <AnimatePresence initial={false}>
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <motion.div
@@ -41,33 +41,33 @@ export function Modal({ isOpen, onClose, title, description, children, className
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={(e) => { if (e.target === overlayRef.current) onClose(); }}
-            className="absolute inset-0 bg-black/50 backdrop-blur-sm"
+            className="absolute inset-0 bg-black/30"
           />
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            initial={{ opacity: 0, scale: 0.95, y: 10 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            transition={{ duration: 0.2, ease: [0.21, 0.47, 0.32, 0.98] }}
+            exit={{ opacity: 0, scale: 0.95, y: 10 }}
+            transition={{ duration: 0.25, ease: [0.21, 0.47, 0.32, 0.98] }}
             className={cn(
-              "relative w-full max-w-lg rounded-2xl border border-border bg-surface shadow-dropdown overflow-hidden",
+              "relative w-full max-w-lg rounded-3xl border border-gray-200 bg-white shadow-2xl",
               className
             )}
           >
-            <div className="flex items-center justify-between p-6 pb-0">
+            <div className="flex items-center justify-between p-6 pb-4">
               <div>
-                <h3 className="text-lg font-semibold text-foreground">{title}</h3>
+                <h3 className="text-xl font-bold text-gray-900 tracking-tight">{title}</h3>
                 {description && (
-                  <p className="text-sm text-text-secondary mt-1">{description}</p>
+                  <p className="text-sm text-gray-500 mt-1">{description}</p>
                 )}
               </div>
               <button
                 onClick={onClose}
-                className="p-1.5 rounded-lg hover:bg-surface-secondary transition-colors text-text-tertiary hover:text-foreground"
+                className="h-8 w-8 rounded-xl flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
-            <div className="p-6">{children}</div>
+            <div className="px-6 pb-6">{children}</div>
           </motion.div>
         </div>
       )}

@@ -33,9 +33,9 @@ export const metadata: Metadata = {
     "house rental",
   ],
   icons: {
-    icon: "/images/favicon/favicon.ico",
-    shortcut: "/images/favicon/favicon.ico",
-    apple: "/images/favicon/logo.png",
+    icon: "/images/favicon.ico",
+    shortcut: "/images/favicon.ico",
+    apple: "/images/landing/logo.png",
   },
 };
 
@@ -52,7 +52,7 @@ export default function RootLayout({
     >
     <head>
       <link rel="icon" href="/images/favicon/favicon.ico" sizes="any" />
-      <link rel="apple-touch-icon" href="/images/favicon/logo.png" />
+      <link rel="apple-touch-icon" href="/images/landing/logo.png" />
       </head>
       <body className="min-h-full flex flex-col">
         <AuthProvider>

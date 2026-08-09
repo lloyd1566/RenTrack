@@ -77,19 +77,13 @@ export function TabsContent({
   value,
   children,
   className,
-  forceMount,
-  ...props
-}: React.HTMLAttributes<HTMLDivElement> & { value: string; forceMount?: boolean }) {
+}: React.HTMLAttributes<HTMLDivElement> & { value: string }) {
   const { value: activeTab } = useTabs();
   if (activeTab !== value) return null;
 
   return (
     <div
-      className={cn(
-        "mt-4 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400 focus-visible:ring-offset-2",
-        className
-      )}
-      {...props}
+      className={"mt-4 " + (className || "")}
     >
       {children}
     </div>

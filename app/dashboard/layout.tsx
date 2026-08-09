@@ -14,10 +14,14 @@ import {
   LogOut,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   Menu,
   X,
   Sun,
   Moon,
+  AlertTriangle,
+  Shield,
+  User,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useRouter, usePathname } from "next/navigation";
@@ -36,13 +40,14 @@ interface NavItem {
 }
 
 const navItems: NavItem[] = [
-  { label: "Overview", href: "/dashboard", icon: LayoutDashboard, roles: ["admin", "owner", "agent", "tenant"] },
+  { label: "My Dashboard", href: "/dashboard/tenant", icon: LayoutDashboard, roles: ["tenant"] },
+  { label: "Overview", href: "/dashboard", icon: LayoutDashboard, roles: ["admin", "owner", "agent"] },
   { label: "Properties", href: "/dashboard/properties", icon: Building2, roles: ["admin", "owner", "agent"] },
   { label: "Units", href: "/dashboard/units", icon: Home, roles: ["admin", "owner", "agent"] },
   { label: "Tenants", href: "/dashboard/tenants", icon: Users, roles: ["admin", "owner", "agent"] },
+  { label: "Agents", href: "/dashboard/agents", icon: Shield, roles: ["admin", "owner"] },
   { label: "Payments", href: "/dashboard/payments", icon: CreditCard, roles: ["admin", "owner", "agent", "tenant"] },
   { label: "Reports", href: "/dashboard/reports", icon: BarChart3, roles: ["admin", "owner"] },
-  { label: "Settings", href: "/dashboard/settings", icon: Settings, roles: ["admin", "owner", "agent", "tenant"] },
 ];
 
 const roleBadgeColor: Record<string, string> = {
@@ -61,16 +66,19 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [darkMode, setDarkMode] = useState(false);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const [sidebarLoading, setSidebarLoading] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
-      router.push("/login?mode=signin");
+      router.push("/");
     }
   }, [isLoading, isAuthenticated, router]);
 
   useEffect(() => {
     if (user) {
-      getNotifications(user.id).then(setNotifications);
+      getNotifications(user.id).then(setNotifications).catch(() => setNotifications([]));
     }
   }, [user]);
 
@@ -107,11 +115,25 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   if (!user) return null;
 
   const filteredNav = navItems.filter((item) => item.roles.includes(user.role));
+  const navLabel = (item: NavItem) => {
+    if (item.href === "/dashboard/tenants" && (user.role === "admin" || user.role === "owner")) {
+      return "Tenants";
+    }
+    if (item.href === "/dashboard/agents" && (user.role === "admin" || user.role === "owner")) {
+      return "Agents";
+    }
+    if (item.href === "/dashboard/tenants" && user.role === "agent") {
+      return "Tenants";
+    }
+    return item.label;
+  };
+
+  const isTenant = user?.role === "tenant";
 
   return (
     <div className="min-h-screen bg-surface-secondary flex">
-      <AnimatePresence>
-        {mobileSidebarOpen && (
+      <AnimatePresence initial={false}>
+        {mobileSidebarOpen && !isTenant && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -122,7 +144,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         )}
       </AnimatePresence>
 
-      {/* Sidebar */}
+      {!isTenant && (
       <aside
         className={cn(
           "fixed lg:relative z-50 h-screen bg-surface border-r border-border flex flex-col transition-all duration-300 ease-[cubic-bezier(0.21,0.47,0.32,0.98)]",
@@ -132,14 +154,14 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         )}
         style={{ transform: mobileSidebarOpen ? 'translateX(0)' : undefined }}
       >
-<div className={cn("flex items-center h-16 px-4 border-b border-border", sidebarOpen ? "justify-between" : "justify-center")}>
+        <div className={cn("flex items-center h-16 px-4 border-b border-border", sidebarOpen ? "justify-between" : "justify-center")}>
           {sidebarOpen ? (
             <Link href="/" className="flex items-center gap-2">
-              <img src="/images/favicon/logo.png" alt="RentTrack" className="h-8 w-8 rounded-lg object-contain" />
+              <img src="/images/landing/logo.png" alt="RentTrack" className="h-8 w-8 rounded-lg object-contain" />
               <span className="font-bold text-foreground">Rent<span className="text-primary-500">Track</span></span>
             </Link>
           ) : (
-            <img src="/images/favicon/logo.png" alt="RT" className="h-8 w-8 rounded-lg object-contain" />
+            <img src="/images/landing/logo.png" alt="RT" className="h-8 w-8 rounded-lg object-contain" />
           )}
           <button onClick={() => setMobileSidebarOpen(false)} className="lg:hidden p-1 rounded-lg hover:bg-surface-secondary">
             <X className="h-4 w-4" />
@@ -149,6 +171,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <nav className="flex-1 overflow-y-auto p-3 space-y-1">
           {filteredNav.map((item) => {
             const isActive = pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
+            const IconComponent = item.href === "/dashboard/settings" && user?.role === "tenant" ? User : item.icon;
             return (
               <Link
                 key={item.href}
@@ -160,8 +183,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     : "text-text-secondary hover:text-foreground hover:bg-surface-tertiary"
                 )}
               >
-                <item.icon className={cn("h-5 w-5 shrink-0 transition-transform duration-200", isActive && "scale-110")} />
-                {sidebarOpen && <span className="text-sm font-medium">{item.label}</span>}
+                <IconComponent className={cn("h-5 w-5 shrink-0 transition-transform duration-200", isActive && "scale-110")} />
+                {sidebarOpen && <span className="text-sm font-medium">{navLabel(item)}</span>}
               </Link>
             );
           })}
@@ -184,19 +207,36 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </div>
         </div>
       </aside>
+      )}
 
-      {/* Main Content */}
+      {!isTenant && (
       <div className="flex-1 flex flex-col min-w-0">
         <header className="sticky top-0 z-30 h-16 bg-surface/80 backdrop-blur-xl border-b border-border flex items-center justify-between px-4 sm:px-6">
           <div className="flex items-center gap-3">
             <button onClick={() => setMobileSidebarOpen(true)} className="lg:hidden p-2 rounded-lg hover:bg-surface-secondary transition-colors">
               <Menu className="h-5 w-5" />
             </button>
-            <button onClick={() => setSidebarOpen(!sidebarOpen)} className="hidden lg:block p-2 rounded-lg hover:bg-surface-secondary transition-colors">
-              {sidebarOpen ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
+            <button
+              onClick={() => {
+                setSidebarLoading(true);
+                setTimeout(() => {
+                  setSidebarOpen(!sidebarOpen);
+                  setSidebarLoading(false);
+                }, 200);
+              }}
+              className="hidden lg:block p-2 rounded-lg hover:bg-surface-secondary transition-colors relative"
+            >
+              {sidebarLoading ? (
+                <div className="h-4 w-4 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+              ) : (
+                sidebarOpen ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />
+              )}
             </button>
             <h1 className="text-lg font-semibold text-foreground hidden sm:block">
-              {navItems.find((item) => item.href === pathname || (item.href !== "/dashboard" && pathname.startsWith(item.href)))?.label || "Overview"}
+              {(() => {
+                const activeItem = navItems.find((item) => item.href === pathname || (item.href !== "/dashboard" && pathname.startsWith(item.href)));
+                return activeItem ? navLabel(activeItem) : "Overview";
+              })()}
             </h1>
           </div>
 
@@ -218,7 +258,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 )}
               </button>
 
-              <AnimatePresence>
+              <AnimatePresence initial={false}>
                 {showNotifications && (
                   <motion.div
                     initial={{ opacity: 0, y: 10, scale: 0.95 }}
@@ -295,12 +335,49 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               </AnimatePresence>
             </div>
 
-            <button
-              onClick={() => { logout(); router.push("/"); }}
-              className="p-2 rounded-lg hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors text-text-secondary hover:text-red-500"
-            >
-              <LogOut className="h-5 w-5" />
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setShowUserMenu(!showUserMenu)}
+                className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-surface-secondary transition-all"
+              >
+                <Avatar fallback={user.name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)} size="sm" />
+                <span className="hidden sm:block text-sm font-medium text-foreground">{user.name.split(' ')[0]}</span>
+                <ChevronDown className={`h-4 w-4 text-text-secondary transition-transform duration-200 ${showUserMenu ? 'rotate-180' : ''}`} />
+              </button>
+
+              <AnimatePresence initial={false}>
+                {showUserMenu && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    className="absolute right-0 mt-2 w-56 rounded-2xl border border-border bg-surface shadow-dropdown overflow-hidden"
+                  >
+                    <div className="p-3 border-b border-border">
+                      <p className="text-sm font-semibold text-foreground truncate">{user.name}</p>
+                      <p className="text-xs text-text-secondary truncate">{user.email}</p>
+                    </div>
+                    <div className="p-1.5">
+                      <Link
+                        href="/dashboard/settings"
+                        onClick={() => setShowUserMenu(false)}
+                        className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-text-secondary hover:text-foreground hover:bg-surface-secondary transition-colors"
+                      >
+                        <User className="h-4 w-4" />
+                        My Profile
+                      </Link>
+                      <button
+                        onClick={() => { setShowUserMenu(false); setShowLogoutModal(true); }}
+                        className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 w-full transition-colors"
+                      >
+                        <LogOut className="h-4 w-4" />
+                        Logout
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
         </header>
 
@@ -315,6 +392,45 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           </motion.div>
         </main>
       </div>
+      )}
+
+      {isTenant && (
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-auto">
+          {children}
+        </main>
+      )}
+
+      <AnimatePresence>
+        {showLogoutModal && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowLogoutModal(false)}
+              className="absolute inset-0 bg-black/40"
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="relative w-full max-w-sm rounded-xl border border-border bg-surface p-6 shadow-2xl"
+            >
+              <div className="flex flex-col items-center text-center">
+                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 mb-4">
+                  <AlertTriangle className="h-6 w-6" />
+                </div>
+                <h3 className="text-lg font-semibold text-foreground mb-1">Log Out</h3>
+                <p className="text-sm text-text-secondary mb-6">Are you sure you want to log out of your account?</p>
+                <div className="flex w-full gap-2">
+                  <Button variant="outline" className="flex-1" onClick={() => setShowLogoutModal(false)}>Cancel</Button>
+                  <Button className="flex-1 bg-red-600 hover:bg-red-700 text-white" onClick={() => { setShowLogoutModal(false); logout(); router.push("/"); }}>Log Out</Button>
+                </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

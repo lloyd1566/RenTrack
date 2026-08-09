@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { findUserByEmail, initDatabase, findOrCreateAdmin } from "@/lib/db";
+import { findUserByEmail, initDatabase, findOrCreateAdmin, logAudit } from "@/lib/db";
+import { setSessionCookie, regenerateSession } from "@/lib/security";
+import { checkRateLimit, recordFailedAttempt, clearRateLimit, validatePasswordStrength } from "@/lib/auth-security";
+import bcrypt from "bcryptjs";
+import { withSecurityHeaders, withCorsHeaders, getClientIp } from "@/lib/security-headers";
 
 export async function POST(request: NextRequest) {
   try {
-    // Self-bootstrap: ensure tables + built-in admin exist before login.
-    // This makes the built-in account (admin@renttrack.com / adminOwner)
-    // work even on a freshly deployed database without calling /api/init.
     await initDatabase();
     await findOrCreateAdmin();
 
@@ -15,13 +16,46 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Missing email or password" }, { status: 400 });
     }
 
-    const user = await findUserByEmail(email);
-    if (!user || user.password !== password) {
+    const sanitizedEmail = email.toLowerCase().trim();
+    const rateLimitKey = `${getClientIp(request)}:${sanitizedEmail}`;
+    const rateLimit = checkRateLimit(rateLimitKey);
+
+    if (!rateLimit.allowed) {
+      const waitMinutes = rateLimit.lockedUntil ? Math.ceil((rateLimit.lockedUntil - Date.now()) / 60000) : 15;
+      return NextResponse.json({
+        success: false,
+        error: `Too many failed attempts. Please try again in ${waitMinutes} minutes.`,
+        locked: true,
+        retryAfter: rateLimit.lockedUntil,
+      }, { status: 429 });
+    }
+
+    const user = await findUserByEmail(sanitizedEmail);
+    if (!user) {
+      recordFailedAttempt(rateLimitKey);
       return NextResponse.json({ success: false, error: "Invalid email or password" }, { status: 401 });
     }
 
-    const { password: _, ...safeUser } = user;
-    return NextResponse.json({ success: true, user: safeUser });
+    const pwOk = await bcrypt.compare(password, user.password);
+    if (!pwOk) {
+      recordFailedAttempt(rateLimitKey);
+      await logAudit(user.id, "login_failed", { email: user.email, reason: "invalid_password" }, getClientIp(request), request.headers.get("user-agent") || "unknown").catch(() => {});
+      return NextResponse.json({ success: false, error: "Invalid email or password" }, { status: 401 });
+    }
+
+    if (!user.emailVerified) {
+      return NextResponse.json({ success: false, error: "Please verify your email address before logging in. Check your inbox for the verification code.", needsVerification: true, email: user.email, userId: user.id }, { status: 403 });
+    }
+
+    clearRateLimit(rateLimitKey);
+
+    await logAudit(user.id, "login_success", { email: user.email, role: user.role }, getClientIp(request), request.headers.get("user-agent") || "unknown").catch(() => {});
+
+    const safeUser = { ...user };
+    delete safeUser.password;
+    const response = NextResponse.json({ success: true, user: safeUser });
+    regenerateSession(response, user.id, getClientIp(request));
+    return withSecurityHeaders(withCorsHeaders(request, response));
   } catch (error) {
     console.error("Login error:", error);
     return NextResponse.json({ success: false, error: "Login failed" }, { status: 500 });

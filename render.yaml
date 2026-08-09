@@ -23,6 +23,16 @@ services:
     envVars:
       - key: DATABASE_URL
         sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: NEXT_PUBLIC_SITE_URL
+        sync: false
       - key: NODE_VERSION
         value: "20"
 
@@ -30,6 +40,8 @@ cronJobs:
   - type: cron
     name: renttrack-keep-awake
     schedule: "*/10 * * * *"
-    startCommand: curl -fsS https://renttrack.onrender.com/api/health
-    envVars: []
+    startCommand: curl -fsS $RENDER_URL/api/health
+    envVars:
+      - key: RENDER_URL
+        sync: false
 
