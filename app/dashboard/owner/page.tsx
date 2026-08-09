@@ -4,13 +4,10 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   Building2,
-  Users,
-  CreditCard,
   TrendingUp,
   DollarSign,
   Home,
   AlertCircle,
-  CheckCircle2,
   ArrowUpRight,
   ArrowDownRight,
   Calendar,
@@ -27,12 +24,10 @@ import {
   getUnits,
   getPayments,
   getOccupancyRate,
-  getTotalRevenue,
-  getTotalReceivables,
-  getTotalCollected,
   Property,
   Unit,
   Payment,
+  getDashboardData,
 } from "@/lib/data";
 import {
   BarChart,
@@ -86,20 +81,17 @@ export default function OwnerDashboard() {
 
   useEffect(() => {
     (async () => {
-      const [props, unts, pays, t, r, c] = await Promise.all([
-        getProperties(user),
-        getUnits(user),
-        getPayments(user),
-        getTotalRevenue(),
-        getTotalReceivables(),
-        getTotalCollected(),
-      ]);
-      setProperties(props);
-      setUnits(unts);
-      setPayments(pays);
-      setTotal(t);
-      setReceivables(r);
-      setCollected(c);
+      try {
+        const data = await getDashboardData(user);
+        setProperties(data.properties);
+        setUnits(data.units);
+        setPayments(data.payments);
+        setTotal(data.totalRevenue);
+        setReceivables(data.totalReceivables);
+        setCollected(data.totalCollected);
+      } catch (err) {
+        console.error("Owner dashboard load error:", err);
+      }
     })();
   }, [user]);
 
@@ -122,7 +114,7 @@ export default function OwnerDashboard() {
   ];
 
   return (
-    <motion.div variants={staggerContainer} initial="hidden" animate="visible" className="space-y-6">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }} className="space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold text-foreground">Owner Dashboard</h2>
@@ -222,7 +214,7 @@ export default function OwnerDashboard() {
                     <YAxis dataKey="name" type="category" className="text-xs text-text-tertiary" />
                     <Tooltip contentStyle={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "12px" }} />
                     <Bar dataKey="occupancy" radius={[0, 4, 4, 0]}>
-                      {occupancyData.map((_: any, index: number) => (<Cell key={index} fill={COLORS[index % COLORS.length]} />))}
+                      {occupancyData.map((_, index) => (<Cell key={index} fill={COLORS[index % COLORS.length]} />))}
                     </Bar>
                   </BarChart>
                 </ResponsiveContainer>

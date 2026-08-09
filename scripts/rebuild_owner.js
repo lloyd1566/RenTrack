@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const fs = require('fs');
 const p = require('path');
 const filePath = p.join(__dirname, '..', 'app/dashboard/owner/page.tsx');

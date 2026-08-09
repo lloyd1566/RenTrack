@@ -2,8 +2,6 @@
 
 // ─── Neon PostgreSQL-backed Data Store ─────────────────────────────────────
 
-import { User } from "./auth";
-
 // ─── Types ─────────────────────────────────────────────────────────────────
 
 export interface Property {
@@ -17,6 +15,7 @@ export interface Property {
   status: "active" | "inactive";
   createdAt: string;
   createdBy: string;
+  imageUrl?: string;
 }
 
 export interface Unit {
@@ -36,20 +35,23 @@ export interface TenantRecord {
   id: string;
   name: string;
   email: string;
-  phone: string;
-  address: string;
-  occupation: string;
-  emergencyContact: string;
-  emergencyPhone: string;
-  unitId: string;
-  propertyName: string;
-  unitNumber: string;
-  contractStart: string;
-  contractEnd: string;
-  rentAmount: number;
+  phone?: string;
+  address?: string;
+  occupation?: string;
+  emergencyContact?: string;
+  emergencyPhone?: string;
+  unitId?: string;
+  propertyName?: string;
+  unitNumber?: string;
+  contractStart?: string;
+  contractEnd?: string;
+  rentAmount?: number;
   status: "active" | "inactive";
-  createdBy: string;
+  createdBy?: string;
   createdAt: string;
+  avatarUrl?: string;
+  idVerificationUrl?: string;
+  idVerificationStatus?: string;
 }
 
 export interface Payment {
@@ -77,7 +79,7 @@ export interface Notification {
   userId: string;
   title: string;
   message: string;
-  type: "payment" | "tenant" | "property" | "system";
+  type: "payment" | "tenant" | "property" | "system" | "id_verification";
   read: boolean;
   createdAt: string;
 }
@@ -85,7 +87,7 @@ export interface Notification {
 // ─── API Helper ────────────────────────────────────────────────────────────
 
 async function apiGet(url: string) {
-  const res = await fetch(url);
+  const res = await fetch(url, { credentials: "include" });
   return res.json();
 }
 
@@ -94,6 +96,7 @@ async function apiPost(url: string, body: any) {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    credentials: "include",
   });
   return res.json();
 }
@@ -103,6 +106,7 @@ async function apiPatch(url: string, body: any) {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    credentials: "include",
   });
   return res.json();
 }
@@ -118,17 +122,17 @@ async function apiDelete(url: string, body: any) {
 
 // ─── Properties ────────────────────────────────────────────────────────────
 
-export async function getProperties(user?: any): Promise<Property[]> {
+export async function getProperties(_user?: any): Promise<Property[]> {
   const result = await apiGet("/api/data/properties");
   return result.success ? result.properties : [];
 }
 
 export async function addProperty(data: Omit<Property, "id" | "createdAt" | "createdBy">, userId: string): Promise<Property> {
-  const result = await apiPost("/api/data/properties", { data, userId });
-  return result.property;
+  const result = await apiPost("/api/data/properties", data);
+  return result.property || result;
 }
 
-export function updateProperty(id: string, data: Partial<Property>): Property | null {
+export function updateProperty(_id: string, _data: Partial<Property>): Property | null {
   // Will be implemented when needed
   return null;
 }
@@ -140,17 +144,17 @@ export async function deleteProperty(id: string): Promise<boolean> {
 
 // ─── Units ─────────────────────────────────────────────────────────────────
 
-export async function getUnits(user?: any): Promise<Unit[]> {
+export async function getUnits(_user?: any): Promise<Unit[]> {
   const result = await apiGet("/api/data/units");
   return result.success ? result.units : [];
 }
 
 export async function addUnit(data: Omit<Unit, "id">): Promise<Unit> {
   const result = await apiPost("/api/data/units", data);
-  return result.unit;
+  return result.unit || result;
 }
 
-export function updateUnit(id: string, data: Partial<Unit>): Unit | null {
+export function updateUnit(_id: string, _data: Partial<Unit>): Unit | null {
   return null;
 }
 
@@ -161,43 +165,66 @@ export async function deleteUnit(id: string): Promise<boolean> {
 
 // ─── Tenants ───────────────────────────────────────────────────────────────
 
-export async function getTenants(user?: any): Promise<TenantRecord[]> {
+export async function getTenants(_user?: any): Promise<TenantRecord[]> {
   const result = await apiGet("/api/data/tenants");
   return result.success ? result.tenants : [];
 }
 
 export async function addTenant(data: Omit<TenantRecord, "id" | "createdAt" | "createdBy">, userId: string): Promise<TenantRecord> {
-  const result = await apiPost("/api/data/tenants", { data, userId });
+  const result = await apiPost("/api/data/tenants", data);
   return result.tenant;
 }
 
 // ─── Payments ──────────────────────────────────────────────────────────────
 
-export async function getPayments(user?: any): Promise<Payment[]> {
+export async function getPayments(_user?: any): Promise<Payment[]> {
   const result = await apiGet("/api/data/payments");
   return result.success ? result.payments : [];
 }
 
-export async function addPayment(data: Omit<Payment, "id">, userId: string): Promise<Payment> {
-  const result = await apiPost("/api/data/payments", { data, userId });
+export async function addPayment(data: Omit<Payment, "id">, security?: { paymentPin?: string; otpCode?: string }, tenantId?: string): Promise<Payment> {
+  const body: any = { data };
+  if (security) {
+    body.paymentPin = security.paymentPin;
+    body.otpCode = security.otpCode;
+  }
+  if (tenantId) {
+    body.tenantId = tenantId;
+  }
+  const result = await apiPost("/api/data/payments", body);
   return result.payment;
 }
 
-export function updatePayment(id: string, data: Partial<Payment>): Payment | null {
-  apiPatch("/api/data/payments", { id, data });
-  return null;
+export async function updatePayment(id: string, data: Partial<Payment>): Promise<Payment | null> {
+  const result = await apiPatch("/api/data/payments", { id, data });
+  return result.payment || null;
 }
 
-export async function verifyPayment(id: string, verifiedBy: string, status: "paid" | "rejected"): Promise<Payment | null> {
+export async function verifyPayment(payment: Payment, verifiedBy: string, status: "paid" | "rejected"): Promise<Payment | null> {
   const updateData: any = { verifiedBy, verifiedAt: new Date().toISOString() };
   if (status === "paid") {
-    updateData.status = "paid";
-    updateData.balance = 0;
+    // Auto-deduct: recompute the tenant's bill based on the confirmed amount
+    const newBalance = Math.max(0, payment.amountDue - payment.amountPaid);
+    updateData.status = newBalance <= 0 ? "paid" : "partial";
+    updateData.balance = newBalance;
   } else {
+    // Rejected: no deduction — payment stays pending
     updateData.status = "pending";
   }
-  await apiPatch("/api/data/payments", { id, data: updateData });
-  return null;
+  const result = await apiPatch("/api/data/payments", { id: payment.id, data: updateData });
+  return result.payment || null;
+}
+
+export interface MonthlyTrend {
+  month: string;
+  collected: number;
+  pending: number;
+  overdue: number;
+}
+
+export async function getPaymentTrends(_user?: any): Promise<MonthlyTrend[]> {
+  const result = await apiGet("/api/data/payments/trends");
+  return result.success ? result.trends : [];
 }
 
 // ─── Notifications ─────────────────────────────────────────────────────────
@@ -213,6 +240,18 @@ export async function addNotification(data: Omit<Notification, "id" | "createdAt
   return result.notification;
 }
 
+export async function notifyAdmins(data: Omit<Notification, "id" | "createdAt" | "userId">): Promise<void> {
+  const result = await apiGet("/api/auth/users");
+  if (result.success && result.users) {
+    const adminUsers = result.users.filter((u: any) => u.role === "admin" || u.role === "owner");
+    await Promise.all(
+      adminUsers.map((admin: any) =>
+        addNotification({ ...data, userId: admin.id })
+      )
+    );
+  }
+}
+
 export async function markNotificationRead(id: string): Promise<boolean> {
   const result = await apiPatch("/api/data/notifications", { id });
   return result.success;
@@ -225,6 +264,62 @@ export async function markAllNotificationsRead(userId: string): Promise<void> {
 export async function getUnreadCount(userId: string): Promise<number> {
   const result = await apiGet(`/api/data/notifications?userId=${userId}&count=true`);
   return result.success ? result.count : 0;
+}
+
+// ─── Dashboard Data ────────────────────────────────────────────────────────
+
+export interface DashboardData {
+  properties: Property[];
+  units: Unit[];
+  tenants: TenantRecord[];
+  payments: Payment[];
+  trends: MonthlyTrend[];
+  propertiesCount: number;
+  unitsCount: number;
+  tenantsCount: number;
+  occupiedUnitsCount: number;
+  vacantUnitsCount: number;
+  totalRevenue: number;
+  totalReceivables: number;
+  totalCollected: number;
+}
+
+export async function getDashboardData(user?: any): Promise<DashboardData> {
+  const [properties, units, tenants, payments, trends] = await Promise.all([
+    getProperties(user),
+    getUnits(user),
+    getTenants(user),
+    getPayments(user),
+    getPaymentTrends(user),
+  ]);
+
+  const totalRevenue = units
+    .filter((u) => u.status === "occupied")
+    .reduce((sum, u) => sum + (u.rentAmount || 0), 0);
+
+  const totalReceivables = payments
+    .filter((p) => p.status === "overdue" || p.status === "partial" || p.status === "pending")
+    .reduce((sum, p) => sum + (p.balance || 0), 0);
+
+  const totalCollected = payments
+    .filter((p) => p.status === "paid")
+    .reduce((sum, p) => sum + (p.amountPaid || 0), 0);
+
+  return {
+    properties,
+    units,
+    tenants,
+    payments,
+    trends,
+    propertiesCount: properties.length,
+    unitsCount: units.length,
+    tenantsCount: tenants.length,
+    occupiedUnitsCount: units.filter((u) => u.status === "occupied").length,
+    vacantUnitsCount: units.filter((u) => u.status === "vacant").length,
+    totalRevenue,
+    totalReceivables,
+    totalCollected,
+  };
 }
 
 // ─── Computed Helpers ──────────────────────────────────────────────────────
@@ -259,18 +354,92 @@ export async function getTotalRevenue(): Promise<number> {
   return units.filter((u) => u.status === "occupied").reduce((sum, u) => sum + u.rentAmount, 0);
 }
 
-export async function getTotalReceivables(): Promise<number> {
-  const payments = await getPayments();
+export async function getTotalReceivables(user?: any): Promise<number> {
+  const payments = await getPayments(user);
   return payments
     .filter((p) => p.status === "overdue" || p.status === "partial" || p.status === "pending")
     .reduce((sum, p) => sum + p.balance, 0);
 }
 
-export async function getTotalCollected(): Promise<number> {
-  const payments = await getPayments();
+export async function getTotalCollected(user?: any): Promise<number> {
+  const payments = await getPayments(user);
   return payments.filter((p) => p.status === "paid").reduce((sum, p) => sum + p.amountPaid, 0);
 }
 
-export function getOccupancyRate(propertyId: string): number {
+export function getOccupancyRate(_propertyId: string): number {
   return 0; // Will be implemented when needed
+}
+
+// ─── Ratings ────────────────────────────────────────────────────────────────
+
+export interface Rating {
+  id: string;
+  user_id: string;
+  target_type: "property" | "unit";
+  target_id: string;
+  rating: number;
+  comment?: string;
+  created_at: string;
+  user_name?: string;
+  user_email?: string;
+}
+
+export interface RatingSummary {
+  average: number;
+  total: number;
+}
+
+export async function createRating(data: { userId: string; targetType: "property" | "unit"; targetId: string; rating: number; comment?: string }): Promise<Rating> {
+  const result = await apiPost("/api/data/ratings", data);
+  return result.rating;
+}
+
+export async function getRatings(targetType: string, targetId: string): Promise<Rating[]> {
+  const result = await apiGet(`/api/data/ratings?targetType=${encodeURIComponent(targetType)}&targetId=${encodeURIComponent(targetId)}`);
+  return result.success ? result.ratings : [];
+}
+
+export async function getRatingsByUser(userId: string): Promise<Rating[]> {
+  const result = await apiGet(`/api/data/ratings?userId=${encodeURIComponent(userId)}`);
+  return result.success ? result.ratings : [];
+}
+
+export async function getAverageRating(targetType: string, targetId: string): Promise<RatingSummary> {
+  const result = await apiGet(`/api/data/ratings?targetType=${encodeURIComponent(targetType)}&targetId=${encodeURIComponent(targetId)}`);
+  return result.success ? result.average : { average: 0, total: 0 };
+}
+
+// ─── Complaints ─────────────────────────────────────────────────────────────
+
+export interface Complaint {
+  id: string;
+  tenant_id: string;
+  target_type: "property" | "unit";
+  target_id: string;
+  subject: string;
+  message: string;
+  status: "open" | "in_progress" | "resolved" | "closed";
+  priority: "low" | "medium" | "high" | "urgent";
+  assigned_to?: string;
+  resolved_at?: string;
+  created_at: string;
+  updated_at: string;
+  tenant_name?: string;
+  tenant_email?: string;
+}
+
+export async function createComplaint(data: { tenantId: string; targetType: "property" | "unit"; targetId: string; subject: string; message: string; priority?: string }): Promise<Complaint> {
+  const result = await apiPost("/api/data/complaints", data);
+  return result.complaint;
+}
+
+export async function getComplaints(tenantId?: string): Promise<Complaint[]> {
+  const url = tenantId ? `/api/data/complaints?tenantId=${encodeURIComponent(tenantId)}` : "/api/data/complaints";
+  const result = await apiGet(url);
+  return result.success ? result.complaints : [];
+}
+
+export async function updateComplaintStatus(id: string, status: string, assignedTo?: string): Promise<Complaint | null> {
+  const result = await apiPatch("/api/data/complaints", { id, status, assignedTo });
+  return result.complaint || null;
 }

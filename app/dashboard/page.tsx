@@ -2,34 +2,35 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import { useAuth } from "@/lib/auth";
+import { useRouter } from "next/navigation";
 import {
   Building2, Users, CreditCard, TrendingUp, Home, AlertCircle,
   ArrowUpRight, ArrowDownRight, Calendar, Download, LayoutDashboard,
+  UserPlus,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";
 import { cn, formatCurrency, getTimeAgo } from "@/lib/utils";
-import { useAuth } from "@/lib/auth";
 import {
-  getProperties, getUnits, getPayments,
-  getTotalReceivables, getTotalCollected,
-  getPropertiesCount, getUnitsCount, getTenantsCount,
-  getOccupiedUnitsCount, getVacantUnitsCount,
-  Property, Unit, Payment,
+  getProperties, getPayments,
+  getPaymentTrends,
+  getTenants,
+  Property, Payment, MonthlyTrend, TenantRecord,
+  getDashboardData,
 } from "@/lib/data";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 
-const staggerContainer = { hidden: {}, visible: { transition: { staggerChildren: 0.08, delayChildren: 0.1 } } };
-const fadeInUp = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.5 } } };
+const fadeInUp = { hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0, transition: { duration: 0.3 } } };
 
 export default function DashboardOverview() {
-  const { user } = useAuth();
+  const { user, isLoading } = useAuth();
+  const router = useRouter();
   const [properties, setProperties] = useState<Property[]>([]);
-  const [units, setUnits] = useState<Unit[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [receivables, setReceivables] = useState(0);
   const [collected, setCollected] = useState(0);
@@ -38,24 +39,35 @@ export default function DashboardOverview() {
   const [tenantsCount, setTenantsCount] = useState(0);
   const [occupiedCount, setOccupiedCount] = useState(0);
   const [vacantCount, setVacantCount] = useState(0);
+  const [monthlyData, setMonthlyData] = useState<MonthlyTrend[]>([]);
+  const [tenantsList, setTenantsList] = useState<TenantRecord[]>([]);
+
+  useEffect(() => {
+    if (!isLoading && user?.role === "tenant") {
+      router.push("/dashboard/tenant");
+    }
+  }, [isLoading, user, router]);
 
   useEffect(() => {
     (async () => {
-      const [props, unts, pays, pc, uc, tc, oc, vc] = await Promise.all([
-        getProperties(user), getUnits(user), getPayments(user),
-        getPropertiesCount(), getUnitsCount(), getTenantsCount(),
-        getOccupiedUnitsCount(), getVacantUnitsCount(),
-      ]);
-      setProperties(props); setUnits(unts); setPayments(pays);
-      setPropsCount(pc); setUnitsCount(uc); setTenantsCount(tc);
-      setOccupiedCount(oc); setVacantCount(vc);
+      try {
+        const data = await getDashboardData(user);
+        setProperties(data.properties);
+        setPayments(data.payments);
+        setMonthlyData(data.trends);
+        setTenantsList(data.tenants);
+        setPropsCount(data.propertiesCount);
+        setUnitsCount(data.unitsCount);
+        setTenantsCount(data.tenantsCount);
+        setOccupiedCount(data.occupiedUnitsCount);
+        setVacantCount(data.vacantUnitsCount);
+        setReceivables(data.totalReceivables);
+        setCollected(data.totalCollected);
+      } catch (err) {
+        console.error("Dashboard overview load error:", err);
+      }
     })();
   }, [user]);
-
-  useEffect(() => {
-    getTotalCollected().then(setCollected);
-    getTotalReceivables().then(setReceivables);
-  }, []);
 
   const overdueCount = payments.filter(p => p.status === "overdue").length;
 
@@ -66,23 +78,8 @@ export default function DashboardOverview() {
     { label: "Overdue", value: overdueCount, icon: AlertCircle, change: `${formatCurrency(receivables)} outstanding`, positive: false, gradient: "from-red-500 to-red-600" },
   ];
 
-  const monthlyData = [
-    { month: "Jan", collected: 210000, pending: 45000, overdue: 12000 },
-    { month: "Feb", collected: 225000, pending: 38000, overdue: 15000 },
-    { month: "Mar", collected: 240000, pending: 42000, overdue: 10000 },
-    { month: "Apr", collected: 235000, pending: 35000, overdue: 18000 },
-    { month: "May", collected: 250000, pending: 40000, overdue: 14000 },
-    { month: "Jun", collected: 260000, pending: 37000, overdue: 11000 },
-    { month: "Jul", collected: 245000, pending: 44000, overdue: 16000 },
-    { month: "Aug", collected: 255000, pending: 39000, overdue: 13000 },
-    { month: "Sep", collected: 270000, pending: 35000, overdue: 9000 },
-    { month: "Oct", collected: 265000, pending: 41000, overdue: 11000 },
-    { month: "Nov", collected: 280000, pending: 36000, overdue: 8000 },
-    { month: "Dec", collected: 300000, pending: 30000, overdue: 5000 },
-  ];
-
   return (
-    <motion.div variants={staggerContainer} initial="hidden" animate="visible" className="space-y-6">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }} className="space-y-6">
       {/* Dashboard Hero */}
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 p-8 sm:p-10">
         <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl" />
@@ -151,17 +148,21 @@ export default function DashboardOverview() {
             </CardHeader>
             <CardContent>
               <div className="h-80">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={monthlyData}>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                    <XAxis dataKey="month" className="text-xs text-text-tertiary" />
-                    <YAxis className="text-xs text-text-tertiary" />
-                    <Tooltip contentStyle={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "12px" }} />
-                    <Bar dataKey="collected" name="Collected" fill="#10b981" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="pending" name="Pending" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="overdue" name="Overdue" fill="#ef4444" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
+                {monthlyData.length === 0 ? (
+                  <div className="h-full flex items-center justify-center text-text-secondary text-sm">No payment data available yet</div>
+                ) : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={monthlyData}>
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
+                      <XAxis dataKey="month" className="text-xs text-text-tertiary" />
+                      <YAxis className="text-xs text-text-tertiary" />
+                      <Tooltip contentStyle={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "12px" }} />
+                      <Bar dataKey="collected" name="Collected" fill="#10b981" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="pending" name="Pending" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="overdue" name="Overdue" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -252,6 +253,71 @@ export default function DashboardOverview() {
                 ))
               )}
             </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+
+      {/* Registered Tenants */}
+      <motion.div variants={fadeInUp}>
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2"><Users className="h-4 w-4 text-blue-500" />Registered Tenants</CardTitle>
+                <CardDescription>Tenants currently using the platform</CardDescription>
+              </div>
+              <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200">
+                {tenantsList.length} total
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {tenantsList.length === 0 ? (
+              <div className="text-center py-8 text-text-secondary text-sm">No tenants registered yet</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b border-border">
+                      <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary uppercase tracking-wider">Name</th>
+                      <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary uppercase tracking-wider">Email</th>
+                      <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary uppercase tracking-wider">Phone</th>
+                      <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary uppercase tracking-wider">Property / Unit</th>
+                      <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary uppercase tracking-wider">Status</th>
+                      <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary uppercase tracking-wider">Joined</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tenantsList.slice(0, 10).map((tenant) => (
+                      <tr key={tenant.id} className="border-b border-border/50 hover:bg-surface-secondary transition-colors">
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-3">
+                            <Avatar fallback={tenant.name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)} size="sm" />
+                            <span className="font-medium text-foreground">{tenant.name}</span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-text-secondary">{tenant.email}</td>
+                        <td className="py-3 px-4 text-text-secondary">{tenant.phone}</td>
+                        <td className="py-3 px-4">
+                          <div className="text-foreground">{tenant.propertyName}</div>
+                          <div className="text-xs text-text-tertiary">Unit {tenant.unitNumber}</div>
+                        </td>
+                        <td className="py-3 px-4">
+                          <Badge variant="outline" className={cn(
+                            "text-[10px] font-medium px-1.5 py-0 capitalize",
+                            tenant.status === "active" && "bg-green-50 text-green-600 border-green-200",
+                            tenant.status === "inactive" && "bg-gray-50 text-gray-600 border-gray-200",
+                          )}>{tenant.status}</Badge>
+                        </td>
+                        <td className="py-3 px-4 text-text-secondary text-xs">
+                          {new Date(tenant.createdAt).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </CardContent>
         </Card>
       </motion.div>
