@@ -2,26 +2,44 @@ import { createClient, SupabaseClient } from "@supabase/supabase-js";
 import bcrypt from "bcryptjs";
 import { hashSecret } from "./security";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string;
-const supabasePublishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY as string;
-const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY as string | undefined;
-
-if (!supabaseUrl || !supabasePublishableKey) {
-  throw new Error("Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY");
+function getEnvOrThrow(name: string): string {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Missing ${name}`);
+  }
+  return value;
 }
 
-export const supabase: SupabaseClient = createClient(supabaseUrl, supabasePublishableKey as string, {
-  auth: { autoRefreshToken: false, persistSession: false },
-});
+let cachedSupabase: SupabaseClient | null = null;
+let cachedAdminSupabase: SupabaseClient | null = null;
+
+export function getSupabase(): SupabaseClient {
+  if (!cachedSupabase) {
+    const url = getEnvOrThrow("NEXT_PUBLIC_SUPABASE_URL");
+    const key = getEnvOrThrow("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY");
+    cachedSupabase = createClient(url, key, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+  }
+  return cachedSupabase;
+}
 
 export function getAdminSupabase(): SupabaseClient {
-  if (!supabaseServiceRoleKey) {
-    throw new Error("Missing SUPABASE_SERVICE_ROLE_KEY");
+  if (!cachedAdminSupabase) {
+    const url = getEnvOrThrow("NEXT_PUBLIC_SUPABASE_URL");
+    const serviceRoleKey = getEnvOrThrow("SUPABASE_SERVICE_ROLE_KEY");
+    cachedAdminSupabase = createClient(url, serviceRoleKey, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
   }
-  return createClient(supabaseUrl, supabaseServiceRoleKey as string, {
-    auth: { autoRefreshToken: false, persistSession: false },
-  });
+  return cachedAdminSupabase;
 }
+
+export const supabase = new Proxy({} as SupabaseClient, {
+  get(_, prop) {
+    return getSupabase()[prop as keyof SupabaseClient];
+  },
+});
 
 function toCamelCaseKeys(obj: Record<string, any>): Record<string, any> {
   const out: Record<string, any> = {};
