@@ -73,3 +73,7 @@ export async function sendEmail({ to, subject, text, html, bcc }: { to: string; 
   }
 }
 
+export async function sendSystemEmail({ to, subject, text, html, bcc }: { to: string; subject: string; text?: string; html?: string; bcc?: string }) {
+  return sendEmail({ to, subject, text, html, bcc });
+}
+

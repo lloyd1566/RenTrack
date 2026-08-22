@@ -2,23 +2,17 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Star, Flag, Search, X } from "lucide-react";
+import { Star, Flag, Search, X, Sparkles, Home, MapPin, Shield, Clock } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { cn, formatCurrency } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import {
-  getProperties, getUnits, createRating, getComplaints, createComplaint,
+  getProperties, getUnits, createRating, createComplaint,
   Property, Unit,
 } from "@/lib/data";
 import { toast } from "sonner";
-
-const fadeInUp = {
-  hidden: { opacity: 0, y: 20 },
-  visible: { opacity: 1, y: 0, transition: { duration: 0.5 } }
-};
 
 export default function TenantBrowsePage() {
   const { user } = useAuth();
@@ -91,41 +85,123 @@ export default function TenantBrowsePage() {
 
   return (
     <div className="min-h-screen">
-      {/* Hero Section */}
-      <div className="relative bg-gradient-to-r from-blue-600 to-blue-700 text-white overflow-hidden">
+      {/* Hero Section - Centered */}
+      <div className="relative bg-gradient-to-r from-primary-600 via-primary-700 to-secondary-700 text-white overflow-hidden">
+        {/* Animated floating orbs */}
         <motion.div
-          animate={{ x: [0, 30, 0], y: [0, -20, 0] }}
+          animate={{ x: [0, 40, 0], y: [0, -30, 0], scale: [1, 1.1, 1] }}
+          transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute -top-20 -left-20 w-80 h-80 rounded-full bg-white/10 blur-3xl"
+        />
+        <motion.div
+          animate={{ x: [0, -30, 0], y: [0, 40, 0], scale: [1, 1.15, 1] }}
+          transition={{ duration: 15, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute -bottom-20 -right-20 w-96 h-96 rounded-full bg-secondary-400/20 blur-3xl"
+        />
+        <motion.div
+          animate={{ y: [-10, 10, -10] }}
           transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute top-10 right-10 w-96 h-96 rounded-full bg-blue-400/20 blur-3xl"
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full bg-white/5 blur-2xl"
         />
+
+        {/* Sparkle icons */}
         <motion.div
-          animate={{ x: [0, -20, 0], y: [0, 30, 0] }}
-          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute bottom-10 left-10 w-72 h-72 rounded-full bg-indigo-400/20 blur-3xl"
-        />
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+          animate={{ rotate: 360 }}
+          transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+          className="absolute top-10 right-20 opacity-30"
+        >
+          <Sparkles className="h-6 w-6 text-white" />
+        </motion.div>
+        <motion.div
+          animate={{ rotate: -360 }}
+          transition={{ duration: 25, repeat: Infinity, ease: "linear" }}
+          className="absolute bottom-10 left-20 opacity-20"
+        >
+          <Sparkles className="h-8 w-8 text-white" />
+        </motion.div>
+
+        {/* Centered content */}
+        <div className="relative max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-20 text-center">
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
+            transition={{ duration: 0.8, ease: [0.21, 0.47, 0.32, 0.98] }}
+            className="space-y-6"
           >
-            <h1 className="text-4xl md:text-5xl font-bold mb-4">Find Your Next Home</h1>
-            <p className="text-xl text-blue-100 mb-8">Browse verified rental properties and units in your area</p>
-            <div className="relative max-w-2xl">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <Input
-                placeholder="Search by location, property name, or unit type..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-12 h-14 text-base bg-white text-gray-900 border-0 rounded-xl shadow-lg"
-              />
-            </div>
+            {/* Animated icon */}
+            <motion.div
+              animate={{ y: [0, -8, 0], rotate: [0, 5, -5, 0] }}
+              transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+              className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-white/15 backdrop-blur-md border border-white/20 mb-2"
+            >
+              <Home className="h-8 w-8 text-white" />
+            </motion.div>
+
+            <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight">
+              Find Your Next Home
+            </h1>
+            <p className="text-lg md:text-xl text-white/80 max-w-2xl mx-auto leading-relaxed">
+              Browse verified rental properties and units in your area
+            </p>
+
+            {/* Search bar with glow effect */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.6, delay: 0.3 }}
+              className="relative max-w-2xl mx-auto"
+            >
+              <div className="relative">
+                <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                <Input
+                  placeholder="Search by location, property name, or unit type..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="pl-12 h-14 text-base bg-white text-gray-900 border-0 rounded-2xl shadow-2xl shadow-black/20 focus:ring-4 focus:ring-white/30 transition-all"
+                />
+                {searchTerm && (
+                  <motion.button
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    onClick={() => setSearchTerm("")}
+                    className="absolute right-4 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-gray-100 transition-colors"
+                  >
+                    <X className="h-4 w-4 text-gray-500" />
+                  </motion.button>
+                )}
+              </div>
+            </motion.div>
+
+            {/* Feature pills */}
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.5 }}
+              className="flex flex-wrap items-center justify-center gap-3 mt-2"
+            >
+              {[
+                { icon: Shield, label: "Verified Listings" },
+                { icon: MapPin, label: "Prime Locations" },
+                { icon: Clock, label: "Quick Booking" },
+              ].map((feature, i) => (
+                <motion.div
+                  key={feature.label}
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 0.6 + i * 0.1 }}
+                  className="flex items-center gap-2 px-4 py-2 rounded-full bg-white/10 backdrop-blur-sm border border-white/20 text-xs font-medium"
+                >
+                  <feature.icon className="h-3.5 w-3.5" />
+                  {feature.label}
+                </motion.div>
+              ))}
+            </motion.div>
           </motion.div>
         </div>
       </div>
 
       {/* Featured Properties */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -139,13 +215,24 @@ export default function TenantBrowsePage() {
         {loading ? (
           <Card className="border-gray-200">
             <CardContent className="p-12 text-center">
-              <div className="mx-auto h-10 w-10 rounded-full border-4 border-blue-200 border-t-blue-600 animate-spin mb-4" />
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                className="mx-auto h-10 w-10 rounded-full border-4 border-primary-200 border-t-primary-600 mb-4"
+              />
               <p className="text-gray-600 font-medium">Loading properties...</p>
             </CardContent>
           </Card>
         ) : filteredProperties.length === 0 ? (
           <Card className="border-gray-200">
             <CardContent className="p-12 text-center">
+              <motion.div
+                animate={{ scale: [1, 1.1, 1] }}
+                transition={{ duration: 2, repeat: Infinity }}
+                className="text-6xl mb-4"
+              >
+                🏠
+              </motion.div>
               <p className="text-gray-600 font-medium">No properties found</p>
               <p className="text-gray-500 text-sm mt-1">Try adjusting your search</p>
             </CardContent>
@@ -156,21 +243,44 @@ export default function TenantBrowsePage() {
               const propertyUnits = units.filter(u => u.propertyId === property.id);
               const vacantCount = propertyUnits.filter(u => u.status === "vacant").length;
               return (
-                <div key={property.id}>
-                  <Card className="overflow-hidden border-gray-200 hover:shadow-xl transition-all duration-300 h-full">
+                <motion.div key={property.id} whileHover={{ y: -8, transition: { duration: 0.2 } }}>
+                  <Card className="overflow-hidden border-gray-200 hover:shadow-2xl transition-all duration-300 h-full group">
                     <div className="h-48 bg-gray-100 relative overflow-hidden">
                       {property.imageUrl ? (
-                        <img src={property.imageUrl} alt={property.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                        <img src={property.imageUrl} alt={property.name} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
                       ) : (
-                        <div className="h-full bg-gradient-to-br from-blue-100 to-indigo-100 flex items-center justify-center">
-                          <span className="text-5xl">🏠</span>
+                        <div className="h-full bg-gradient-to-br from-primary-100 to-secondary-100 flex items-center justify-center">
+                          <motion.span
+                            animate={{ scale: [1, 1.1, 1] }}
+                            transition={{ duration: 3, repeat: Infinity }}
+                            className="text-6xl"
+                          >
+                            🏠
+                          </motion.span>
                         </div>
                       )}
-                      <div className="absolute top-3 right-3">
+                      <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.3 + index * 0.1 }}
+                        className="absolute top-3 right-3"
+                      >
                         <Badge variant="outline" className="bg-white/90 backdrop-blur-sm text-green-600 border-green-200 capitalize">
                           {property.status}
                         </Badge>
-                      </div>
+                      </motion.div>
+                      {vacantCount > 0 && (
+                        <motion.div
+                          initial={{ opacity: 0, x: 10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: 0.4 + index * 0.1 }}
+                          className="absolute bottom-3 left-3"
+                        >
+                          <Badge className="bg-primary-600 text-white text-[10px] font-bold">
+                            {vacantCount} Available
+                          </Badge>
+                        </motion.div>
+                      )}
                     </div>
                     <CardContent className="p-5">
                       <div className="flex items-start justify-between mb-2">
@@ -188,22 +298,26 @@ export default function TenantBrowsePage() {
                         <span className="font-medium text-gray-900 flex-shrink-0">{vacantCount} units available</span>
                       </div>
                       <div className="flex gap-2 mt-4 pt-4 border-t border-gray-100">
-                        <button
-                          className="h-9 text-xs flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 transition-all"
+                        <motion.button
+                          whileHover={{ scale: 1.03 }}
+                          whileTap={{ scale: 0.97 }}
+                          className="h-9 text-xs flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-gray-200 bg-white hover:bg-primary-50 hover:text-primary-600 hover:border-primary-200 transition-all"
                           onClick={() => { setRatingTarget({ type: "property", id: property.id, name: property.name }); setUserRating(0); setRatingComment(""); }}
                         >
                           <Star className="h-3.5 w-3.5" />Rate
-                        </button>
-                        <button
+                        </motion.button>
+                        <motion.button
+                          whileHover={{ scale: 1.03 }}
+                          whileTap={{ scale: 0.97 }}
                           className="h-9 text-xs flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 transition-all"
                           onClick={() => { setComplaintTarget({ type: "property", id: property.id, name: property.name }); setComplaintSubject(""); setComplaintMessage(""); }}
                         >
                           <Flag className="h-3.5 w-3.5" />Complain
-                        </button>
+                        </motion.button>
                       </div>
                     </CardContent>
                   </Card>
-                </div>
+                </motion.div>
               );
             })}
           </div>
@@ -226,17 +340,23 @@ export default function TenantBrowsePage() {
             <p className="text-sm text-gray-500 mb-5">Share your experience with this {ratingTarget.type}</p>
             <div className="flex items-center gap-2 mb-5">
               {[1, 2, 3, 4, 5].map((star) => (
-                <button key={star} onClick={() => setUserRating(star)} className="p-1 transition-transform hover:scale-110">
+                <motion.button
+                  key={star}
+                  onClick={() => setUserRating(star)}
+                  whileHover={{ scale: 1.2 }}
+                  whileTap={{ scale: 0.9 }}
+                  className="p-1"
+                >
                   <Star className={`h-9 w-9 transition-colors ${star <= userRating ? "text-yellow-400 fill-yellow-400" : "text-gray-300"}`} />
-                </button>
+                </motion.button>
               ))}
               <span className="ml-2 text-sm font-medium text-gray-600">{userRating > 0 ? `${userRating}/5` : ""}</span>
             </div>
             <div className="mb-5">
               <label className="block text-sm font-medium text-gray-700 mb-2">Comment (optional)</label>
-              <textarea value={ratingComment} onChange={(e) => setRatingComment(e.target.value)} placeholder="Share your thoughts..." className="w-full h-24 rounded-xl border border-gray-200 p-3 text-sm resize-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10" />
+              <textarea value={ratingComment} onChange={(e) => setRatingComment(e.target.value)} placeholder="Share your thoughts..." className="w-full h-24 rounded-xl border border-gray-200 p-3 text-sm resize-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10" />
             </div>
-            <Button onClick={handleSubmitRating} disabled={isSubmittingRating || userRating === 0} className="w-full bg-blue-600 hover:bg-blue-700">
+            <Button onClick={handleSubmitRating} disabled={isSubmittingRating || userRating === 0} className="w-full bg-primary-600 hover:bg-primary-700">
               {isSubmittingRating ? "Submitting..." : "Submit Rating"}
             </Button>
           </motion.div>
@@ -273,7 +393,7 @@ export default function TenantBrowsePage() {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Message *</label>
-                <textarea value={complaintMessage} onChange={(e) => setComplaintMessage(e.target.value)} placeholder="Describe the issue in detail..." className="w-full h-32 rounded-xl border border-gray-200 p-3 text-sm resize-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10" />
+                <textarea value={complaintMessage} onChange={(e) => setComplaintMessage(e.target.value)} placeholder="Describe the issue in detail..." className="w-full h-32 rounded-xl border border-gray-200 p-3 text-sm resize-none focus:border-primary-500 focus:ring-2 focus:ring-primary-500/10" />
               </div>
               <Button onClick={handleSubmitComplaint} disabled={isSubmittingComplaint || !complaintSubject.trim() || !complaintMessage.trim()} className="w-full bg-red-600 hover:bg-red-700">
                 {isSubmittingComplaint ? "Submitting..." : "Submit Complaint"}

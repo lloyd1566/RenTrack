@@ -1,6 +1,6 @@
 "use client";
 
-// ─── Neon PostgreSQL-backed Data Store ─────────────────────────────────────
+// ─── PostgreSQL-backed Data Store ───────────────────────────────────────────
 
 // ─── Types ─────────────────────────────────────────────────────────────────
 
@@ -47,11 +47,44 @@ export interface TenantRecord {
   contractEnd?: string;
   rentAmount?: number;
   status: "active" | "inactive";
+  assignmentStatus?: "pending" | "confirmed" | "rejected";
   createdBy?: string;
   createdAt: string;
   avatarUrl?: string;
   idVerificationUrl?: string;
   idVerificationStatus?: string;
+  profileVisibility?: boolean;
+  showEmail?: boolean;
+  showPhone?: boolean;
+  allowMessages?: boolean;
+  dataSharing?: boolean;
+  experience?: string;
+  aboutMe?: string;
+  gender?: string;
+  birthdate?: string;
+  country?: string;
+  languages?: string;
+  hobbies?: string;
+}
+
+export interface UserRecord {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  phone?: string;
+  address?: string;
+  createdAt: string;
+  avatarUrl?: string;
+  idVerificationUrl?: string;
+  idVerificationStatus?: string;
+  experience?: string;
+  aboutMe?: string;
+  gender?: string;
+  birthdate?: string;
+  country?: string;
+  languages?: string;
+  hobbies?: string;
 }
 
 export interface Payment {
@@ -66,7 +99,13 @@ export interface Payment {
   paymentDate: string;
   dueDate: string;
   status: "paid" | "pending" | "overdue" | "partial";
-  paymentMethod: "cash" | "bank_transfer" | "gcash" | "other";
+  paymentMethod: "cash" | "bank_transfer" | "credit_card" | "gcash" | "other";
+  paymentMethodNote?: string;
+  bankName?: string;
+  accountNumber?: string;
+  accountHolder?: string;
+  cardLast4?: string;
+  cardExpiry?: string;
   receiptUrl?: string;
   notes?: string;
   verifiedBy?: string;
@@ -81,6 +120,16 @@ export interface Notification {
   message: string;
   type: "payment" | "tenant" | "property" | "system" | "id_verification";
   read: boolean;
+  createdAt: string;
+}
+
+export interface AuditLog {
+  id: string;
+  userId?: string;
+  actor: string;
+  action: string;
+  details?: Record<string, unknown> | null;
+  ipAddress?: string | null;
   createdAt: string;
 }
 
@@ -116,6 +165,7 @@ async function apiDelete(url: string, body: any) {
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    credentials: "include",
   });
   return res.json();
 }
@@ -132,9 +182,9 @@ export async function addProperty(data: Omit<Property, "id" | "createdAt" | "cre
   return result.property || result;
 }
 
-export function updateProperty(_id: string, _data: Partial<Property>): Property | null {
-  // Will be implemented when needed
-  return null;
+export async function updateProperty(id: string, data: Partial<Property>): Promise<Property | null> {
+  const result = await apiPatch("/api/data/properties/patch", { id, data });
+  return result.success ? result.property || data as any : null;
 }
 
 export async function deleteProperty(id: string): Promise<boolean> {
@@ -154,8 +204,9 @@ export async function addUnit(data: Omit<Unit, "id">): Promise<Unit> {
   return result.unit || result;
 }
 
-export function updateUnit(_id: string, _data: Partial<Unit>): Unit | null {
-  return null;
+export async function updateUnit(id: string, data: Partial<Unit>): Promise<Unit | null> {
+  const result = await apiPatch("/api/data/units/patch", { id, data });
+  return result.success ? result.unit || data as any : null;
 }
 
 export async function deleteUnit(id: string): Promise<boolean> {
@@ -173,6 +224,15 @@ export async function getTenants(_user?: any): Promise<TenantRecord[]> {
 export async function addTenant(data: Omit<TenantRecord, "id" | "createdAt" | "createdBy">, userId: string): Promise<TenantRecord> {
   const result = await apiPost("/api/data/tenants", data);
   return result.tenant;
+}
+
+export async function updateTenantAssignment(tenantId: string, data: {
+  unitId?: string; propertyName?: string; unitNumber?: string;
+  contractStart?: string; contractEnd?: string; rentAmount?: number;
+  assignmentStatus?: string;
+}): Promise<TenantRecord | null> {
+  const result = await apiPatch("/api/data/tenants", { tenantId, ...data });
+  return result.tenant || null;
 }
 
 // ─── Payments ──────────────────────────────────────────────────────────────
@@ -266,6 +326,93 @@ export async function getUnreadCount(userId: string): Promise<number> {
   return result.success ? result.count : 0;
 }
 
+export interface Message {
+  id: string;
+  senderId: string;
+  receiverId: string;
+  subject?: string;
+  body: string;
+  read: boolean;
+  createdAt: string;
+}
+
+export interface Conversation {
+  userId: string;
+  otherUser: { id: string; name: string; email: string; role: string; avatarUrl?: string } | null;
+  lastMessage: Message;
+  unreadCount: number;
+}
+
+// ─── Messages ────────────────────────────────────────────────────────────────
+
+export async function sendMessage(data: { receiverId: string; subject?: string; body: string }): Promise<Message> {
+  const result = await apiPost("/api/messages", data);
+  return result.message || result;
+}
+
+export async function getConversations(): Promise<Conversation[]> {
+  const result = await apiGet("/api/messages");
+  return result.success ? result.conversations : [];
+}
+
+export async function getMessages(otherUserId: string): Promise<Message[]> {
+  const result = await apiGet(`/api/messages/${encodeURIComponent(otherUserId)}`);
+  return result.success ? result.messages : [];
+}
+
+export async function markAllMessagesRead(otherUserId: string): Promise<void> {
+  await apiPatch(`/api/messages/${encodeURIComponent(otherUserId)}`, { action: "markAllRead" });
+}
+
+export async function getUnreadMessageCount(): Promise<number> {
+  const result = await apiGet("/api/messages?count=true");
+  return result.success ? result.count : 0;
+}
+
+export async function getAgents(): Promise<UserRecord[]> {
+  const result = await apiGet("/api/auth/users");
+  if (result.success && result.users) {
+    return result.users.filter((u: UserRecord) => u.role === "agent");
+  }
+  return [];
+}
+
+export async function registerAgent(data: {
+  name: string;
+  email: string;
+  password: string;
+  phone?: string;
+  address?: string;
+  experience?: string;
+  aboutMe?: string;
+  gender?: string;
+  birthdate?: string;
+  country?: string;
+  languages?: string;
+  hobbies?: string;
+}): Promise<UserRecord> {
+  const result = await apiPost("/api/auth/signup", { ...data, role: "agent" });
+  if (result && result.success) {
+    return {
+      id: result.userId,
+      name: data.name,
+      email: data.email,
+      role: "agent",
+      phone: data.phone,
+      address: data.address,
+      createdAt: new Date().toISOString(),
+      experience: data.experience,
+      aboutMe: data.aboutMe,
+      gender: data.gender,
+      birthdate: data.birthdate,
+      country: data.country,
+      languages: data.languages,
+      hobbies: data.hobbies,
+    } as UserRecord;
+  }
+  throw new Error(result?.error || result?.message || "Failed to register agent");
+}
+
 // ─── Dashboard Data ────────────────────────────────────────────────────────
 
 export interface DashboardData {
@@ -285,13 +432,19 @@ export interface DashboardData {
 }
 
 export async function getDashboardData(user?: any): Promise<DashboardData> {
-  const [properties, units, tenants, payments, trends] = await Promise.all([
+  const results = await Promise.allSettled([
     getProperties(user),
     getUnits(user),
     getTenants(user),
     getPayments(user),
     getPaymentTrends(user),
   ]);
+
+  const properties = results[0].status === "fulfilled" ? results[0].value : [];
+  const units = results[1].status === "fulfilled" ? results[1].value : [];
+  const tenants = results[2].status === "fulfilled" ? results[2].value : [];
+  const payments = results[3].status === "fulfilled" ? results[3].value : [];
+  const trends = results[4].status === "fulfilled" ? results[4].value : [];
 
   const totalRevenue = units
     .filter((u) => u.status === "occupied")
@@ -409,6 +562,11 @@ export async function getAverageRating(targetType: string, targetId: string): Pr
   return result.success ? result.average : { average: 0, total: 0 };
 }
 
+export async function getAllRatings(): Promise<Rating[]> {
+  const result = await apiGet("/api/admin/ratings");
+  return result.success ? result.ratings : [];
+}
+
 // ─── Complaints ─────────────────────────────────────────────────────────────
 
 export interface Complaint {
@@ -442,4 +600,58 @@ export async function getComplaints(tenantId?: string): Promise<Complaint[]> {
 export async function updateComplaintStatus(id: string, status: string, assignedTo?: string): Promise<Complaint | null> {
   const result = await apiPatch("/api/data/complaints", { id, status, assignedTo });
   return result.complaint || null;
+}
+
+// ─── Admin User Management ────────────────────────────────────────────────
+
+export async function getUsers(): Promise<UserRecord[]> {
+  const result = await apiGet("/api/auth/users");
+  return result.success ? result.users : [];
+}
+
+export async function getSampleUserIds(): Promise<Set<string>> {
+  const users = await getUsers();
+  const sampleEmails = ["admin@renttrack.com", "owner@renttrack.com", "renttrackowner@gmail.com", "agent@renttrack.com", "tenant@renttrack.com"];
+  return new Set(users.filter(u => sampleEmails.includes(u.email.toLowerCase())).map(u => u.id));
+}
+
+export async function getAuditLogs(limit = 40): Promise<AuditLog[]> {
+  const result = await apiGet(`/api/data/audit-logs?limit=${Math.min(Math.max(limit, 1), 100)}`);
+  return result.success ? result.logs : [];
+}
+
+export async function resetAgentPassword(userId: string, newPassword: string, currentPassword: string): Promise<void> {
+  const result = await apiPost("/api/auth/reset-password", { userId, newPassword, currentPassword });
+  if (!result.success) {
+    throw new Error(result.error || "Failed to reset password");
+  }
+}
+
+export async function deleteUser(userId: string): Promise<boolean> {
+  const result = await apiDelete("/api/auth/users", { userId });
+  return result.success;
+}
+
+export async function updateUserRole(userId: string, role: string): Promise<boolean> {
+  const result = await apiPatch("/api/auth/users", { userId, role });
+  return result.success;
+}
+
+export async function updateUser(userId: string, data: Partial<Pick<UserRecord, "name" | "email" | "phone" | "address">>): Promise<UserRecord | null> {
+  const result = await apiPatch("/api/auth/users/patch", { userId, data });
+  return result.success ? (result.user || data as any) : null;
+}
+
+export async function getAgentStats(userId: string): Promise<{ properties: number; tenants: number; payments: number }> {
+  const [properties, tenants, payments] = await Promise.all([
+    getProperties(),
+    getTenants(),
+    getPayments(),
+  ]);
+
+  return {
+    properties: properties.filter((p) => p.createdBy === userId).length,
+    tenants: tenants.filter((t) => t.createdBy === userId).length,
+    payments: payments.filter((p) => p.createdBy === userId || p.verifiedBy === userId).length,
+  };
 }

@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 const SESSION_COOKIE_NAME = "renttrack_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 8;
-const SESSION_SECRET = process.env.SESSION_SECRET || "renttrack-dev-session-secret";
+const SESSION_SECRET = process.env.SESSION_SECRET || "renttrack-dev-session-secret-insecure";
 
 function base64UrlEncode(value: string) {
   return Buffer.from(value, "utf8").toString("base64url");
@@ -82,7 +82,7 @@ export async function getCurrentUser(request: NextRequest) {
 export function setSessionCookie(response: NextResponse, userId: string) {
   response.cookies.set(SESSION_COOKIE_NAME, createSessionToken(userId), {
     httpOnly: true,
-    sameSite: "strict",
+    sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: SESSION_TTL_SECONDS,
@@ -92,14 +92,14 @@ export function setSessionCookie(response: NextResponse, userId: string) {
 export function regenerateSession(response: NextResponse, userId: string, ip?: string) {
   response.cookies.set(SESSION_COOKIE_NAME, "", {
     httpOnly: true,
-    sameSite: "strict",
+    sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: 0,
   });
   response.cookies.set(SESSION_COOKIE_NAME, createSessionToken(userId, ip), {
     httpOnly: true,
-    sameSite: "strict",
+    sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: SESSION_TTL_SECONDS,
@@ -109,7 +109,7 @@ export function regenerateSession(response: NextResponse, userId: string, ip?: s
 export function clearSessionCookie(response: NextResponse) {
   response.cookies.set(SESSION_COOKIE_NAME, "", {
     httpOnly: true,
-    sameSite: "strict",
+    sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
     maxAge: 0,

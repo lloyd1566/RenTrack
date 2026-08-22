@@ -59,21 +59,21 @@ export default function AgentNavbar() {
           </Link>
 
           <div className="hidden md:flex items-center gap-1">
-            {navItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "flex items-center gap-2 px-3 py-2 text-sm font-medium rounded-xl transition-all duration-200",
-                  pathname === item.href
-                    ? "text-blue-600 bg-blue-50 dark:bg-blue-900/30 shadow-sm"
-                    : "text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800"
-                )}
-              >
-                <item.icon className="h-4 w-4" />
-                <span>{item.label}</span>
-              </Link>
-            ))}
+              {navItems.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className={cn(
+                    "flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-all duration-200",
+                    pathname === item.href
+                      ? "text-blue-600 bg-blue-50 dark:bg-blue-900/30 shadow-sm"
+                      : "text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white hover:bg-gray-50 dark:hover:bg-gray-800"
+                  )}
+                >
+                  <item.icon className="h-4 w-4" />
+                  <span>{item.label}</span>
+                </Link>
+              ))}
             <button
               onClick={toggleDarkMode}
               className="ml-2 p-2 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
@@ -101,23 +101,23 @@ export default function AgentNavbar() {
             exit={{ opacity: 0, height: 0 }}
             className="md:hidden bg-white dark:bg-gray-900 border-b border-gray-200 dark:border-gray-800"
           >
-            <div className="px-4 py-3 space-y-1">
-              {navItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  onClick={() => setMobileOpen(false)}
-                  className={cn(
-                    "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
-                    pathname === item.href
-                      ? "text-blue-600 bg-blue-50 dark:bg-blue-900/30"
-                      : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-                  )}
-                >
-                  <item.icon className="h-4 w-4" />
-                  {item.label}
-                </Link>
-              ))}
+             <div className="px-4 py-3 space-y-1">
+               {navItems.map((item) => (
+                 <Link
+                   key={item.href}
+                   href={item.href}
+                   onClick={() => setMobileOpen(false)}
+                   className={cn(
+                     "flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs font-medium transition-colors",
+                     pathname === item.href
+                       ? "text-blue-600 bg-blue-50 dark:bg-blue-900/30"
+                       : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                   )}
+                 >
+                   <item.icon className="h-4 w-4" />
+                   {item.label}
+                 </Link>
+               ))}
             </div>
           </motion.div>
         )}

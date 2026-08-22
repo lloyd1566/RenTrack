@@ -46,7 +46,7 @@ export default function ReportsPage() {
   useEffect(() => {
     (async () => {
       const [props, units_, tenants_, pays, trends] = await Promise.all([
-        getProperties(user), getUnits(), getTenants(), getPayments(user), getPaymentTrends(user),
+        getProperties(user), getUnits(user), getTenants(), getPayments(user), getPaymentTrends(user),
       ]);
       setProperties(props); setUnits(units_); setTenants(tenants_); setPayments(pays); setMonthlyData(trends);
     })();

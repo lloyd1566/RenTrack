@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
+import { calculateProfileCompleteness, type UserProfile } from "@/lib/profile";
 import { toast } from "sonner";
 
 type Tab = "general" | "edit-profile" | "security";
@@ -24,11 +25,36 @@ const tabs: { id: Tab; label: string; icon: typeof User }[] = [
   { id: "security", label: "Security", icon: Key },
 ];
 
-const statCards = [
-  { label: "Profile Completeness", value: "85%", icon: User, color: "from-blue-500 to-blue-600", bg: "bg-blue-50" },
+const statCardsDef = [
+  { label: "Profile Completeness", valueKey: "percentage", icon: User, color: "from-blue-500 to-blue-600", bg: "bg-blue-50" },
   { label: "Account Status", value: "Active", icon: CheckCircle2, color: "from-green-500 to-green-600", bg: "bg-green-50" },
-  { label: "Member Since", value: "2025", icon: CalendarIcon, color: "from-purple-500 to-purple-600", bg: "bg-purple-50" },
+  { label: "Member Since", valueKey: "memberSince", icon: CalendarIcon, color: "from-purple-500 to-purple-600", bg: "bg-purple-50" },
 ];
+
+function getMemberSinceText(createdAt?: string): string {
+  if (!createdAt) return "Unknown";
+  const joined = new Date(createdAt);
+  const now = new Date();
+  const diffMs = now.getTime() - joined.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const diffYears = Math.floor(diffDays / 365);
+  const remainingMonths = Math.floor((diffDays % 365) / 30);
+
+  if (diffYears > 0) {
+    if (remainingMonths > 0) {
+      return `${diffYears}y ${remainingMonths}mo`;
+    }
+    return `${diffYears} year${diffYears > 1 ? 's' : ''}`;
+  }
+  if (diffDays > 0) {
+    const remainingDays = diffDays % 30;
+    if (remainingDays > 0) {
+      return `${Math.floor(diffDays / 30)}mo ${remainingDays}d`;
+    }
+    return `${diffDays} day${diffDays > 1 ? 's' : ''}`;
+  }
+  return "Today";
+}
 
 export default function TenantSettingsPage() {
   const { user, refreshUser } = useAuth();
@@ -45,16 +71,19 @@ export default function TenantSettingsPage() {
   const [gender, setGender] = useState(user?.gender || "");
   const [birthdate, setBirthdate] = useState(user?.birthdate || "");
   const [country, setCountry] = useState(user?.country || "");
+  const [address, setAddress] = useState(user?.address || "");
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isUploadingId, setIsUploadingId] = useState(false);
   const [hoveredStat, setHoveredStat] = useState<string | null>(null);
   const [showIdPreview, setShowIdPreview] = useState(false);
   const userIdRef = useRef(user?.id || null);
+  const didSyncRef = useRef(false);
 
   useEffect(() => {
     if (!user) return;
-    if (userIdRef.current && userIdRef.current !== user.id) {
+    if (didSyncRef.current && userIdRef.current === user.id) return;
+    if (didSyncRef.current && userIdRef.current !== user.id) {
       setName(user.name);
       setEmail(user.email);
       setPhone(user.phone || "");
@@ -64,8 +93,12 @@ export default function TenantSettingsPage() {
       setGender(user.gender || "");
       setBirthdate(user.birthdate || "");
       setCountry(user.country || "");
+      setAddress(user.address || "");
       userIdRef.current = user.id;
-    } else if (!userIdRef.current) {
+      didSyncRef.current = true;
+      return;
+    }
+    if (!didSyncRef.current) {
       setName(user.name);
       setEmail(user.email);
       setPhone(user.phone || "");
@@ -75,7 +108,9 @@ export default function TenantSettingsPage() {
       setGender(user.gender || "");
       setBirthdate(user.birthdate || "");
       setCountry(user.country || "");
+      setAddress(user.address || "");
       userIdRef.current = user.id;
+      didSyncRef.current = true;
     }
   }, [user]);
 
@@ -87,7 +122,7 @@ export default function TenantSettingsPage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ id: user?.id, name, email, phone, languages, hobbies, aboutMe, gender, birthdate, country }),
+        body: JSON.stringify({ id: user?.id, name, email, phone, languages, hobbies, aboutMe, gender, birthdate, country, address }),
       });
       const result = await res.json();
       if (result.success) {
@@ -191,7 +226,30 @@ export default function TenantSettingsPage() {
     }
   };
 
-  if (!user) return null;
+  if (!user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50">
+        <div className="text-center">
+          <p className="text-gray-600 font-medium">Redirecting to login...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const profile: UserProfile = {
+    name: user.name,
+    email: user.email,
+    phone: user.phone,
+    gender,
+    birthdate,
+    country,
+    address,
+    languages,
+    aboutMe,
+    avatarUrl: user.avatarUrl,
+    idVerificationUrl: user.idVerificationUrl,
+  };
+  const profileCompleteness = calculateProfileCompleteness(profile);
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }} className="max-w-6xl mx-auto space-y-6">
@@ -252,33 +310,38 @@ export default function TenantSettingsPage() {
         transition={{ duration: 0.5, delay: 0.1 }}
         className="grid grid-cols-1 sm:grid-cols-3 gap-4"
       >
-        {statCards.map((stat, i) => (
-          <motion.div
-            key={stat.label}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.1 + i * 0.05 }}
-            whileHover={{ y: -4, transition: { duration: 0.2 } }}
-            onHoverStart={() => setHoveredStat(stat.label)}
-            onHoverEnd={() => setHoveredStat(null)}
-          >
-            <Card className="border-gray-200 hover:shadow-xl transition-all duration-300 h-full">
-              <CardContent className="p-6">
-                <div className="flex items-center justify-between mb-3">
-                  <div className={cn("h-10 w-10 rounded-xl flex items-center justify-center", stat.bg)}>
-                    <stat.icon className={cn("h-5 w-5 bg-gradient-to-br bg-clip-text text-transparent", `text-[${stat.color}]`)} style={{ backgroundImage: `linear-gradient(to bottom right, var(--tw-gradient-stops))` }} />
-                  </div>
+        {statCardsDef.map((stat, i) => {
+          const displayValue = stat.valueKey === "percentage" ? `${profileCompleteness.percentage}%`
+            : stat.valueKey === "memberSince" ? getMemberSinceText(user?.createdAt)
+            : stat.value;
+          return (
+            <motion.div
+              key={stat.label}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.3, delay: 0.1 + i * 0.05 }}
+              whileHover={{ y: -4, transition: { duration: 0.2 } }}
+              onHoverStart={() => setHoveredStat(stat.label)}
+              onHoverEnd={() => setHoveredStat(null)}
+            >
+              <Card className="border-gray-200 hover:shadow-xl transition-all duration-300 h-full">
+                <CardContent className="p-6">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className={cn("h-10 w-10 rounded-xl flex items-center justify-center", stat.bg)}>
+                      <stat.icon className={cn("h-5 w-5 bg-gradient-to-br bg-clip-text text-transparent", `text-[${stat.color}]`)} style={{ backgroundImage: `linear-gradient(to bottom right, var(--tw-gradient-stops))` }} />
+                    </div>
                   <motion.div
                     animate={{ scale: hoveredStat === stat.label ? 1.1 : 1 }}
                     className={cn("h-2 w-2 rounded-full bg-gradient-to-r", stat.color)}
                   />
                 </div>
-                <p className="text-2xl font-bold text-gray-900">{stat.value}</p>
-                <p className="text-xs text-gray-500 mt-1">{stat.label}</p>
-              </CardContent>
-            </Card>
-          </motion.div>
-        ))}
+                 <p className="text-2xl font-bold text-gray-900">{displayValue}</p>
+                 <p className="text-xs text-gray-500 mt-1">{stat.label}</p>
+               </CardContent>
+             </Card>
+           </motion.div>
+         );
+        })}
       </motion.div>
 
       {/* Tabs */}
@@ -334,15 +397,16 @@ export default function TenantSettingsPage() {
                       <Badge variant="outline" className="mt-2 capitalize">{user.role}</Badge>
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                    {[
-                      { label: "Full Name", value: user.name, icon: User },
-                      { label: "Email Address", value: user.email, icon: Mail },
-                      { label: "Phone Number", value: user.phone || "Not set", icon: Phone },
-                      { label: "Gender", value: user.gender || "Not specified", icon: User },
-                      { label: "Birthdate", value: user.birthdate ? new Date(user.birthdate).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" }) : "Not specified", icon: CalendarIcon },
-                      { label: "Country", value: user.country || "Not specified", icon: Globe },
-                    ].map((item, i) => (
+                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                     {[
+                       { label: "Full Name", value: user.name, icon: User },
+                       { label: "Email Address", value: user.email, icon: Mail },
+                       { label: "Phone Number", value: user.phone || "Not set", icon: Phone },
+                       { label: "Gender", value: user.gender || "Not specified", icon: User },
+                       { label: "Birthdate", value: user.birthdate ? new Date(user.birthdate).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" }) : "Not specified", icon: CalendarIcon },
+                       { label: "Country", value: user.country || "Not specified", icon: Globe },
+                       { label: "Address", value: user.address || "Not set", icon: MapPin },
+                     ].map((item, i) => (
                       <motion.div
                         key={item.label}
                         initial={{ opacity: 0, x: -20 }}
@@ -506,15 +570,16 @@ export default function TenantSettingsPage() {
                         {isUploadingAvatar && <p className="text-xs text-blue-600 mt-1">Uploading...</p>}
                       </div>
                     </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                      {[
-                        { label: "Full Name", value: name, setter: setName, placeholder: "Your full name" },
-                        { label: "Email Address", value: email, setter: setEmail, placeholder: "your@email.com", type: "email" },
-                        { label: "Phone Number", value: phone, setter: setPhone, placeholder: "+63 XXX XXX XXXX" },
-                        { label: "Gender", value: gender, setter: setGender, placeholder: "Male / Female / Other" },
-                        { label: "Birthdate", value: birthdate, setter: setBirthdate, type: "date" },
-                        { label: "Country", value: country, setter: setCountry, placeholder: "Philippines" },
-                      ].map((field, i) => (
+                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                       {[
+                         { label: "Full Name", value: name, setter: setName, placeholder: "Your full name" },
+                         { label: "Email Address", value: email, setter: setEmail, placeholder: "your@email.com", type: "email" },
+                         { label: "Phone Number", value: phone, setter: setPhone, placeholder: "+63 XXX XXX XXXX" },
+                         { label: "Gender", value: gender, setter: setGender, placeholder: "Male / Female / Other" },
+                         { label: "Birthdate", value: birthdate, setter: setBirthdate, type: "date" },
+                         { label: "Country", value: country, setter: setCountry, placeholder: "Philippines" },
+                         { label: "Address", value: address, setter: setAddress, placeholder: "Your full address" },
+                       ].map((field, i) => (
                         <motion.div
                           key={field.label}
                           initial={{ opacity: 0, y: 10 }}

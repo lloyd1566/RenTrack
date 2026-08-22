@@ -14,7 +14,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Avatar } from "@/components/ui/avatar";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
-import { getPayments, verifyPayment, addNotification, notifyAdmins, Payment } from "@/lib/data";
+import { useRouter } from "next/navigation";
+import { getPayments, getTenants, verifyPayment, addNotification, notifyAdmins, Payment, TenantRecord } from "@/lib/data";
 import { toast } from "sonner";
 
 const staggerContainer = { hidden: {}, visible: { transition: { staggerChildren: 0.05, delayChildren: 0.1 } } };
@@ -29,14 +30,36 @@ const statusStyles: Record<string, string> = {
 
 export default function PaymentsPage() {
   const { user } = useAuth();
+  const router = useRouter();
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [tenants, setTenants] = useState<TenantRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [view, setView] = useState<"all" | "monthly" | "yearly">("all");
 
   useEffect(() => {
-    getPayments(user).then(setPayments);
-  }, [user]);
+    if (!user) return;
+    if (user.role === "admin") {
+      router.replace("/dashboard/admin");
+      return;
+    }
+    Promise.all([
+      getPayments(user),
+      getTenants(user),
+    ]).then(([pays, tens]) => {
+      setPayments(pays);
+      setTenants(tens);
+    });
+  }, [user, router]);
+
+  if (user?.role === "admin") {
+    return (
+      <div className="rounded-2xl border border-border bg-surface p-8 text-center">
+        <h2 className="text-lg font-semibold text-foreground">Payment operations are not part of the Administrator role.</h2>
+        <p className="mt-2 text-sm text-text-secondary">Redirecting to the system console…</p>
+      </div>
+    );
+  }
 
   const filteredPayments = payments.filter((p) => {
     const matchesSearch = p.tenantName.toLowerCase().includes(searchTerm.toLowerCase());
@@ -160,7 +183,7 @@ export default function PaymentsPage() {
                 <TableHead>Due Date</TableHead>
                 <TableHead>Advance</TableHead>
                 <TableHead>Status</TableHead>
-                {(user?.role === "owner" || user?.role === "admin" || user?.role === "agent") && <TableHead>Actions</TableHead>}
+                {(user?.role === "owner" || user?.role === "agent") && <TableHead>Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -176,7 +199,7 @@ export default function PaymentsPage() {
                     className="border-b border-border transition-all duration-200 hover:bg-surface-secondary/70">
                     <TableCell>
                       <div className="flex items-center gap-3">
-                        <Avatar fallback={payment.tenantName.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)} size="sm" />
+                          <Avatar src={tenants.find(t => t.id === payment.tenantId)?.avatarUrl || ""} fallback={payment.tenantName.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)} size="sm" />
                         <span className="text-sm font-medium text-foreground">{payment.tenantName}</span>
                       </div>
                     </TableCell>
@@ -197,7 +220,7 @@ export default function PaymentsPage() {
                         {payment.status}
                       </Badge>
                     </TableCell>
-                    {(user?.role === "owner" || user?.role === "admin" || user?.role === "agent") && (
+                    {(user?.role === "owner" || user?.role === "agent") && (
                       <TableCell>
                          <div className="flex gap-1">
                            {payment.receiptUrl && (

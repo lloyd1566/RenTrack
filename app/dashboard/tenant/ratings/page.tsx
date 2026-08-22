@@ -67,7 +67,7 @@ export default function TenantRatingsPage() {
           transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
           className="absolute top-10 right-10 w-96 h-96 rounded-full bg-blue-400/20 blur-3xl"
         />
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <div className="relative w-full px-4 sm:px-6 lg:px-8 py-10">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -79,7 +79,7 @@ export default function TenantRatingsPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
         <div className="flex items-center justify-between mb-8">
           <div>
             <h2 className="text-2xl font-bold text-gray-900">My Ratings & Complaints</h2>

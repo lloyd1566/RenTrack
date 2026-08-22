@@ -14,25 +14,30 @@ export function formatCurrency(amount: number): string {
 }
 
 export function formatDate(date: Date | string): string {
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return "No date";
   return new Intl.DateTimeFormat("en-PH", {
     year: "numeric",
     month: "short",
     day: "numeric",
-  }).format(new Date(date));
+  }).format(parsed);
 }
 
 export function formatDateFull(date: Date | string): string {
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return "Invalid date";
   return new Intl.DateTimeFormat("en-PH", {
     year: "numeric",
     month: "long",
     day: "numeric",
-  }).format(new Date(date));
+  }).format(parsed);
 }
 
 export function getTimeAgo(date: Date | string): string {
   const now = new Date();
-  const past = new Date(date);
-  const diffMs = now.getTime() - past.getTime();
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return "Unknown";
+  const diffMs = now.getTime() - parsed.getTime();
   const diffSecs = Math.floor(diffMs / 1000);
   const diffMins = Math.floor(diffSecs / 60);
   const diffHours = Math.floor(diffMins / 60);
@@ -45,13 +50,31 @@ export function getTimeAgo(date: Date | string): string {
   return formatDate(date);
 }
 
-export function getInitials(name: string): string {
+export function getInitials(name?: string): string {
+  if (!name) return "U";
   return name
     .split(" ")
     .map((n) => n[0])
     .join("")
     .toUpperCase()
     .slice(0, 2);
+}
+
+export const SAMPLE_ACCOUNT_EMAILS = [
+  "admin@renttrack.com",
+  "owner@renttrack.com",
+  "renttrackowner@gmail.com",
+  "agent@renttrack.com",
+  "tenant@renttrack.com",
+] as const;
+
+export function isSampleAccount(email: string): boolean {
+  const lower = email.toLowerCase();
+  return lower === "admin@renttrack.com" ||
+    lower === "owner@renttrack.com" ||
+    lower === "renttrackowner@gmail.com" ||
+    lower === "agent@renttrack.com" ||
+    lower === "tenant@renttrack.com";
 }
 
 export function generateId(): string {
