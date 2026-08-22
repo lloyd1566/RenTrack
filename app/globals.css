@@ -90,6 +90,21 @@
 
 /* ─── Base Styles ──────────────────────────────────────────────────────── */
 
+/* Hide native select arrows so custom chevron icons are consistent */
+select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+}
+select::-webkit-inner-spin-button,
+select::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+select::-ms-expand {
+  display: none;
+}
+
 body {
   background: var(--color-surface);
   color: var(--color-text-primary);

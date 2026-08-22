@@ -126,6 +126,9 @@ export async function PATCH(request: NextRequest) {
     ]);
 
     const payment = await updatePayment(id, sanitized);
+    if (!payment) {
+      return NextResponse.json({ success: false, error: "Payment not found" }, { status: 404 });
+    }
     await logAudit(auth.userId, "payment_updated", { paymentId: id, updates: Object.keys(sanitized) }, auth.ip, auth.userAgent);
     return NextResponse.json({ success: true, payment: sanitizeResponse(payment) });
   } catch (error) {

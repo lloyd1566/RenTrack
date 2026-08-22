@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUserId } from "@/lib/security";
-import { sql, createNotification } from "@/lib/db";
+import { createUpload, getUpload, updateUserAvatar, updateUserIdVerification, createNotification, supabase, getAdminSupabase } from "@/lib/db";
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,32 +17,27 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "No file provided" }, { status: 400 });
     }
 
-    if (!["avatar", "id_verification"].includes(type)) {
+    if (!type || !["avatar", "id_verification", "property", "unit", "receipt"].includes(type)) {
       return NextResponse.json({ success: false, error: "Invalid upload type" }, { status: 400 });
     }
 
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
-    const id = `upload_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-
-    await sql`
-      INSERT INTO uploads (id, user_id, type, data, mime_type, size, created_at)
-      VALUES (${id}, ${userId}, ${type}, ${buffer}, ${file.type}, ${file.size}, NOW())
-    `;
+    const id = await createUpload({ userId, type, buffer, mimeType: file.type, size: file.size });
 
     const url = `/api/auth/upload/${id}`;
 
     if (type === "avatar") {
-      await sql`UPDATE users SET avatar_url = ${url} WHERE id = ${userId}`;
+      await updateUserAvatar(userId, url);
     } else if (type === "id_verification") {
-      await sql`UPDATE users SET id_verification_url = ${url}, id_verification_status = 'pending' WHERE id = ${userId}`;
-      
-      const uploader = await sql`SELECT name, email, role FROM users WHERE id = ${userId}`;
-      const uploaderName = uploader[0]?.name || "A user";
-      const uploaderRole = uploader[0]?.role || "user";
-      
-      const admins = await sql`SELECT id FROM users WHERE role IN ('admin', 'owner')`;
-      for (const admin of admins) {
+      await updateUserIdVerification(userId, url, "pending");
+
+      const uploader = await getAdminSupabase().from("users").select("name, email, role").eq("id", userId).single();
+      const uploaderName = uploader.data?.name || "A user";
+      const uploaderRole = uploader.data?.role || "user";
+
+      const admins = await getAdminSupabase().from("users").select("id").in("role", ["admin", "owner"]);
+      for (const admin of admins.data || []) {
         await createNotification({
           userId: admin.id,
           title: "ID Upload Pending Review",

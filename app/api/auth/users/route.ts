@@ -44,8 +44,8 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Cannot delete your own account" }, { status: 400 });
     }
 
-    const { sql } = await import("@/lib/db");
-    await sql`DELETE FROM users WHERE id = ${userId}`;
+    const { supabase } = await import("@/lib/db");
+    await supabase.from("users").delete().eq("id", userId);
 
     await logAudit(auth.userId, "user_deleted", { deletedUserId: userId, deletedUserName: targetUser.name }, auth.ip, auth.userAgent);
     return NextResponse.json({ success: true, message: "User deleted successfully" });

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 // Allowed origins for CORS
 const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(",").map((o) => o.trim()) || [
-  process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+  process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
 ];
 
 // CSRF token storage (in production, use Redis or database)

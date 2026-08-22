@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyLoginOtp, initDatabase, findOrCreateAdmin, findUserById, logAudit, sql } from "@/lib/db";
+import { verifyLoginOtp, initDatabase, findOrCreateAdmin, findUserById, logAudit, updateUser } from "@/lib/db";
 import { withSecurityHeaders, withCorsHeaders, validateApiRequest, getClientIp } from "@/lib/api-security";
 import { checkVerifyRateLimit, clearVerifyRateLimit, VERIFY_LOCKOUT_DURATION_MS } from "@/lib/auth-security";
 
@@ -40,10 +40,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "User not found" }, { status: 404 });
     }
 
-    await sql`
-      UPDATE users SET email_verified = true, verification_token = NULL, verification_expires_at = NULL
-      WHERE id = ${userId}
-    `;
+    await updateUser(userId, { emailVerified: true, verificationToken: null, verificationExpiresAt: null });
 
     const updatedUser = await findUserById(userId);
     if (!updatedUser || !updatedUser.emailVerified) {

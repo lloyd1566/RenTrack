@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createComplaint, getComplaints, getComplaintById, updateComplaintStatus } from "@/lib/db";
 import { requireAuth, validateApiRequest, withSecurityHeaders, withCorsHeaders, sanitizeObject, getClientIp } from "@/lib/api-security";
 import { logAudit } from "@/lib/db";
+import { sendSystemEmail, isSmtpConfigured } from "@/lib/mail";
 
 export async function POST(request: NextRequest) {
   try {
@@ -34,6 +35,23 @@ export async function POST(request: NextRequest) {
     });
 
     await logAudit(auth.userId, "complaint_created", { targetType: sanitized.targetType, targetId: sanitized.targetId, subject: sanitized.subject }, auth.ip, auth.userAgent);
+
+    try {
+      if (isSmtpConfigured()) {
+        const users = await (await import("@/lib/db")).getAllUsers();
+        const recipients = users.filter((u: any) => (u.role === "owner" || u.role === "admin" || u.role === "agent") && u.email);
+        for (const recipient of recipients) {
+          await sendSystemEmail({
+            to: recipient.email,
+            subject: `New Complaint: ${sanitized.subject}`,
+            html: `<p>A new complaint has been submitted.</p><p><strong>Subject:</strong> ${sanitized.subject}</p><p><strong>Priority:</strong> ${sanitized.priority || "medium"}</p><p><strong>Message:</strong> ${sanitized.message}</p>`,
+          });
+        }
+      }
+    } catch (err) {
+      console.error("Failed to send complaint notification email:", err);
+    }
+
     return NextResponse.json({ success: true, complaint });
   } catch (error) {
     console.error("Create complaint error:", error);

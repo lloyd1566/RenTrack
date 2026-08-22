@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
       ? await getNotifications(userId)
       : await getNotifications(auth.userId);
 
-    return NextResponse.json({ success: true, notifications: notifications.map(n => sanitizeResponse(n)) });
+    return NextResponse.json({ success: true, notifications: notifications.map((n: any) => sanitizeResponse(n)) });
   } catch (error) {
     console.error("Get notifications error:", error);
     return NextResponse.json({ success: false, error: "Failed to fetch notifications" }, { status: 500 });

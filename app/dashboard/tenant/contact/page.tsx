@@ -24,26 +24,26 @@ const item = {
 
 export default function TenantContactPage() {
   return (
-    <div className="min-h-screen">
-      <div className="relative bg-gradient-to-br from-blue-600 to-blue-700 text-white py-16 overflow-hidden">
+    <div className="min-h-screen bg-white dark:bg-slate-900">
+      <div className="relative bg-gradient-to-br from-blue-600 to-blue-700 text-white py-10 overflow-hidden">
         <motion.div
           animate={{ x: [0, 30, 0], y: [0, -20, 0] }}
           transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
           className="absolute top-10 right-10 w-96 h-96 rounded-full bg-blue-400/20 blur-3xl"
         />
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="relative w-full px-4 sm:px-6 lg:px-8">
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 text-white text-xs font-medium mb-4">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 text-white text-xs font-medium mb-3">
               <Sparkles className="h-3 w-3" />
               Get In Touch
             </div>
-            <h1 className="text-4xl md:text-5xl font-bold mb-4">Contact Us</h1>
-            <p className="text-xl text-blue-100">Get in touch with our team for support and inquiries.</p>
+            <h1 className="text-3xl md:text-4xl font-bold mb-2">Contact Us</h1>
+            <p className="text-lg text-blue-100">Get in touch with our team for support and inquiries.</p>
           </motion.div>
         </div>
       </div>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <motion.div
             variants={container}
             initial="hidden"
@@ -58,8 +58,8 @@ export default function TenantContactPage() {
                 whileHover={{ x: 4 }}
                 transition={{ type: "spring", stiffness: 300, damping: 20 }}
               >
-                <Card className="p-5 border-gray-200 hover:shadow-2xl transition-all duration-300">
-                  <div className="flex items-center gap-4">
+                 <Card className="p-4 border-gray-200 hover:shadow-2xl transition-all duration-300">
+                   <div className="flex items-center gap-3">
                     <motion.div
                       animate={{ y: [0, -4, 0] }}
                       transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: idx * 0.3 }}
@@ -83,10 +83,10 @@ export default function TenantContactPage() {
             transition={{ duration: 0.5, delay: 0.3 }}
             className="lg:col-span-2"
           >
-            <Card className="p-6 border-gray-200 hover:shadow-2xl transition-all duration-300">
-              <h3 className="text-xl font-semibold text-gray-900 mb-4">Send us a message</h3>
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card className="p-5 border-gray-200 hover:shadow-2xl transition-all duration-300">
+              <h3 className="text-xl font-semibold text-gray-900 mb-3">Send us a message</h3>
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   <Input placeholder="Your Name" />
                   <Input placeholder="Your Email" type="email" />
                 </div>

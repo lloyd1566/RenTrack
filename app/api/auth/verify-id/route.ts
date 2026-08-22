@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUserId, getCurrentUser } from "@/lib/security";
-import { findUserById } from "@/lib/db";
+import { findUserById, updateUserIdVerification } from "@/lib/db";
 import { logAudit } from "@/lib/db";
 import { withSecurityHeaders, withCorsHeaders, getClientIp } from "@/lib/security-headers";
 
@@ -25,11 +25,7 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ success: false, error: "User not found" }, { status: 404 });
     }
 
-    const { sql } = await import("@/lib/db");
-    await sql`
-      UPDATE users SET id_verification_status = ${status}
-      WHERE id = ${userId}
-    `;
+    await updateUserIdVerification(userId, targetUser.idVerificationUrl || "", status);
 
     const actorId = getSessionUserId(request);
     if (actorId) {

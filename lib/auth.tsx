@@ -168,8 +168,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(() => {
     setUserState(null);
     localStorage.removeItem(SESSION_KEY);
-    fetch("/api/auth/logout", { method: "POST", credentials: "include" }).catch(() => undefined);
-    toast.success("Logged out successfully");
+    return fetch("/api/auth/logout", { method: "POST", credentials: "include" }).catch(() => undefined);
   }, [setUser]);
 
   const refreshUser = useCallback(async () => {

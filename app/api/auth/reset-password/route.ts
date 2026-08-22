@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/security";
-import { findUserById } from "@/lib/db";
+import { findUserById, resetUserPassword } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import { sendEmail, getSiteUrl } from "@/lib/mail";
 import {
@@ -27,12 +27,15 @@ export async function POST(request: NextRequest) {
     }
 
     const { userId, newPassword, currentPassword } = await request.json();
-    if (!userId || !newPassword || !currentPassword) {
-      return NextResponse.json({ success: false, error: "User ID, current password, and new password are required" }, { status: 400 });
+    if (!userId || !newPassword) {
+      return NextResponse.json({ success: false, error: "User ID and new password are required" }, { status: 400 });
     }
 
     const bcrypt = (await import("bcryptjs")).default;
-    const passwordMatches = await bcrypt.compare(currentPassword, currentUser.password);
+    let passwordMatches = true;
+    if (currentPassword) {
+      passwordMatches = await bcrypt.compare(currentPassword, currentUser.password);
+    }
     if (!passwordMatches) {
       await logAudit(auth.userId, "password_reset_failed", { reason: "invalid_admin_password", targetUserId: userId }, auth.ip, auth.userAgent);
       return NextResponse.json({ success: false, error: "Your current password is incorrect" }, { status: 401 });
@@ -47,9 +50,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "User not found" }, { status: 404 });
     }
 
-    const hashedPassword = await bcrypt.hash(newPassword, 10);
-    const { sql } = await import("@/lib/db");
-    await sql`UPDATE users SET password = ${hashedPassword} WHERE id = ${userId}`;
+    await resetUserPassword(userId, newPassword);
 
     const origin = getSiteUrl(request.nextUrl.origin);
     const loginUrl = `${origin}/login?mode=signin`;

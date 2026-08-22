@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
+import { calculateProfileCompleteness, type UserProfile } from "@/lib/profile";
 import { toast } from "sonner";
 
 type Tab = "general" | "edit-profile" | "password";
@@ -39,42 +40,51 @@ export default function SettingsPage() {
   const [gender, setGender] = useState(user?.gender || "");
   const [birthdate, setBirthdate] = useState(user?.birthdate || "");
   const [country, setCountry] = useState(user?.country || "");
+  const [address, setAddress] = useState(user?.address || "");
   const [experience, setExperience] = useState(user?.experience || "");
   const userIdRef = useRef(user?.id || null);
+  const didSyncRef = useRef(false);
+
+  useEffect(() => {
+    if (!user) return;
+    if (didSyncRef.current && userIdRef.current === user.id) return;
+    if (didSyncRef.current && userIdRef.current !== user.id) {
+      setName(user.name);
+      setEmail(user.email);
+      setPhone(user.phone || "");
+      setLanguages(user.languages || "");
+      setHobbies(user.hobbies || "");
+      setAboutMe(user.aboutMe || "");
+      setGender(user.gender || "");
+      setBirthdate(user.birthdate || "");
+      setCountry(user.country || "");
+      setAddress(user.address || "");
+      setExperience(user.experience || "");
+      userIdRef.current = user.id;
+      didSyncRef.current = true;
+      return;
+    }
+    if (!didSyncRef.current) {
+      setName(user.name);
+      setEmail(user.email);
+      setPhone(user.phone || "");
+      setLanguages(user.languages || "");
+      setHobbies(user.hobbies || "");
+      setAboutMe(user.aboutMe || "");
+      setGender(user.gender || "");
+      setBirthdate(user.birthdate || "");
+      setCountry(user.country || "");
+      setAddress(user.address || "");
+      setExperience(user.experience || "");
+      userIdRef.current = user.id;
+      didSyncRef.current = true;
+    }
+   }, [user]);
 
   useEffect(() => {
     const isDark = localStorage.getItem("renttrack_dark") === "true";
     setDarkMode(isDark);
   }, []);
-
-  useEffect(() => {
-    if (!user) return;
-    if (userIdRef.current && userIdRef.current !== user.id) {
-      setName(user.name);
-      setEmail(user.email);
-      setPhone(user.phone || "");
-      setLanguages(user.languages || "");
-      setHobbies(user.hobbies || "");
-      setAboutMe(user.aboutMe || "");
-      setGender(user.gender || "");
-      setBirthdate(user.birthdate || "");
-      setCountry(user.country || "");
-      setExperience(user.experience || "");
-      userIdRef.current = user.id;
-    } else if (!userIdRef.current) {
-      setName(user.name);
-      setEmail(user.email);
-      setPhone(user.phone || "");
-      setLanguages(user.languages || "");
-      setHobbies(user.hobbies || "");
-      setAboutMe(user.aboutMe || "");
-      setGender(user.gender || "");
-      setBirthdate(user.birthdate || "");
-      setCountry(user.country || "");
-      setExperience(user.experience || "");
-      userIdRef.current = user.id;
-    }
-  }, [user]);
 
   const toggleDark = () => {
     const next = !darkMode;
@@ -96,7 +106,7 @@ export default function SettingsPage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ id: user?.id, name, email, phone, languages, hobbies, aboutMe, gender, birthdate, country, experience }),
+        body: JSON.stringify({ id: user?.id, name, email, phone, languages, hobbies, aboutMe, gender, birthdate, country, address, experience }),
       });
       const result = await res.json();
       if (result.success) {
@@ -189,12 +199,26 @@ export default function SettingsPage() {
     }
   };
 
+  const profile: UserProfile = {
+    name: user?.name,
+    email: user?.email,
+    phone,
+    gender,
+    birthdate,
+    country,
+    address,
+    languages,
+    aboutMe,
+    avatarUrl: user?.avatarUrl,
+  };
+  const profileCompleteness = calculateProfileCompleteness(profile);
+
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-6xl mx-auto space-y-6">
       <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-rose-500 via-pink-500 to-purple-600 p-8 sm:p-10">
         <div className="absolute -top-4 -right-4 w-40 h-40 bg-white/10 rounded-full blur-2xl" />
         <div className="relative flex items-center gap-4">
-          <Avatar fallback={user?.name?.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2) || "U"} size="xl" className="h-16 w-16 text-lg border-4 border-white/20" />
+          <Avatar src={user?.avatarUrl} fallback={user?.name?.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2) || "U"} size="xl" className="h-16 w-16 text-lg border-4 border-white/20" />
           <div>
             <h2 className="text-3xl font-bold text-white tracking-tight">My Profile</h2>
             <p className="text-white/70 text-sm mt-1.5">Manage your account settings and preferences</p>
@@ -242,15 +266,23 @@ export default function SettingsPage() {
                   <p className="text-xs text-text-secondary">{user?.email || "Not set"}</p>
                 </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-text-secondary mb-1">Full Name</label>
-                  <p className="text-sm font-medium text-foreground">{user?.name || "Not set"}</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-text-secondary mb-1">Account Email</label>
-                  <p className="text-sm font-medium text-foreground">{user?.email || "Not set"}</p>
-                </div>
+               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                 <div>
+                   <label className="block text-sm font-medium text-text-secondary mb-1">Full Name</label>
+                   <p className="text-sm font-medium text-foreground">{user?.name || "Not set"}</p>
+                 </div>
+                 <div>
+                   <label className="block text-sm font-medium text-text-secondary mb-1">Account Email</label>
+                   <p className="text-sm font-medium text-foreground">{user?.email || "Not set"}</p>
+                 </div>
+                 <div>
+                   <label className="block text-sm font-medium text-text-secondary mb-1">Phone Number</label>
+                   <p className="text-sm font-medium text-foreground">{phone || user?.phone || "Not set"}</p>
+                 </div>
+                 <div>
+                   <label className="block text-sm font-medium text-text-secondary mb-1">Address</label>
+                   <p className="text-sm font-medium text-foreground">{address || user?.address || "Not set"}</p>
+                 </div>
                 <div>
                   <label className="block text-sm font-medium text-text-secondary mb-1">Languages Spoken</label>
                   <p className="text-sm font-medium text-foreground">{languages || "None specified"}</p>
@@ -335,19 +367,23 @@ export default function SettingsPage() {
                     {isUploadingAvatar && <p className="text-xs text-text-secondary mt-1">Uploading...</p>}
                   </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">Full Name</label>
-                    <Input value={name} onChange={(e) => setName(e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">Email</label>
-                    <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">Phone</label>
-                    <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+63 XXX XXX XXXX" />
-                  </div>
+                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                   <div>
+                     <label className="block text-sm font-medium text-foreground mb-1.5">Full Name</label>
+                     <Input value={name} onChange={(e) => setName(e.target.value)} />
+                   </div>
+                   <div>
+                     <label className="block text-sm font-medium text-foreground mb-1.5">Email</label>
+                     <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+                   </div>
+                   <div>
+                     <label className="block text-sm font-medium text-foreground mb-1.5">Phone</label>
+                     <Input value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="+63 XXX XXX XXXX" />
+                   </div>
+                   <div>
+                     <label className="block text-sm font-medium text-foreground mb-1.5">Address</label>
+                     <Input value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Your full address" />
+                   </div>
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1.5">Gender</label>
                     <Input value={gender} onChange={(e) => setGender(e.target.value)} placeholder="e.g. Male / Female / Other" />

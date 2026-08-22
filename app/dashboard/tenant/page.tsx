@@ -1,162 +1,262 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { Upload, CheckCircle2, AlertCircle, Eye, X, Clock, Home } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Avatar } from "@/components/ui/avatar";
-import { cn, formatCurrency, formatDate } from "@/lib/utils";
+import { useState, useEffect, useCallback } from "react";
+import { motion } from "framer-motion";
+import Link from "next/link";
+import { getProperties, getPayments, getNotifications, Property, Payment, Notification } from "@/lib/data";
 import { useAuth } from "@/lib/auth";
-import { getPayments, addPayment, addNotification, Payment } from "@/lib/data";
-import { toast } from "sonner";
+import { formatCurrency, formatDate } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Building2, DollarSign, Bell, ChevronRight, FileText, RefreshCw } from "lucide-react";
 
 export default function TenantDashboard() {
   const { user } = useAuth();
+  const [properties, setProperties] = useState<Property[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
-  const [isUploading, setIsUploading] = useState(false);
-  const [showReceiptForm, setShowReceiptForm] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [paymentAmount, setPaymentAmount] = useState("");
-  const [viewingReceipt, setViewingReceipt] = useState<string | null>(null);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  useEffect(() => {
-    if (user) getPayments(user).then(setPayments);
+  const loadData = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      const [props, pays, notifs] = await Promise.all([
+        getProperties(user),
+        getPayments(user),
+        user?.id ? getNotifications(user.id) : Promise.resolve([]),
+      ]);
+      setProperties(props.slice(0, 4));
+      setPayments(pays.slice(0, 5));
+      setNotifications(notifs.slice(0, 5));
+    } catch { /* handled silently */ }
+    setIsRefreshing(false);
   }, [user]);
 
-  const myPayments = payments.filter((p) => p.tenantName === user?.name || p.createdBy === user?.id);
-  const balance = myPayments.length > 0 ? myPayments[myPayments.length - 1].balance : 0;
-  const rentAmount = myPayments.length > 0 ? myPayments[myPayments.length - 1].amountDue : 0;
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
-  const handleUpload = () => {
-    if (!selectedFile) { toast.error("Please select a receipt image to upload"); return; }
-    if (!paymentAmount || isNaN(Number(paymentAmount)) || Number(paymentAmount) <= 0) {
-      toast.error("Please enter a valid payment amount"); return;
-    }
-    setIsUploading(true);
+  const recentPayments = payments.filter((p: Payment) => p.status === "paid" || p.status === "pending").slice(0, 4);
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const base64Data = e.target?.result as string;
-      if (user) {
-        const dueDate = new Date();
-        dueDate.setDate(5);
-        if (dueDate < new Date()) dueDate.setMonth(dueDate.getMonth() + 1);
-        addPayment({
-          tenantId: user.id, tenantName: user.name, unitId: "", propertyName: "",
-          amountPaid: Number(paymentAmount), amountDue: rentAmount || 6000,
-          balance: Math.max(0, (rentAmount || 6000) - Number(paymentAmount)),
-          paymentDate: new Date().toISOString().split("T")[0],
-          dueDate: dueDate.toISOString().split("T")[0],
-          status: "pending", paymentMethod: "other", notes: "Receipt uploaded",
-          receiptUrl: base64Data,
-          createdBy: user.id,
-        }, undefined, user.id);
-        addNotification({
-          userId: user.id, title: "Payment Receipt Uploaded",
-          message: `Your payment of ${formatCurrency(Number(paymentAmount))} has been submitted for verification`,
-          type: "payment", read: false,
-        });
-        getPayments(user).then(setPayments);
-        setShowReceiptForm(false); setSelectedFile(null); setPaymentAmount("");
-        setIsUploading(false);
-        toast.success("Payment receipt uploaded! Awaiting verification.");
-      }
-    };
-    reader.onerror = () => {
-      setIsUploading(false);
-      toast.error("Failed to read file. Please try again.");
-    };
-    reader.readAsDataURL(selectedFile);
+  const itemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { opacity: 1, y: 0, transition: { duration: 0.4 } },
   };
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-violet-500 via-purple-500 to-fuchsia-600 p-8">
-        <div className="absolute top-0 right-0 w-48 h-48 bg-white/10 rounded-full blur-2xl" />
-        <div className="absolute bottom-0 left-0 w-32 h-32 bg-fuchsia-300/20 rounded-full blur-xl" />
-        <div className="relative">
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 text-white text-xs font-medium mb-3">
-            <Home className="h-3 w-3" />
-            Welcome Back
+    <div className="min-h-screen bg-white dark:bg-slate-900">
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.5 }}
+        className="w-full space-y-4"
+      >
+        {/* Centered Welcome Header with Butuan City background */}
+        <motion.div
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.6 }}
+        >
+          <div className="relative overflow-hidden rounded-2xl p-6 sm:p-8 text-white shadow-xl">
+            <div
+              className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+              style={{ backgroundImage: "url('/images/favicon/Butuan City.webp')" }}
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-blue-900/80 to-indigo-900/80 dark:from-slate-900/90 dark:to-slate-900/90" />
+
+            <div className="text-center space-y-4 relative z-10">
+              <motion.h1
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2, duration: 0.5 }}
+                className="text-2xl sm:text-3xl font-bold tracking-tight text-white"
+              >
+                Welcome, {user?.name?.split(" ")[0] || "Tenant"}!
+              </motion.h1>
+
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.3, duration: 0.5 }}
+                className="text-white/70 text-sm sm:text-base max-w-md mx-auto"
+              >
+                Here is an overview of your account
+              </motion.p>
+
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                transition={{ delay: 0.4, duration: 0.4 }}
+                className="flex items-center justify-center gap-2"
+              >
+                <Button size="sm" variant="outline" className="bg-white/10 hover:bg-white/20 text-white border border-white/10 backdrop-blur-sm" onClick={loadData} disabled={isRefreshing}>
+                  <RefreshCw className={`h-4 w-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                </Button>
+                <Link href="/dashboard/tenant/properties-page">
+                  <Button size="sm" className="bg-white/10 hover:bg-white/20 text-white border border-white/10 backdrop-blur-sm">
+                    Browse Properties
+                  </Button>
+                </Link>
+              </motion.div>
+            </div>
           </div>
-          <h2 className="text-3xl font-bold text-white">Hello, {user?.name?.split(' ')[0]}!</h2>
-          <p className="text-white/70 text-sm mt-1">Here's your rental summary</p>
-        </div>
-      </div>
+        </motion.div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-4 rounded-2xl border border-border bg-surface shadow-card">
-        <div>
-          <p className="text-sm text-text-secondary">Current Balance</p>
-          <p className="text-3xl font-bold">{formatCurrency(balance)}</p>
-          <p className="text-sm text-text-secondary">Monthly: {formatCurrency(rentAmount)}</p>
-        </div>
-        <div>
-          <p className="text-sm text-text-secondary">Next Payment Due</p>
-          <p className="text-xl font-bold">5th of each month</p>
-        </div>
-        <div className="flex items-end justify-center">
-          <Button onClick={() => setShowReceiptForm(true)}>Upload Receipt</Button>
-        </div>
-      </div>
-
-      {showReceiptForm && (
-        <div className="rounded-2xl border border-border bg-surface shadow-card p-6">
-          <h3 className="text-lg font-semibold">Upload Payment Receipt</h3>
-          <p className="text-xs text-text-secondary">Submit proof of payment for verification</p>
-          <div className="space-y-4 mt-4">
-            <div>
-              <label className="block text-sm font-medium mb-1.5">Payment Amount</label>
-              <input type="number" placeholder="0.00" value={paymentAmount} onChange={(e) => setPaymentAmount(e.target.value)} className="w-full h-12 px-4 rounded-xl border border-border bg-surface text-lg" />
-            </div>
-            <div className="border-2 border-dashed border-border rounded-2xl p-8 text-center cursor-pointer mt-4" onClick={() => document.getElementById("receipt-upload")?.click()}>
-              <Upload className="h-10 w-10 mx-auto mb-4 text-text-tertiary" />
-              <p>{selectedFile ? selectedFile.name : "Click to upload receipt"}</p>
-              <input id="receipt-upload" type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => e.target.files && setSelectedFile(e.target.files[0])} />
-            </div>
-            <div className="flex gap-3 mt-4">
-              <Button onClick={handleUpload} disabled={isUploading}>{isUploading ? "Uploading..." : "Submit Receipt"}</Button>
-              <Button variant="outline" onClick={() => {setShowReceiptForm(false); setSelectedFile(null); setPaymentAmount("");}}>Cancel</Button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      <h3 className="text-lg font-semibold mt-6">Payment History</h3>
-      <div className="space-y-2">
-        {myPayments.length === 0 ? (
-          <p className="text-text-secondary text-center py-8">No payments yet</p>
-        ) : (
-          myPayments.slice().reverse().map((payment) => (
-            <div key={payment.id} className="flex items-center justify-between p-4 rounded-xl bg-surface-secondary">
-              <div className="flex items-center gap-3">
-                <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${payment.status === "paid" ? "bg-green-50 text-green-600" : "bg-amber-50 text-amber-600"}`}>
-                  {payment.status === "paid" ? <CheckCircle2 className="h-5 w-5" /> : <AlertCircle className="h-5 w-5" />}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <motion.div variants={itemVariants}>
+          <Card className="h-full bg-white/98 dark:bg-slate-900/98 backdrop-blur-sm border-2 border-slate-300 dark:border-slate-600 shadow-xl">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-base font-semibold text-slate-900 dark:text-white">Recent Payments</h2>
+                <Link href="/dashboard/tenant/payments" className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">View all <ChevronRight className="h-3 w-3" /></Link>
+              </div>
+              {recentPayments.length === 0 ? (
+                <div className="text-center py-6">
+                  <DollarSign className="h-6 w-6 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+                  <p className="text-slate-600 dark:text-slate-300 font-medium text-sm">No payments yet</p>
+                  <p className="text-slate-400 dark:text-slate-500 text-xs mt-1">Your payment history will appear here</p>
                 </div>
-                <div>
-                  <p className="font-medium text-foreground">{formatCurrency(payment.amountPaid)}</p>
-                  <p className="text-xs text-text-secondary">{formatDate(payment.paymentDate)}</p>
+              ) : (
+                <div className="space-y-2">
+                  {recentPayments.map((payment: Payment) => (
+                    <div key={payment.id} className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800">
+                      <div>
+                        <p className="font-medium text-slate-900 dark:text-white text-sm">{formatCurrency(payment.amountPaid)}</p>
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400">{formatDate(payment.paymentDate)} • {payment.paymentMethod}</p>
+                      </div>
+                      <Badge variant={payment.status === "paid" ? "success" : "warning"} className="capitalize text-[10px]">{payment.status}</Badge>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div variants={itemVariants}>
+          <Card className="h-full bg-white/98 dark:bg-slate-900/98 backdrop-blur-sm border-2 border-slate-300 dark:border-slate-600 shadow-xl">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-base font-semibold text-slate-900 dark:text-white">Activity</h2>
+              </div>
+              {notifications.length === 0 ? (
+                <div className="text-center py-6">
+                  <Bell className="h-6 w-6 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+                  <p className="text-slate-600 dark:text-slate-300 font-medium text-sm">No notifications yet</p>
+                  <p className="text-slate-400 dark:text-slate-500 text-xs mt-1">Activity updates will appear here</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {notifications.map((notif: Notification) => (
+                    <div key={notif.id} className={`p-2.5 rounded-lg ${notif.read ? "bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700" : "bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800"}`}>
+                      <p className="text-sm font-medium text-slate-900 dark:text-white truncate">{notif.title}</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{notif.message}</p>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1">{formatDate(notif.createdAt)}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <motion.div variants={itemVariants}>
+          <Card className="h-full bg-white/98 dark:bg-slate-900/98 backdrop-blur-sm border-2 border-slate-300 dark:border-slate-600 shadow-xl">
+            <CardContent className="p-4 h-full flex flex-col">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-base font-semibold text-slate-900 dark:text-white">Featured Properties</h2>
+                <Link href="/dashboard/tenant/properties-page" className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">View all <ChevronRight className="h-3 w-3" /></Link>
+              </div>
+              {properties.length === 0 ? (
+                <div className="text-center py-6 flex-1 flex flex-col items-center justify-center">
+                  <Building2 className="h-6 w-6 text-slate-300 dark:text-slate-600 mx-auto mb-2" />
+                  <p className="text-slate-600 dark:text-slate-300 font-medium text-sm">No properties available yet</p>
+                  <p className="text-slate-400 dark:text-slate-500 text-xs mt-1">Check back soon for new listings</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 flex-1">
+                  {properties.map((property: Property) => (
+                    <Link key={property.id} href="/dashboard/tenant/properties-page" className="block">
+                      <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden hover:shadow-md transition-shadow bg-white dark:bg-slate-800 h-full flex flex-col">
+                        <div className="h-24 bg-slate-100 dark:bg-slate-800 flex items-center justify-center">
+                          {property.imageUrl ? (
+                            <img src={property.imageUrl} alt={property.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <Building2 className="h-6 w-6 text-slate-400 dark:text-slate-500" />
+                          )}
+                        </div>
+                        <div className="p-2.5 flex-1 flex flex-col justify-between">
+                          <div>
+                            <p className="font-medium text-slate-900 dark:text-white text-xs truncate">{property.name}</p>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">{property.location}</p>
+                          </div>
+                          <p className="text-sm font-bold text-slate-900 dark:text-white mt-1">₱{Number(property.monthlyRevenue || 0).toLocaleString()}<span className="text-[10px] font-normal text-slate-500 dark:text-slate-400">/mo</span></p>
+                        </div>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div variants={itemVariants}>
+          <Card className="h-full bg-white/98 dark:bg-slate-900/98 backdrop-blur-sm border-2 border-slate-300 dark:border-slate-600 shadow-xl">
+            <CardContent className="p-4 h-full flex flex-col">
+              <h2 className="text-base font-semibold text-slate-900 dark:text-white mb-3">Your Reports</h2>
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-medium">Total Paid</p>
+                  <p className="text-sm font-bold text-slate-900 dark:text-white mt-1">{formatCurrency(payments.filter(p => p.status === "paid").reduce((s, p) => s + p.amountPaid, 0))}</p>
+                </div>
+                <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-medium">Pending</p>
+                  <p className="text-sm font-bold text-slate-900 dark:text-white mt-1">{formatCurrency(payments.filter(p => p.status === "pending").reduce((s, p) => s + p.amountPaid, 0))}</p>
+                </div>
+                <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-medium">Total Payments</p>
+                  <p className="text-sm font-bold text-slate-900 dark:text-white mt-1">{payments.length}</p>
+                </div>
+                <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 uppercase tracking-wider font-medium">Properties</p>
+                  <p className="text-sm font-bold text-slate-900 dark:text-white mt-1">{properties.length}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                {payment.receiptUrl && (
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setViewingReceipt(payment.receiptUrl!)}><Eye className="h-4 w-4" /></Button>
-                )}
-                <Badge variant={payment.status === "paid" ? "success" : "warning"}>{payment.status}</Badge>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
 
-      {viewingReceipt && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setViewingReceipt(null)}>
-          <div className="relative max-w-2xl" onClick={(e) => e.stopPropagation()}>
-            <button onClick={() => setViewingReceipt(null)} className="absolute -top-3 -right-3 z-10 h-8 w-8 rounded-full bg-white shadow-lg flex items-center justify-center"><X className="h-4 w-4" /></button>
-            <img src={viewingReceipt} alt="Receipt" className="w-full h-auto rounded-2xl shadow-2xl" />
-          </div>
-        </div>
-      )}
+              <div className="border border-slate-200 dark:border-slate-700 rounded-lg overflow-hidden flex-1">
+                <div className="px-4 py-3 border-b border-slate-200 dark:border-slate-700">
+                  <h4 className="text-xs font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                    <FileText className="h-4 w-4 text-blue-500" />
+                    Recent Transactions
+                  </h4>
+                </div>
+                <div className="p-3">
+                  {payments.length === 0 ? (
+                    <p className="text-xs text-slate-500 dark:text-slate-400 text-center py-4">No payments yet</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {payments.slice(0, 10).map((payment) => (
+                        <div key={payment.id} className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800">
+                          <div>
+                            <p className="text-sm font-medium text-slate-900 dark:text-white">{formatCurrency(payment.amountPaid)}</p>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400">{formatDate(payment.paymentDate)} • {payment.paymentMethod}</p>
+                          </div>
+                          <Badge variant={payment.status === "paid" ? "success" : "warning"} className="capitalize text-[10px]">{payment.status}</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+      </motion.div>
     </div>
   );
 }

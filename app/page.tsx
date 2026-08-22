@@ -140,12 +140,16 @@ export default function LandingPage() {
             </div>
 
             <div className="hidden md:flex items-center gap-3">
-              <a href="/login?mode=signin" className={`h-9 px-4 text-sm font-medium inline-flex items-center justify-center rounded-lg transition-all duration-200 hover:scale-105 ${scrolled ? "text-gray-600 hover:text-gray-900" : "text-white/90 hover:text-white"}`}>
-              Sign In
-            </a>
-            <a href="/login?mode=signup" className="h-9 px-4 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg inline-flex items-center justify-center transition-all duration-200 hover:scale-105 shadow-lg hover:shadow-xl">
-              Register
-            </a>
+              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                <a href="/login?mode=signin" className={`h-9 px-4 text-sm font-medium inline-flex items-center justify-center rounded-lg transition-all duration-200 hover:scale-105 ${scrolled ? "text-gray-600 hover:text-gray-900" : "text-white/90 hover:text-white"}`}>
+                Sign In
+              </a>
+              </motion.div>
+              <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
+                <a href="/login?mode=signup" className="h-9 px-4 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg inline-flex items-center justify-center transition-all duration-200 hover:scale-105 shadow-lg hover:shadow-xl">
+                  Register
+                </a>
+              </motion.div>
             </div>
 
             <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className={`md:hidden p-2 rounded-lg transition-all duration-200 hover:scale-110 ${scrolled ? "hover:bg-gray-100 text-gray-700" : "hover:bg-white/10 text-white"}`}>
@@ -162,12 +166,16 @@ export default function LandingPage() {
               </a>
             ))}
             <div className="px-4 py-3 space-y-2">
-              <a href="/login?mode=signin" className={`w-full h-10 px-4 py-2 text-sm font-medium rounded-lg inline-flex items-center justify-center transition-colors ${scrolled ? "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50" : "border border-white/20 bg-white/10 text-white hover:bg-white/20"}`}>
-              Sign In
-            </a>
-            <a href="/login?mode=signup" className="w-full h-10 px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 inline-flex items-center justify-center transition-colors shadow-sm">
-              Register
-            </a>
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <a href="/login?mode=signin" className={`w-full h-10 px-4 py-2 text-sm font-medium rounded-lg inline-flex items-center justify-center transition-colors ${scrolled ? "border border-gray-200 bg-white text-gray-700 hover:bg-gray-50" : "border border-white/20 bg-white/10 text-white hover:bg-white/20"}`}>
+                Sign In
+              </a>
+              </motion.div>
+              <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
+                <a href="/login?mode=signup" className="w-full h-10 px-4 py-2 text-sm font-medium rounded-lg bg-blue-600 text-white hover:bg-blue-700 inline-flex items-center justify-center transition-colors shadow-sm">
+                  Register
+                </a>
+              </motion.div>
             </div>
           </div>
         )}
@@ -269,9 +277,14 @@ export default function LandingPage() {
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
             >
-              <a href="/login?mode=signup" className="inline-flex h-12 px-8 text-base font-semibold text-blue-700 bg-white hover:bg-blue-50 rounded-xl items-center justify-center gap-2 shadow-xl transition-colors">
+              <motion.a
+                href="/login?mode=signup"
+                className="inline-flex h-12 px-8 text-base font-semibold text-blue-700 bg-white hover:bg-blue-50 rounded-xl items-center justify-center gap-2 shadow-xl transition-colors"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+              >
                 Get Started Free<ChevronRight className="ml-2 h-4 w-4" />
-              </a>
+              </motion.a>
             </motion.div>
           </div>
         </motion.div>
@@ -660,9 +673,14 @@ export default function LandingPage() {
             whileTap={{ scale: 0.97 }}
             className="inline-flex"
           >
-            <a href="/login?mode=signup" className="inline-flex h-12 px-8 text-base font-semibold text-blue-700 bg-white hover:bg-blue-50 rounded-xl items-center justify-center gap-2 shadow-xl transition-colors">
+            <motion.a
+              href="/login?mode=signup"
+              className="inline-flex h-12 px-8 text-base font-semibold text-blue-700 bg-white hover:bg-blue-50 rounded-xl items-center justify-center gap-2 shadow-xl transition-colors"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
               Get Started Free<ChevronRight className="ml-2 h-4 w-4" />
-            </a>
+            </motion.a>
           </motion.div>
         </div>
       </motion.section>

@@ -1,2 +1,7 @@
-Admin/Owner (built-in)	admin@renttrack.com	
-pass: adminOwner
+Admin (built-in)	
+admin@renttrack.com	
+pass: Adminrentrack
+
+Owner (built-in)
+renttrackowner@gmail.com
+pass:RentrackOwner

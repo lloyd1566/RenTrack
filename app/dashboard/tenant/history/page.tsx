@@ -37,7 +37,7 @@ export default function TenantHistoryPage() {
           transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
           className="absolute top-10 right-10 w-96 h-96 rounded-full bg-blue-400/20 blur-3xl"
         />
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+        <div className="relative w-full px-4 sm:px-6 lg:px-8 py-10">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -49,7 +49,7 @@ export default function TenantHistoryPage() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}

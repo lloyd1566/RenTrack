@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
+import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 import {
@@ -9,15 +10,11 @@ import {
   ArrowUpRight, ArrowDownRight, Calendar, Download, LayoutDashboard,
   UserPlus,
 } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";
 import { cn, formatCurrency, getTimeAgo } from "@/lib/utils";
 import {
-  getProperties, getPayments,
-  getPaymentTrends,
-  getTenants,
   Property, Payment, MonthlyTrend, TenantRecord,
   getDashboardData,
 } from "@/lib/data";
@@ -25,7 +22,8 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
 } from "recharts";
 
-const fadeInUp = { hidden: { opacity: 0, y: 10 }, visible: { opacity: 1, y: 0, transition: { duration: 0.3 } } };
+  const fadeInUp = { hidden: { opacity: 0, y: 30 }, visible: { opacity: 1, y: 0, transition: { duration: 0.6 } } };
+  const stagger = { hidden: { opacity: 0 }, visible: { opacity: 1, transition: { staggerChildren: 0.1 } } };
 
 export default function DashboardOverview() {
   const { user, isLoading } = useAuth();
@@ -41,10 +39,20 @@ export default function DashboardOverview() {
   const [vacantCount, setVacantCount] = useState(0);
   const [monthlyData, setMonthlyData] = useState<MonthlyTrend[]>([]);
   const [tenantsList, setTenantsList] = useState<TenantRecord[]>([]);
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
   useEffect(() => {
-    if (!isLoading && user?.role === "tenant") {
-      router.push("/dashboard/tenant");
+    if (!isLoading && user?.role) {
+      setIsRedirecting(true);
+      if (user.role === "tenant") {
+        router.push("/dashboard/tenant");
+      } else if (user.role === "admin") {
+        router.push("/dashboard/admin");
+      } else if (user.role === "owner") {
+        router.push("/dashboard/owner");
+      } else if (user.role === "agent") {
+        router.push("/dashboard/agent");
+      }
     }
   }, [isLoading, user, router]);
 
@@ -69,6 +77,21 @@ export default function DashboardOverview() {
     })();
   }, [user]);
 
+  if (isLoading || isRedirecting) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-white dark:bg-slate-900">
+        <div className="text-center">
+          <div className="mx-auto h-12 w-12 rounded-full border-4 border-gray-200 border-t-primary-600 animate-spin mb-4" />
+          <p className="text-gray-600 font-medium">Loading your dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user || user.role !== "owner") {
+    return null;
+  }
+
   const overdueCount = payments.filter(p => p.status === "overdue").length;
 
   const statCards = [
@@ -79,83 +102,112 @@ export default function DashboardOverview() {
   ];
 
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }} className="space-y-6">
-      {/* Dashboard Hero */}
-      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-slate-900 via-slate-800 to-indigo-950 p-8 sm:p-10">
-        <div className="absolute top-0 right-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl" />
-        <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl" />
-        <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-white/80 text-xs font-medium mb-3 border border-white/10">
-              <LayoutDashboard className="h-3 w-3" />
-              {user?.role ? `${user.role.charAt(0).toUpperCase() + user.role.slice(1)} Overview` : "Dashboard"}
+    <div className="relative min-h-screen bg-white dark:bg-slate-900">
+      <motion.div initial="hidden" animate="visible" variants={stagger} transition={{ duration: 0.3 }} className="max-w-7xl mx-auto relative z-10 space-y-3">
+      {/* Dashboard Hero Box with Background Image */}
+      <motion.div variants={fadeInUp}>
+        <div className="relative overflow-hidden rounded-xl p-4 sm:p-6 text-white shadow-xl">
+          <div
+            className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+            style={{ backgroundImage: "url('/images/favicon/Butuan City.webp')" }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-blue-900/80 to-indigo-900/80 dark:from-slate-900/90 dark:to-slate-900/90" />
+          <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 dark:bg-white/10 text-white text-xs font-medium mb-3 border border-white/20">
+                <LayoutDashboard className="h-3 w-3" />
+                Dashboard
+              </div>
+              <h2 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+                Welcome, {user?.name?.split(" ")[0] || "User"} 👋
+              </h2>
+              <p className="text-white/80 text-sm mt-1">Real-time overview of your rental portfolio performance</p>
             </div>
-            <h2 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">
-              Welcome, {user?.name?.split(" ")[0] || "User"} 👋
-            </h2>
-            <p className="text-white/60 text-sm mt-1.5">Real-time overview of your rental portfolio performance</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <Button size="sm" className="bg-white/10 hover:bg-white/20 text-white border border-white/10 backdrop-blur-sm">
-              <Calendar className="h-4 w-4 mr-1.5" />This Month
-            </Button>
-            <Button size="sm" className="bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/25">
-              <Download className="h-4 w-4 mr-1.5" />Export
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button size="sm" className="bg-white/20 hover:bg-white/30 text-white border border-white/20 backdrop-blur-sm">
+                <Calendar className="h-4 w-4 mr-1.5" />This Month
+              </Button>
+              <Button size="sm" className="bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg">
+                <Download className="h-4 w-4 mr-1.5" />Export
+              </Button>
+            </div>
           </div>
         </div>
-      </div>
+      </motion.div>
+
+      {/* Quick Actions Box */}
+      <motion.div variants={fadeInUp}>
+        <div className="bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-600 rounded-xl p-3 shadow-lg transition-shadow">
+          <h3 className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Quick Actions</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[
+              { label: "Add Property", icon: Building2, href: "/dashboard/properties", color: "bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400" },
+              { label: "Register Tenant", icon: UserPlus, href: "/dashboard/tenants", color: "bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400" },
+              { label: "Record Payment", icon: CreditCard, href: "/dashboard/payments", color: "bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400" },
+              { label: "View Reports", icon: TrendingUp, href: "/dashboard/reports", color: "bg-purple-50 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400" },
+            ].map((action, i) => (
+              <motion.div key={i}>
+                <Link href={action.href} className="flex items-center gap-3 p-3 rounded-lg bg-slate-50 dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 hover:border-slate-400 dark:hover:border-slate-500 transition-all group">
+                  <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${action.color}`}>
+                    <action.icon className="h-4 w-4" />
+                  </div>
+                  <span className="text-sm font-semibold text-slate-900 dark:text-white transition-colors">{action.label}</span>
+                </Link>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </motion.div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <motion.div variants={stagger} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
         {statCards.map((stat, i) => (
           <motion.div key={i} variants={fadeInUp}>
-            <Card className="overflow-hidden">
-              <CardContent className="p-0">
-                <div className="p-6">
-                  <div className="flex items-center justify-between mb-4">
-                    <span className="text-sm font-medium text-text-secondary">{stat.label}</span>
-                    <div className={cn("flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br text-white shadow-lg", stat.gradient)}>
-                      <stat.icon className="h-5 w-5" />
-                    </div>
-                  </div>
-                  <div className="text-2xl font-bold text-foreground mb-1">{stat.value}</div>
-                  <div className="flex items-center gap-1 text-xs">
-                    {stat.positive ? <ArrowUpRight className="h-3 w-3 text-green-500" /> : <ArrowDownRight className="h-3 w-3 text-red-500" />}
-                    <span className={stat.positive ? "text-green-500" : "text-red-500"}>{stat.change}</span>
-                  </div>
+            <div className="bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-600 rounded-xl p-4 shadow-lg transition-shadow cursor-default">
+              <div className="flex items-center justify-between mb-3">
+                <span className="text-xs font-medium text-slate-600 dark:text-slate-400 uppercase tracking-wider">{stat.label}</span>
+                <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br text-white shadow", stat.gradient)}>
+                  <stat.icon className="h-4 w-4" />
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+              <div className="text-xl font-bold text-slate-900 dark:text-white mb-1">{stat.value}</div>
+              <div className="flex items-center gap-1 text-[11px]">
+                {stat.positive ? <ArrowUpRight className="h-3 w-3 text-green-500" /> : <ArrowDownRight className="h-3 w-3 text-red-500" />}
+                <span className={stat.positive ? "text-green-500" : "text-red-500"}>{stat.change}</span>
+              </div>
+            </div>
           </motion.div>
         ))}
-      </div>
+      </motion.div>
 
       {/* Charts Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         <motion.div variants={fadeInUp}>
-          <Card>
-            <CardHeader>
+          <div className="bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-600 rounded-xl shadow-lg transition-shadow">
+            <div className="p-3 border-b border-slate-200 dark:border-slate-700">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="flex items-center gap-2"><TrendingUp className="h-4 w-4 text-emerald-500" />Collection Trends</CardTitle>
-                  <CardDescription>Monthly payment collections overview</CardDescription>
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                    <TrendingUp className="h-4 w-4 text-emerald-500" />
+                    Collection Trends
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Monthly payment collections overview</p>
                 </div>
-                <Badge variant="outline" className="bg-green-50 text-green-600 border-green-200">
+                <Badge variant="outline" className="bg-green-50 text-green-600 border-green-200 text-[11px]">
                   {formatCurrency(collected)} collected
                 </Badge>
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="h-80">
+            </div>
+            <div className="p-3">
+              <div className="h-64">
                 {monthlyData.length === 0 ? (
-                  <div className="h-full flex items-center justify-center text-text-secondary text-sm">No payment data available yet</div>
+                  <div className="h-full flex items-center justify-center text-slate-500 dark:text-slate-400 text-sm">No payment data available yet</div>
                 ) : (
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={monthlyData}>
-                      <CartesianGrid strokeDasharray="3 3" className="stroke-border" />
-                      <XAxis dataKey="month" className="text-xs text-text-tertiary" />
-                      <YAxis className="text-xs text-text-tertiary" />
+                      <CartesianGrid strokeDasharray="3 3" className="stroke-slate-200 dark:stroke-slate-700" />
+                      <XAxis dataKey="month" className="text-[11px] text-slate-500 dark:text-slate-400" />
+                      <YAxis className="text-[11px] text-slate-500 dark:text-slate-400" />
                       <Tooltip contentStyle={{ backgroundColor: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "12px" }} />
                       <Bar dataKey="collected" name="Collected" fill="#10b981" radius={[4, 4, 0, 0]} />
                       <Bar dataKey="pending" name="Pending" fill="#f59e0b" radius={[4, 4, 0, 0]} />
@@ -164,163 +216,171 @@ export default function DashboardOverview() {
                   </ResponsiveContainer>
                 )}
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </motion.div>
 
         <motion.div variants={fadeInUp}>
-          <Card>
-            <CardHeader>
+          <div className="bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-600 rounded-xl shadow-lg transition-shadow">
+            <div className="p-3 border-b border-slate-200 dark:border-slate-700">
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle className="flex items-center gap-2"><Home className="h-4 w-4 text-indigo-500" />Occupancy Overview</CardTitle>
-                  <CardDescription>Current occupancy status across all units</CardDescription>
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Home className="h-4 w-4 text-indigo-500" />
+                    Occupancy Overview
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Current occupancy status across all units</p>
                 </div>
-                <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200">
+                <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200 text-[11px]">
                   {Math.round((occupiedCount / (unitsCount || 1)) * 100)}% Occupied
                 </Badge>
               </div>
-            </CardHeader>
-            <CardContent>
-              <div className="h-80 flex items-center justify-center">
-                <div className="text-center">
+            </div>
+            <div className="p-3">
+              <div className="h-64 flex items-center justify-center">
+                <div className="text-center w-full">
                   <div className="flex justify-center gap-8">
                     <div>
-                      <div className="text-4xl font-bold text-emerald-500">{occupiedCount}</div>
-                      <p className="text-sm text-text-secondary mt-1">Occupied</p>
+                      <div className="text-3xl font-bold text-emerald-500">{occupiedCount}</div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Occupied</p>
                     </div>
                     <div>
-                      <div className="text-4xl font-bold text-amber-500">{vacantCount}</div>
-                      <p className="text-sm text-text-secondary mt-1">Vacant</p>
+                      <div className="text-3xl font-bold text-amber-500">{vacantCount}</div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Vacant</p>
                     </div>
                     <div>
-                      <div className="text-4xl font-bold text-primary-500">{unitsCount}</div>
-                      <p className="text-sm text-text-secondary mt-1">Total Units</p>
+                      <div className="text-3xl font-bold text-slate-900 dark:text-white">{unitsCount}</div>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Total Units</p>
                     </div>
                   </div>
-                  <div className="mt-6 w-full max-w-md mx-auto h-2 rounded-full bg-border overflow-hidden">
+                  <div className="mt-4 w-full max-w-sm mx-auto h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
                     <div className="h-full bg-emerald-500 rounded-full transition-all duration-500"
                       style={{ width: `${Math.round((occupiedCount / (unitsCount || 1)) * 100)}%` }}
                     />
                   </div>
-                  <p className="text-xs text-text-tertiary mt-2">
+                  <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-2">
                     {Math.round((occupiedCount / (unitsCount || 1)) * 100)}% occupancy rate
                   </p>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            </div>
+          </div>
         </motion.div>
       </div>
 
-      {/* Recent Payments */}
-      <motion.div variants={fadeInUp}>
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2"><CreditCard className="h-4 w-4 text-emerald-500" />Recent Payments</CardTitle>
-                <CardDescription>Latest payment transactions across all properties</CardDescription>
+      {/* Bottom Row: Registered Tenants + Recent Payments */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {/* Registered Tenants - Left (wider) */}
+        <motion.div variants={fadeInUp} className="lg:col-span-2">
+          <div className="bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-600 rounded-xl shadow-lg transition-shadow">
+            <div className="p-4 border-b border-slate-200 dark:border-slate-700">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Users className="h-4 w-4 text-blue-500" />
+                    Registered Tenants
+                  </h3>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Tenants currently using the platform</p>
+                </div>
+                <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200 text-[11px]">
+                  {tenantsList.length} total
+                </Badge>
               </div>
-              <Button variant="ghost" size="sm">View All <ArrowUpRight className="h-3 w-3 ml-1" /></Button>
             </div>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {payments.length === 0 ? (
-                <div className="text-center py-8 text-text-secondary text-sm">No payment records yet</div>
+            <div className="p-3">
+              {tenantsList.length === 0 ? (
+                <div className="text-center py-6 text-slate-500 dark:text-slate-400 text-sm">No tenants registered yet</div>
               ) : (
-                payments.slice(0, 5).map((payment) => (
-                  <div key={payment.id} className="flex items-center justify-between p-3 rounded-xl bg-surface-secondary hover:bg-surface-tertiary transition-colors">
-                    <div className="flex items-center gap-3">
-                      <Avatar fallback={payment.tenantName.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)} size="sm" />
-                      <div>
-                        <p className="text-sm font-medium text-foreground">{payment.tenantName}</p>
-                        <p className="text-xs text-text-secondary">{payment.propertyName} &bull; {getTimeAgo(payment.paymentDate)}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-semibold text-foreground">{formatCurrency(payment.amountPaid)}</p>
-                      <Badge variant="outline" className={cn(
-                        "text-[10px] font-medium px-1.5 py-0 mt-0.5",
-                        payment.status === "paid" && "bg-green-50 text-green-600 border-green-200",
-                        payment.status === "pending" && "bg-amber-50 text-amber-600 border-amber-200",
-                        payment.status === "overdue" && "bg-red-50 text-red-600 border-red-200",
-                        payment.status === "partial" && "bg-blue-50 text-blue-600 border-blue-200",
-                      )}>{payment.status}</Badge>
-                    </div>
-                  </div>
-                ))
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-slate-200 dark:border-slate-700">
+                        <th className="text-left py-2 px-2 text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Name</th>
+                        <th className="text-left py-2 px-2 text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Email</th>
+                        <th className="text-left py-2 px-2 text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Phone</th>
+                        <th className="text-left py-2 px-2 text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Property / Unit</th>
+                        <th className="text-left py-2 px-2 text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Status</th>
+                        <th className="text-left py-2 px-2 text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Joined</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {tenantsList.slice(0, 10).map((tenant) => (
+                        <tr key={tenant.id} className="border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                          <td className="py-2 px-2">
+                            <div className="flex items-center gap-2">
+                              <Avatar src={tenant.avatarUrl} fallback={tenant.name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)} size="sm" />
+                              <span className="font-medium text-slate-900 dark:text-white text-sm">{tenant.name}</span>
+                            </div>
+                          </td>
+                          <td className="py-2 px-2 text-slate-600 dark:text-slate-400 text-xs">{tenant.email}</td>
+                          <td className="py-2 px-2 text-slate-600 dark:text-slate-400 text-xs">{tenant.phone}</td>
+                          <td className="py-2 px-2">
+                            <div className="text-slate-900 dark:text-white text-sm">{tenant.propertyName}</div>
+                            <div className="text-[10px] text-slate-400 dark:text-slate-500">Unit {tenant.unitNumber}</div>
+                          </td>
+                          <td className="py-2 px-2">
+                            <Badge variant="outline" className={cn(
+                              "text-[9px] font-medium px-1.5 py-0 capitalize",
+                              tenant.status === "active" && "bg-green-50 text-green-600 border-green-200",
+                              tenant.status === "inactive" && "bg-gray-50 text-gray-600 border-gray-200",
+                            )}>{tenant.status}</Badge>
+                          </td>
+                          <td className="py-2 px-2 text-slate-600 dark:text-slate-400 text-xs">
+                            {new Date(tenant.createdAt).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
-          </CardContent>
-        </Card>
-      </motion.div>
+          </div>
+        </motion.div>
 
-      {/* Registered Tenants */}
-      <motion.div variants={fadeInUp}>
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2"><Users className="h-4 w-4 text-blue-500" />Registered Tenants</CardTitle>
-                <CardDescription>Tenants currently using the platform</CardDescription>
-              </div>
-              <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200">
-                {tenantsList.length} total
-              </Badge>
+        {/* Recent Payments - Right sidebar */}
+        <motion.div variants={fadeInUp}>
+          <div className="bg-white dark:bg-slate-900 border-2 border-slate-300 dark:border-slate-600 rounded-xl shadow-lg transition-shadow h-full">
+            <div className="p-4 border-b border-slate-200 dark:border-slate-700">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                <CreditCard className="h-4 w-4 text-emerald-500" />
+                Recent Payments
+              </h3>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Latest transactions</p>
             </div>
-          </CardHeader>
-          <CardContent>
-            {tenantsList.length === 0 ? (
-              <div className="text-center py-8 text-text-secondary text-sm">No tenants registered yet</div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
-                  <thead>
-                    <tr className="border-b border-border">
-                      <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary uppercase tracking-wider">Name</th>
-                      <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary uppercase tracking-wider">Email</th>
-                      <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary uppercase tracking-wider">Phone</th>
-                      <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary uppercase tracking-wider">Property / Unit</th>
-                      <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary uppercase tracking-wider">Status</th>
-                      <th className="text-left py-3 px-4 text-xs font-medium text-text-secondary uppercase tracking-wider">Joined</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {tenantsList.slice(0, 10).map((tenant) => (
-                      <tr key={tenant.id} className="border-b border-border/50 hover:bg-surface-secondary transition-colors">
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-3">
-                            <Avatar fallback={tenant.name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)} size="sm" />
-                            <span className="font-medium text-foreground">{tenant.name}</span>
-                          </div>
-                        </td>
-                        <td className="py-3 px-4 text-text-secondary">{tenant.email}</td>
-                        <td className="py-3 px-4 text-text-secondary">{tenant.phone}</td>
-                        <td className="py-3 px-4">
-                          <div className="text-foreground">{tenant.propertyName}</div>
-                          <div className="text-xs text-text-tertiary">Unit {tenant.unitNumber}</div>
-                        </td>
-                        <td className="py-3 px-4">
-                          <Badge variant="outline" className={cn(
-                            "text-[10px] font-medium px-1.5 py-0 capitalize",
-                            tenant.status === "active" && "bg-green-50 text-green-600 border-green-200",
-                            tenant.status === "inactive" && "bg-gray-50 text-gray-600 border-gray-200",
-                          )}>{tenant.status}</Badge>
-                        </td>
-                        <td className="py-3 px-4 text-text-secondary text-xs">
-                          {new Date(tenant.createdAt).toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" })}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+            <div className="p-3">
+              <div className="space-y-2">
+                {payments.length === 0 ? (
+                  <div className="text-center py-6 text-slate-500 dark:text-slate-400 text-sm">No payments yet</div>
+                ) : (
+                  payments.slice(0, 5).map((payment) => (
+                    <div key={payment.id} className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800 transition-colors">
+                      <div className="flex items-center gap-2.5">
+                        <Avatar fallback={payment.tenantName.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)} size="sm" />
+                        <div>
+                          <p className="text-sm font-medium text-slate-900 dark:text-white">{payment.tenantName}</p>
+                          <p className="text-[11px] text-slate-500 dark:text-slate-400">{getTimeAgo(payment.paymentDate)}</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-sm font-semibold text-slate-900 dark:text-white">{formatCurrency(payment.amountPaid)}</p>
+                        <Badge variant="outline" className={cn(
+                          "text-[9px] font-medium px-1.5 py-0 mt-0.5",
+                          payment.status === "paid" && "bg-green-50 text-green-600 border-green-200",
+                          payment.status === "pending" && "bg-amber-50 text-amber-600 border-amber-200",
+                          payment.status === "overdue" && "bg-red-50 text-red-600 border-red-200",
+                          payment.status === "partial" && "bg-blue-50 text-blue-600 border-blue-200",
+                        )}>{payment.status}</Badge>
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
-            )}
-          </CardContent>
-        </Card>
-      </motion.div>
+            </div>
+          </div>
+        </motion.div>
+      </div>
     </motion.div>
+  </div>
   );
 }
