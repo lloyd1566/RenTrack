@@ -383,7 +383,9 @@ export default function LoginPage() {
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-surface">
       {/* Background image — Butuan City */}
-      <div
+      <motion.div
+        animate={{ scale: [1, 1.08, 1] }}
+        transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"
         style={{ backgroundImage: "url('/images/favicon/Butuan\ City.webp')" }}
       />
