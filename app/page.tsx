@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import Image from "next/image";
 import Link from "next/link";
 import { Bell, Shield, MapPin, Home, Search, Menu, ChevronRight, Star, Phone, Mail, KeyRound, CreditCard, BarChart3, Building2, Users, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -127,7 +126,7 @@ export default function LandingPage() {
           <div className="relative flex h-16 items-center justify-between">
             <Link href="/" className="flex items-center gap-2">
               <div className="relative h-8 w-8">
-                  <Image src="/images/landing/logo.png" alt="RentTrack" fill className="object-contain" />
+                  <img src="/images/landing/logo.png" alt="RentTrack" className="w-full h-full object-contain" />
               </div>
               <span className={`text-lg font-bold ${scrolled ? "text-gray-900" : "text-white"}`}>Rent<span className="text-blue-600">Track</span></span>
             </Link>
@@ -189,12 +188,11 @@ export default function LandingPage() {
           animate={{ scale: [1, 1.05, 1] }}
           transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
         >
-          <Image
+          <img
             src={heroImages[heroIndex] || fallbackHeroImage}
             alt="Hero background"
-            fill
-            className="object-cover transition-opacity duration-1000"
-            priority
+            className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
+            loading="eager"
           />
           <div className="absolute inset-0 bg-gradient-to-r from-black/70 via-black/50 to-transparent" />
         </motion.div>
@@ -348,19 +346,15 @@ export default function LandingPage() {
                   whileHover={{ y: -8 }}
                   className="group bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-2xl transition-all duration-300"
                 >
-                   <div className="relative h-40 overflow-hidden bg-gradient-to-br from-blue-100 to-indigo-100">
-                     <motion.div
-                       className="relative h-full w-full"
-                       whileHover={{ scale: 1.05 }}
-                       transition={{ duration: 0.5, ease: "easeOut" }}
-                     >
-                       {img && img.startsWith("/api/auth/upload/") ? (
-                         <img src={img} alt={property.name} className="w-full h-full object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                       ) : (
-                         <Image src={img} alt={property.name} fill className="object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                       )}
-                     </motion.div>
-                     <div className="absolute top-3 right-3">
+                    <div className="relative h-40 overflow-hidden bg-gradient-to-br from-blue-100 to-indigo-100">
+                      <motion.div
+                        className="relative h-full w-full"
+                        whileHover={{ scale: 1.05 }}
+                        transition={{ duration: 0.5, ease: "easeOut" }}
+                      >
+                        <img src={img} alt={property.name} className="w-full h-full object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                      </motion.div>
+                      <div className="absolute top-3 right-3">
                       <motion.span
                         initial={{ scale: 0 }}
                         whileInView={{ scale: 1 }}
@@ -423,11 +417,7 @@ export default function LandingPage() {
                                 whileHover={{ scale: 1.05 }}
                                 transition={{ duration: 0.5, ease: "easeOut" }}
                               >
-                                {img && img.startsWith("/api/auth/upload/") ? (
-                                  <img src={img} alt={`${unitNumber} photo`} className="w-full h-full object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                                ) : (
-                                  <Image src={img} alt={`${unitNumber} photo`} fill className="object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                                )}
+                                <img src={img} alt={`${unitNumber} photo`} className="w-full h-full object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
                               </motion.div>
                               <div className="absolute top-3 right-3">
                               <motion.span
@@ -512,7 +502,7 @@ export default function LandingPage() {
                     transition={{ duration: 0.6, ease: "easeOut" }}
                     className="relative h-full w-full"
                   >
-                    <Image src={step.image} alt={step.title} fill className="object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                    <img src={step.image} alt={step.title} className="absolute inset-0 w-full h-full object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
                   </motion.div>
                   <div className="absolute inset-0 bg-black/10" />
                 </div>
@@ -609,7 +599,7 @@ export default function LandingPage() {
                     transition={{ duration: 0.6, ease: "easeOut" }}
                     className="relative h-full w-full"
                   >
-                    <Image src={feature.image} alt={feature.title} fill className="object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                    <img src={feature.image} alt={feature.title} className="absolute inset-0 w-full h-full object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
                   </motion.div>
                 </div>
                 <div className="p-6">
@@ -739,7 +729,7 @@ export default function LandingPage() {
             <div className="md:col-span-2">
               <Link href="/" className="flex items-center gap-2 mb-4">
                 <div className="relative h-9 w-9">
-                <Image src="/images/landing/logo.png" alt="RentTrack" fill className="object-contain" />
+                <img src="/images/landing/logo.png" alt="RentTrack" className="w-full h-full object-contain" />
                 </div>
                 <span className="text-lg font-bold text-gray-900">Rent<span className="text-blue-600">Track</span></span>
               </Link>
