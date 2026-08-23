@@ -167,7 +167,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         )}
       </AnimatePresence>
 
-       {(isAdmin || isOwner || isAgent) && (
+       {!isAdmin && (isOwner || isAgent) && (
          <div className="flex flex-1">
           <aside
             className={cn(
@@ -444,6 +444,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
          <main className="flex-1 overflow-auto">
            {children}
          </main>
+       )}
+
+       {isAdmin && (
+         <>{children}</>
        )}
 
       {showLogoutModal && createPortal(
