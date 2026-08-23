@@ -182,7 +182,7 @@ export default function LandingPage() {
       </nav>
 
        {/* â”€â”€â”€ Hero â”€â”€â”€ */}
-       <section className="relative min-h-[500px] sm:min-h-[560px] flex items-center justify-center overflow-hidden">
+       <section className="relative min-h-[420px] sm:min-h-[480px] flex items-center justify-center overflow-hidden">
         <motion.div
           className="absolute inset-0"
           animate={{ scale: [1, 1.05, 1] }}
@@ -236,14 +236,14 @@ export default function LandingPage() {
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.2 }}
-          className="relative z-10 mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-12 text-center"
+          className="relative z-10 mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-8 text-center"
         >
-          <div className="mx-auto max-w-3xl">
+          <div className="mx-auto max-w-2xl">
             <motion.div
               initial={{ opacity: 0, y: 20, scale: 0.9 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               transition={{ duration: 0.7, delay: 0.3 }}
-              className="inline-flex items-center gap-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 px-3 py-1 text-xs font-medium text-white mb-5"
+              className="inline-flex items-center gap-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 px-3 py-1 text-xs font-medium text-white mb-4"
             >
               <motion.div
                 animate={{ rotate: 360, scale: [1, 1.2, 1] }}
@@ -262,7 +262,7 @@ export default function LandingPage() {
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7, delay: 0.4 }}
-              className="text-2xl sm:text-3xl md:text-4xl font-bold text-white leading-tight mb-4 tracking-tight"
+              className="text-xl sm:text-2xl md:text-3xl font-bold text-white leading-tight mb-3 tracking-tight"
             >
               <span className="inline-block">The Philippines No.1 Trusted</span>
               <br />
@@ -278,7 +278,7 @@ export default function LandingPage() {
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.7, delay: 0.5 }}
-              className="text-sm sm:text-base text-white/90 mb-6 max-w-2xl mx-auto leading-relaxed"
+              className="text-xs sm:text-sm text-white/90 mb-4 max-w-2xl mx-auto leading-relaxed"
             >
               Find verified apartments, condos & houses for rent in Cebu, Manila, Butuan, and Davao.
             </motion.p>
@@ -293,7 +293,7 @@ export default function LandingPage() {
             >
               <motion.a
                 href="/login?mode=signup"
-                className="inline-flex h-10 px-6 text-sm font-semibold text-blue-700 bg-white hover:bg-blue-50 rounded-xl items-center justify-center gap-2 shadow-xl transition-colors relative overflow-hidden"
+                className="inline-flex h-9 px-5 text-sm font-semibold text-blue-700 bg-white hover:bg-blue-50 rounded-lg items-center justify-center gap-2 shadow-xl transition-colors relative overflow-hidden"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
               >
@@ -316,17 +316,17 @@ export default function LandingPage() {
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.8 }}
-              className="mt-10 relative mx-auto max-w-4xl"
+              className="mt-6 relative mx-auto max-w-2xl"
             >
-              <div className="relative h-56 sm:h-72 md:h-80 rounded-2xl overflow-hidden border border-white/10 bg-white/5 backdrop-blur-sm">
-                <div className="absolute inset-0 opacity-30" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.15) 1px, transparent 1px)", backgroundSize: "48px 48px" }} />
-                <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 200" preserveAspectRatio="none">
+              <div className="relative h-36 sm:h-44 rounded-xl overflow-hidden border border-white/10 bg-white/5 backdrop-blur-sm">
+                <div className="absolute inset-0 opacity-20" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,0.12) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.12) 1px, transparent 1px)", backgroundSize: "32px 32px" }} />
+                <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 160" preserveAspectRatio="none">
                   <motion.path
                     d="M 60 80 Q 130 30 200 60"
                     fill="none"
-                    stroke="rgba(255,255,255,0.35)"
-                    strokeWidth="2"
-                    strokeDasharray="8 5"
+                    stroke="rgba(255,255,255,0.3)"
+                    strokeWidth="1.5"
+                    strokeDasharray="6 4"
                     initial={{ pathLength: 0 }}
                     animate={{ pathLength: 1 }}
                     transition={{ duration: 2, delay: 1, repeat: Infinity, repeatType: "reverse" }}
@@ -334,9 +334,9 @@ export default function LandingPage() {
                   <motion.path
                     d="M 200 60 Q 260 100 340 70"
                     fill="none"
-                    stroke="rgba(255,255,255,0.35)"
-                    strokeWidth="2"
-                    strokeDasharray="8 5"
+                    stroke="rgba(255,255,255,0.3)"
+                    strokeWidth="1.5"
+                    strokeDasharray="6 4"
                     initial={{ pathLength: 0 }}
                     animate={{ pathLength: 1 }}
                     transition={{ duration: 2, delay: 1.3, repeat: Infinity, repeatType: "reverse" }}
@@ -344,9 +344,9 @@ export default function LandingPage() {
                   <motion.path
                     d="M 60 80 Q 120 130 160 110"
                     fill="none"
-                    stroke="rgba(255,255,255,0.35)"
-                    strokeWidth="2"
-                    strokeDasharray="8 5"
+                    stroke="rgba(255,255,255,0.3)"
+                    strokeWidth="1.5"
+                    strokeDasharray="6 4"
                     initial={{ pathLength: 0 }}
                     animate={{ pathLength: 1 }}
                     transition={{ duration: 2, delay: 1.6, repeat: Infinity, repeatType: "reverse" }}
@@ -367,18 +367,18 @@ export default function LandingPage() {
                     style={{ left: city.x, top: city.y, transform: "translate(-50%, -50%)" }}
                   >
                     <motion.div
-                      animate={{ scale: [1, 2, 1], opacity: [0.5, 0, 0.5] }}
+                      animate={{ scale: [1, 1.6, 1], opacity: [0.5, 0, 0.5] }}
                       transition={{ duration: 2.5, repeat: Infinity, ease: "easeOut" }}
-                      className="absolute rounded-full bg-blue-400/50"
-                      style={{ width: 40, height: 40, marginLeft: -20, marginTop: -20 }}
+                      className="absolute rounded-full bg-blue-400/40"
+                      style={{ width: 24, height: 24, marginLeft: -12, marginTop: -12 }}
                     />
                     <motion.div
-                      animate={{ y: [0, -4, 0] }}
+                      animate={{ y: [0, -3, 0] }}
                       transition={{ duration: 2 + Math.random(), repeat: Infinity, ease: "easeInOut" }}
                       className="relative flex flex-col items-center"
                     >
-                      <div className="h-4 w-4 rounded-full bg-blue-400 shadow-lg shadow-blue-500/50" />
-                      <span className="mt-1 text-xs sm:text-sm font-medium text-white/90 drop-shadow-md whitespace-nowrap">
+                      <div className="h-2.5 w-2.5 rounded-full bg-blue-400 shadow-lg shadow-blue-500/50" />
+                      <span className="mt-0.5 text-[10px] font-medium text-white/90 drop-shadow-md whitespace-nowrap">
                         {city.name}
                       </span>
                     </motion.div>
@@ -389,7 +389,7 @@ export default function LandingPage() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 2 }}
-                className="mt-3 text-xs sm:text-sm text-white/60"
+                className="mt-2 text-[11px] text-white/60"
               >
                 Active cities: Cebu • Manila • Butuan • Davao
               </motion.p>
