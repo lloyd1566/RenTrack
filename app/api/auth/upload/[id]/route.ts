@@ -9,7 +9,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ success: false, error: "File not found" }, { status: 404 });
     }
 
-    const buffer = Buffer.from(upload.data, "base64");
+    const buffer = Buffer.isBuffer(upload.data) ? upload.data : Buffer.from(upload.data);
     return new NextResponse(buffer, {
       headers: {
         "Content-Type": upload.mime_type || "application/octet-stream",
