@@ -647,7 +647,7 @@ export default function LandingPage() {
             <p className="mt-3 text-gray-600 max-w-2xl mx-auto">Explore rental properties in the Philippines most sought-after locations</p>
           </div>
 
-          <div className="relative mx-auto max-w-4xl rounded-2xl overflow-hidden border border-gray-200 bg-gray-50">
+          <div className="relative mx-auto max-w-4xl rounded-2xl overflow-hidden border border-gray-200 bg-gray-50 h-64 sm:h-80">
             <div className="absolute inset-0 opacity-40" style={{ backgroundImage: "linear-gradient(rgba(0,0,0,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.06) 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
             <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 200" preserveAspectRatio="none">
               <motion.path
