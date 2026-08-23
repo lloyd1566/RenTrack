@@ -9,7 +9,8 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return NextResponse.json({ success: false, error: "File not found" }, { status: 404 });
     }
 
-    return new NextResponse(upload.data, {
+    const buffer = Buffer.from(upload.data, "base64");
+    return new NextResponse(buffer, {
       headers: {
         "Content-Type": upload.mime_type || "application/octet-stream",
         "Cache-Control": "private, max-age=3600",
