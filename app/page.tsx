@@ -399,8 +399,8 @@ export default function LandingPage() {
                       const img = unit.imageUrl || unit.image_url || unitImages[i % unitImages.length];
                       const unitNumber = unit.unitNumber || unit.unit_number || "Unit";
                       const rentAmount = unit.rentAmount ?? unit.rent_amount ?? 0;
-                      const rent = rentAmount ? `â‚±${Number(rentAmount).toLocaleString()}` : "â‚±0";
-                      const propName = unit.propertyName || unit.property_name || unit.propertyId || unit.property_id || "â€”";
+                      const rent = rentAmount ? `₱${Number(rentAmount).toLocaleString()}` : "₱0";
+                      const propName = unit.propertyName || unit.property_name || unit.propertyId || unit.property_id || "—";
                       return (
                         <motion.div
                           key={unit.id}
