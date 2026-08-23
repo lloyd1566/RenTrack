@@ -370,7 +370,7 @@ export async function getUnreadMessageCount(): Promise<number> {
 }
 
 export async function getAgents(): Promise<UserRecord[]> {
-  const result = await apiGet("/api/auth/users");
+  const result = await apiGet("/api/auth/users/agents");
   if (result.success && result.users) {
     return result.users.filter((u: UserRecord) => u.role === "agent");
   }
