@@ -347,6 +347,7 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       });
       const data = await res.json();
+      console.log("Login response:", data);
       if (data.success) {
         toast.success("Login successful!");
         setUser(data.user);
