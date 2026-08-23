@@ -389,7 +389,7 @@ export default function LoginPage() {
       />
       <div className="absolute inset-0 bg-gradient-to-br from-primary-900/85 via-primary-900/70 to-secondary-900/80" />
 
-      {/* Animated gradient orbs (subtle accents over the city photo) */}
+      {/* Animated gradient orbs */}
       <motion.div
         animate={{ x: [0, 14, 0], y: [0, -16, 0] }}
         transition={{ duration: 14, repeat: Infinity, ease: "easeInOut" }}
@@ -399,6 +399,50 @@ export default function LoginPage() {
         animate={{ x: [0, -10, 0], y: [0, 22, 0] }}
         transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
         className="absolute -bottom-40 -right-32 h-96 w-96 rounded-full bg-gradient-to-br from-secondary-300/8 to-primary-300/8 blur-3xl"
+      />
+      <motion.div
+        animate={{ x: [0, 12, 0], y: [0, 10, 0] }}
+        transition={{ duration: 16, repeat: Infinity, ease: "easeInOut" }}
+        className="absolute top-1/3 -right-20 h-64 w-64 rounded-full bg-gradient-to-br from-blue-400/10 to-cyan-300/10 blur-3xl"
+      />
+      <motion.div
+        animate={{ x: [0, -8, 0], y: [0, -12, 0] }}
+        transition={{ duration: 20, repeat: Infinity, ease: "easeInOut" }}
+        className="absolute -bottom-20 left-1/4 h-72 w-72 rounded-full bg-gradient-to-br from-indigo-400/10 to-purple-300/10 blur-3xl"
+      />
+
+      {/* Floating particles */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        {[...Array(20)].map((_, i) => (
+          <motion.div
+            key={i}
+            animate={{
+              y: [0, -30, 0],
+              x: [0, 15, 0],
+              opacity: [0.1, 0.6, 0.1],
+            }}
+            transition={{
+              duration: 5 + i * 0.4,
+              repeat: Infinity,
+              ease: "easeInOut",
+              delay: i * 0.2,
+            }}
+            className="absolute rounded-full bg-white"
+            style={{
+              left: `${10 + i * 4.5}%`,
+              top: `${20 + (i % 5) * 18}%`,
+              width: `${2 + (i % 3)}px`,
+              height: `${2 + (i % 3)}px`,
+            }}
+          />
+        ))}
+      </div>
+
+      {/* Subtle scan line */}
+      <motion.div
+        animate={{ y: ["-100%", "100%"] }}
+        transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
+        className="absolute inset-0 pointer-events-none bg-gradient-to-b from-transparent via-white/5 to-transparent"
       />
 
       {/* Subtle grid */}
