@@ -56,8 +56,11 @@ export async function POST(request: NextRequest) {
     const response = NextResponse.json({ success: true, user: safeUser });
     regenerateSession(response, user.id, getClientIp(request));
     return withSecurityHeaders(withCorsHeaders(request, response));
-  } catch (error) {
+  } catch (error: any) {
     console.error("Login error:", error);
-    return NextResponse.json({ success: false, error: "Login failed" }, { status: 500 });
+    const message = typeof error === "object" && error && "message" in error && typeof (error as any).message === "string" && (error as any).message.toLowerCase().includes("does not exist")
+      ? "Database not initialized yet. Run the schema SQL in Supabase SQL Editor first."
+      : "Login failed";
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
