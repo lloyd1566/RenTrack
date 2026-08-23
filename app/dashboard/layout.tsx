@@ -50,6 +50,7 @@ const navItems: NavItem[] = [
   { label: "Agents", href: "/dashboard/owner/agents", icon: Users, roles: ["owner"] },
   { label: "Payments", href: "/dashboard/payments", icon: CreditCard, roles: ["owner", "agent", "tenant"] },
   { label: "Reports", href: "/dashboard/reports", icon: BarChart3, roles: ["admin", "owner"] },
+  { label: "Settings", href: "/dashboard/settings", icon: Settings, roles: ["admin", "owner", "agent", "tenant"] },
 ];
 
 const roleBadgeColor: Record<string, string> = {
@@ -166,8 +167,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         )}
       </AnimatePresence>
 
-      {user?.role === "owner" && !pathname.startsWith("/dashboard/owner") && (
-        <div className="flex flex-1">
+       {(isAdmin || isOwner || isAgent) && (
+         <div className="flex flex-1">
           <aside
             className={cn(
               "fixed lg:relative z-50 h-screen bg-surface border-r border-border flex flex-col transition-all duration-300 ease-[cubic-bezier(0.21,0.47,0.32,0.98)]",
@@ -253,14 +254,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                   sidebarOpen ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />
                 )}
               </button>
-              <h1 className="text-lg font-semibold text-foreground hidden sm:block">
-                {(() => {
-                  const activeItem = navItems.find((item) => isActiveItem(item));
-                  if (activeItem) return navLabel(activeItem);
-                  if (pathname.startsWith("/dashboard/owner/agents")) return "Agents";
-                  return "Owner Dashboard";
-                })()}
-              </h1>
+               <h1 className="text-lg font-semibold text-foreground hidden sm:block">
+                 {(() => {
+                   const activeItem = navItems.find((item) => isActiveItem(item));
+                   if (activeItem) return navLabel(activeItem);
+                   if (pathname.startsWith("/dashboard/owner/agents")) return "Agents";
+                   if (pathname.startsWith("/dashboard/owner")) return "Owner Dashboard";
+                   if (pathname.startsWith("/dashboard/agent")) return "Agent Dashboard";
+                   if (pathname.startsWith("/dashboard/admin")) return "Admin Dashboard";
+                   return "Dashboard";
+                 })()}
+               </h1>
             </div>
 
             <div className="flex items-center gap-2">
@@ -436,23 +440,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
       </div>
       )}
 
-      {isAdmin && (
-        <>{children}</>
-      )}
-
-      {isTenant && (
-        <main className="flex-1 overflow-auto">
-          {children}
-        </main>
-      )}
-
-      {isAgent && (
-        <>{children}</>
-      )}
-
-      {isOwner && pathname.startsWith("/dashboard/owner") && (
-        <>{children}</>
-      )}
+       {isTenant && (
+         <main className="flex-1 overflow-auto">
+           {children}
+         </main>
+       )}
 
       {showLogoutModal && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center">
