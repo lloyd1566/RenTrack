@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import Link from "next/link";
-import { Bell, Shield, MapPin, Home, Search, Menu, ChevronRight, Star, Phone, Mail, KeyRound, CreditCard, BarChart3, Building2, Users } from "lucide-react";
+import { Bell, Shield, MapPin, Home, Search, Menu, ChevronRight, Star, Phone, Mail, KeyRound, CreditCard, BarChart3, Building2, Users, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
@@ -70,6 +70,7 @@ export default function LandingPage() {
   const [isImageLoaded, setIsImageLoaded] = useState(false);
   const [bannerIndex, setBannerIndex] = useState(0);
   const [scrolled, setScrolled] = useState(false);
+  const [selectedProperty, setSelectedProperty] = useState<any | null>(null);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 20);
@@ -347,15 +348,19 @@ export default function LandingPage() {
                   whileHover={{ y: -8 }}
                   className="group bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-2xl transition-all duration-300"
                 >
-                  <div className="relative h-40 overflow-hidden bg-gradient-to-br from-blue-100 to-indigo-100">
-                    <motion.div
-                      className="relative h-full w-full"
-                      whileHover={{ scale: 1.05 }}
-                      transition={{ duration: 0.5, ease: "easeOut" }}
-                    >
-                      <Image src={img} alt={property.name} fill className="object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                    </motion.div>
-                    <div className="absolute top-3 right-3">
+                   <div className="relative h-40 overflow-hidden bg-gradient-to-br from-blue-100 to-indigo-100">
+                     <motion.div
+                       className="relative h-full w-full"
+                       whileHover={{ scale: 1.05 }}
+                       transition={{ duration: 0.5, ease: "easeOut" }}
+                     >
+                       {img && img.startsWith("/api/auth/upload/") ? (
+                         <img src={img} alt={property.name} className="w-full h-full object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                       ) : (
+                         <Image src={img} alt={property.name} fill className="object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                       )}
+                     </motion.div>
+                     <div className="absolute top-3 right-3">
                       <motion.span
                         initial={{ scale: 0 }}
                         whileInView={{ scale: 1 }}
@@ -372,15 +377,16 @@ export default function LandingPage() {
                     <p className="text-sm text-gray-600 mb-3 flex items-center gap-1">
                       <MapPin className="h-3.5 w-3.5 shrink-0" />{location}
                     </p>
-                    <div className="flex items-center justify-between pt-3 border-t border-gray-100 text-xs text-gray-500">
-                      <span className="flex items-center gap-1"><Home className="h-3.5 w-3.5" />{property.units || 0} Units</span>
-                      <motion.span
-                        whileHover={{ x: 4 }}
-                        className="text-blue-600 font-medium cursor-pointer"
-                      >
-                        View Details →
-                      </motion.span>
-                    </div>
+                     <div className="flex items-center justify-between pt-3 border-t border-gray-100 text-xs text-gray-500">
+                       <span className="flex items-center gap-1"><Home className="h-3.5 w-3.5" />{property.units || 0} Units</span>
+                       <motion.button
+                         whileHover={{ x: 4 }}
+                         onClick={() => setSelectedProperty(property)}
+                         className="text-blue-600 font-medium"
+                       >
+                         View Details →
+                       </motion.button>
+                     </div>
                   </div>
                 </motion.div>
                       );
@@ -411,15 +417,19 @@ export default function LandingPage() {
                           whileHover={{ y: -8 }}
                           className="group bg-white border border-gray-200 rounded-lg overflow-hidden hover:shadow-2xl transition-all duration-300"
                         >
-                          <div className="relative h-40 overflow-hidden bg-gradient-to-br from-blue-100 to-indigo-100">
-                            <motion.div
-                              className="relative h-full w-full"
-                              whileHover={{ scale: 1.05 }}
-                              transition={{ duration: 0.5, ease: "easeOut" }}
-                            >
-                              <Image src={img} alt={`${unitNumber} photo`} fill className="object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                            </motion.div>
-                            <div className="absolute top-3 right-3">
+                            <div className="relative h-40 overflow-hidden bg-gradient-to-br from-blue-100 to-indigo-100">
+                              <motion.div
+                                className="relative h-full w-full"
+                                whileHover={{ scale: 1.05 }}
+                                transition={{ duration: 0.5, ease: "easeOut" }}
+                              >
+                                {img && img.startsWith("/api/auth/upload/") ? (
+                                  <img src={img} alt={`${unitNumber} photo`} className="w-full h-full object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                                ) : (
+                                  <Image src={img} alt={`${unitNumber} photo`} fill className="object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                                )}
+                              </motion.div>
+                              <div className="absolute top-3 right-3">
                               <motion.span
                                 initial={{ scale: 0 }}
                                 whileInView={{ scale: 1 }}
@@ -439,15 +449,16 @@ export default function LandingPage() {
                             <p className="text-sm text-gray-600 mb-3 flex items-center gap-1">
                               <MapPin className="h-3.5 w-3.5 shrink-0" />{propName}
                             </p>
-                            <div className="flex items-center justify-between pt-3 border-t border-gray-100 text-xs text-gray-500">
-                              <span className="flex items-center gap-1"><Home className="h-3.5 w-3.5" />{isOccupied ? "Occupied" : "Vacant"}</span>
-                              <motion.span
-                                whileHover={{ x: 4 }}
-                                className="text-blue-600 font-medium cursor-pointer"
-                              >
-                                View Details →
-                              </motion.span>
-                            </div>
+                             <div className="flex items-center justify-between pt-3 border-t border-gray-100 text-xs text-gray-500">
+                               <span className="flex items-center gap-1"><Home className="h-3.5 w-3.5" />{isOccupied ? "Occupied" : "Vacant"}</span>
+                               <motion.button
+                                 whileHover={{ x: 4 }}
+                                 onClick={() => setSelectedProperty(unit)}
+                                 className="text-blue-600 font-medium"
+                               >
+                                 View Details →
+                               </motion.button>
+                             </div>
                           </div>
                         </motion.div>
                       );
@@ -759,6 +770,57 @@ export default function LandingPage() {
           </div>
         </div>
       </footer>
+
+      <AnimatePresence>
+        {selectedProperty && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/50" onClick={() => setSelectedProperty(null)} />
+            <div className="relative w-full max-w-2xl rounded-2xl border border-gray-200 bg-white shadow-2xl max-h-[90vh] overflow-y-auto">
+              <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-900">{selectedProperty.name || selectedProperty.unitNumber || "Property Details"}</h3>
+                  <p className="text-sm text-gray-500">{selectedProperty.location || selectedProperty.propertyName || "Property"}</p>
+                </div>
+                <button onClick={() => setSelectedProperty(null)} className="h-8 w-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="p-6 space-y-4">
+                {selectedProperty.imageUrl && (
+                  <img src={selectedProperty.imageUrl} alt={selectedProperty.name || selectedProperty.unitNumber} className="w-full h-48 object-cover rounded-xl border border-gray-200" />
+                )}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 rounded-xl bg-gray-50">
+                    <p className="text-xs text-gray-500 mb-1">Type</p>
+                    <p className="text-sm font-medium text-gray-900 capitalize">{selectedProperty.type || "House"}</p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-gray-50">
+                    <p className="text-xs text-gray-500 mb-1">Status</p>
+                    <p className="text-sm font-medium text-gray-900 capitalize">{selectedProperty.status || "Active"}</p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-gray-50">
+                    <p className="text-xs text-gray-500 mb-1">Units</p>
+                    <p className="text-sm font-medium text-gray-900">{selectedProperty.units || 0}</p>
+                  </div>
+                  <div className="p-4 rounded-xl bg-gray-50">
+                    <p className="text-xs text-gray-500 mb-1">Monthly Rent</p>
+                    <p className="text-sm font-medium text-gray-900">₱{Number(selectedProperty.rentAmount || 0).toLocaleString()}/mo</p>
+                  </div>
+                </div>
+                {selectedProperty.description && (
+                  <div>
+                    <p className="text-xs text-gray-500 mb-2">Description</p>
+                    <p className="text-sm text-gray-700 leading-relaxed">{selectedProperty.description}</p>
+                  </div>
+                )}
+              </div>
+              <div className="p-6 border-t border-gray-200">
+                <button onClick={() => setSelectedProperty(null)} className="w-full h-10 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">Close</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </AnimatePresence>
     </main>
   );
 }
