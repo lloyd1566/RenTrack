@@ -639,44 +639,81 @@ export default function LandingPage() {
       {/* â”€â”€â”€ Most Popular Destinations â”€â”€â”€ */}
       <motion.section id="destinations" className="py-16 bg-white" initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} transition={{ duration: 0.6 }}>
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
+          <div className="text-center mb-10">
             <span className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-1.5 text-sm font-medium text-blue-600 mb-4">
               <Star className="h-4 w-4" />Destinations
             </span>
-            <h2 className="text-3xl font-bold text-gray-900">Most Popular Destinations</h2>
+            <h2 className="text-3xl font-bold text-gray-900">Most Popular Destations</h2>
             <p className="mt-3 text-gray-600 max-w-2xl mx-auto">Explore rental properties in the Philippines most sought-after locations</p>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 max-w-5xl mx-auto">
-            {destinations.map((dest, i) => (
+          <div className="relative mx-auto max-w-4xl rounded-2xl overflow-hidden border border-gray-200 bg-gray-50">
+            <div className="absolute inset-0 opacity-40" style={{ backgroundImage: "linear-gradient(rgba(0,0,0,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.06) 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
+            <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 200" preserveAspectRatio="none">
+              <motion.path
+                d="M 60 90 Q 120 20 200 50"
+                fill="none"
+                stroke="rgba(37,99,235,0.35)"
+                strokeWidth="2"
+                strokeDasharray="8 5"
+                initial={{ pathLength: 0 }}
+                animate={{ pathLength: 1 }}
+                transition={{ duration: 2, delay: 0.2, repeat: Infinity, repeatType: "reverse" }}
+              />
+              <motion.path
+                d="M 200 50 Q 260 90 340 80"
+                fill="none"
+                stroke="rgba(37,99,235,0.35)"
+                strokeWidth="2"
+                strokeDasharray="8 5"
+                initial={{ pathLength: 0 }}
+                animate={{ pathLength: 1 }}
+                transition={{ duration: 2, delay: 0.5, repeat: Infinity, repeatType: "reverse" }}
+              />
+              <motion.path
+                d="M 60 90 Q 100 140 160 120"
+                fill="none"
+                stroke="rgba(37,99,235,0.35)"
+                strokeWidth="2"
+                strokeDasharray="8 5"
+                initial={{ pathLength: 0 }}
+                animate={{ pathLength: 1 }}
+                transition={{ duration: 2, delay: 0.8, repeat: Infinity, repeatType: "reverse" }}
+              />
+            </svg>
+            {[
+              { name: "Cebu", region: "Central Visayas", x: "15%", y: "60%", delay: 0.9 },
+              { name: "Butuan", region: "Agusan del Norte", x: "40%", y: "28%", delay: 1.1 },
+              { name: "Davao", region: "Davao Region", x: "68%", y: "72%", delay: 1.3 },
+              { name: "Manila", region: "National Capital Region", x: "85%", y: "36%", delay: 1.5 },
+            ].map((city) => (
+              <motion.div
+                key={city.name}
+                initial={{ opacity: 0, scale: 0 }}
+                whileInView={{ opacity: 1, scale: 1 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.5, delay: city.delay }}
+                className="absolute"
+                style={{ left: city.x, top: city.y, transform: "translate(-50%, -50%)" }}
+              >
                 <motion.div
-                  key={dest.name}
-                  initial={{ opacity: 0, y: 20 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.4, delay: i * 0.1 }}
-                  whileHover={{ y: -4 }}
-                  className="group relative rounded-xl overflow-hidden aspect-[4/3] cursor-pointer shadow-sm hover:shadow-xl transition-all duration-300"
+                  animate={{ scale: [1, 2.2, 1], opacity: [0.5, 0, 0.5] }}
+                  transition={{ duration: 2.5, repeat: Infinity, ease: "easeOut" }}
+                  className="absolute rounded-full bg-blue-500/50"
+                  style={{ width: 44, height: 44, marginLeft: -22, marginTop: -22 }}
+                />
+                <motion.div
+                  animate={{ y: [0, -5, 0] }}
+                  transition={{ duration: 2 + Math.random(), repeat: Infinity, ease: "easeInOut" }}
+                  className="relative flex flex-col items-center"
                 >
-                  <div className="relative h-full w-full bg-gradient-to-br from-blue-100 to-indigo-100">
-                    <motion.img
-                      src={dest.image}
-                      alt={dest.name}
-                      className="w-full h-full object-cover"
-                      loading="lazy"
-                      onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-                      whileHover={{ scale: 1.08 }}
-                      transition={{ duration: 0.6 }}
-                    />
-                  </div>
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
-                  <div className="absolute inset-0 flex items-end p-5">
-                    <div className="bg-black/40 backdrop-blur-sm rounded-lg px-4 py-3 w-full">
-                      <h3 className="text-base font-bold text-white drop-shadow-lg">{dest.name}</h3>
-                      <p className="text-xs text-white/90 mt-0.5 font-medium">{dest.region}</p>
-                    </div>
-                  </div>
+                  <div className="h-4 w-4 rounded-full bg-blue-600 shadow-lg shadow-blue-500/60 ring-2 ring-white/40" />
+                  <span className="mt-1.5 text-xs sm:text-sm font-bold text-gray-900 drop-shadow-md whitespace-nowrap">
+                    {city.name}
+                  </span>
+                  <span className="text-[10px] sm:text-xs text-gray-600 font-medium whitespace-nowrap">{city.region}</span>
                 </motion.div>
+              </motion.div>
             ))}
           </div>
         </div>
@@ -693,7 +730,7 @@ export default function LandingPage() {
             <p className="mt-3 text-gray-600 max-w-2xl mx-auto">Powerful tools for property owners, agents, and tenants</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
             {features.map((feature, i) => (
               <motion.div
                 key={i}
@@ -704,7 +741,7 @@ export default function LandingPage() {
                 whileHover={{ y: -8 }}
                 className="bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300"
               >
-                <div className="relative h-56 overflow-hidden bg-gradient-to-br from-blue-100 to-indigo-100">
+                <div className="relative h-40 overflow-hidden bg-gradient-to-br from-blue-100 to-indigo-100">
                   <motion.div
                     whileHover={{ scale: 1.08 }}
                     transition={{ duration: 0.6, ease: "easeOut" }}
@@ -713,16 +750,16 @@ export default function LandingPage() {
                     <img src={feature.image} alt={feature.title} className="absolute inset-0 w-full h-full object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
                   </motion.div>
                 </div>
-                <div className="p-6">
-                  <div className="flex items-center gap-3 mb-3">
+                <div className="p-4">
+                  <div className="flex items-center gap-2 mb-2">
                     <motion.div
                       animate={{ rotate: [0, 360] }}
                       transition={{ duration: 20, repeat: Infinity, ease: "linear", delay: i * 0.5 }}
-                      className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50 text-blue-600"
+                      className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600"
                     >
-                      <feature.icon className="h-5 w-5" />
+                      <feature.icon className="h-4 w-4" />
                     </motion.div>
-                    <h3 className="text-lg font-semibold text-gray-900">{feature.title}</h3>
+                    <h3 className="text-base font-semibold text-gray-900">{feature.title}</h3>
                   </div>
                   <p className="text-sm text-gray-600">{feature.desc}</p>
                 </div>
