@@ -388,10 +388,7 @@ export async function verifyEmailToken(token: string) {
 export async function createLoginOtp(userId: string, ttlMinutes = 10) {
   const otp = String(Math.floor(100000 + Math.random() * 900000));
   const expiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000).toISOString();
-  const { error } = await supabase
-    .from("users")
-    .update({ login_otp: otp, login_otp_expires_at: expiresAt })
-    .eq("id", userId);
+  const { error } = await getAdminSupabase().from("users").update({ login_otp: otp, login_otp_expires_at: expiresAt }).eq("id", userId);
   if (error) throw error;
   return otp;
 }
