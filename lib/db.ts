@@ -999,7 +999,17 @@ export async function findOrCreateOwner() {
 }
 
 export async function deleteUser(id: string) {
-  const { error } = await getAdminSupabase().from("users").delete().eq("id", id);
+  const admin = getAdminSupabase();
+  await Promise.all([
+    admin.from("messages").delete().or(`sender_id.eq.${id},receiver_id.eq.${id}`),
+    admin.from("notifications").delete().eq("user_id", id),
+    admin.from("properties").update({ created_by: null }).eq("created_by", id),
+    admin.from("tenants").update({ created_by: null }).eq("created_by", id),
+    admin.from("payments").update({ created_by: null }).eq("created_by", id),
+    admin.from("payments").update({ verified_by: null }).eq("verified_by", id),
+    admin.from("complaints").update({ assigned_to: null }).eq("assigned_to", id),
+  ]);
+  const { error } = await admin.from("users").delete().eq("id", id);
   if (error) throw error;
 }
 

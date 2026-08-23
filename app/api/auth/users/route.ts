@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAllUsers, findUserById } from "@/lib/db";
+import { getAllUsers, findUserById, deleteUser } from "@/lib/db";
 import { getCurrentUser } from "@/lib/security";
 import {
   requireRole, sanitizeResponse, withSecurityHeaders, withCorsHeaders,
@@ -45,7 +45,7 @@ export async function DELETE(request: NextRequest) {
     }
 
     const { supabase } = await import("@/lib/db");
-    await supabase.from("users").delete().eq("id", userId);
+    await deleteUser(userId);
 
     await logAudit(auth.userId, "user_deleted", { deletedUserId: userId, deletedUserName: targetUser.name }, auth.ip, auth.userAgent);
     return NextResponse.json({ success: true, message: "User deleted successfully" });
