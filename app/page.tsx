@@ -316,47 +316,47 @@ export default function LandingPage() {
               initial={{ opacity: 0, y: 30 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.8, delay: 0.8 }}
-              className="mt-6 relative mx-auto max-w-2xl"
+              className="mt-8 relative mx-auto max-w-3xl"
             >
-              <div className="relative h-36 sm:h-44 rounded-xl overflow-hidden border border-white/10 bg-white/5 backdrop-blur-sm">
-                <div className="absolute inset-0 opacity-20" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,0.12) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.12) 1px, transparent 1px)", backgroundSize: "32px 32px" }} />
-                <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 160" preserveAspectRatio="none">
+              <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-white/5 backdrop-blur-sm">
+                <div className="absolute inset-0 opacity-30" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.15) 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
+                <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 200" preserveAspectRatio="none">
                   <motion.path
-                    d="M 60 80 Q 130 30 200 60"
+                    d="M 60 90 Q 120 20 200 50"
                     fill="none"
-                    stroke="rgba(255,255,255,0.3)"
-                    strokeWidth="1.5"
-                    strokeDasharray="6 4"
+                    stroke="rgba(255,255,255,0.4)"
+                    strokeWidth="2"
+                    strokeDasharray="8 5"
                     initial={{ pathLength: 0 }}
                     animate={{ pathLength: 1 }}
                     transition={{ duration: 2, delay: 1, repeat: Infinity, repeatType: "reverse" }}
                   />
                   <motion.path
-                    d="M 200 60 Q 260 100 340 70"
+                    d="M 200 50 Q 260 90 340 80"
                     fill="none"
-                    stroke="rgba(255,255,255,0.3)"
-                    strokeWidth="1.5"
-                    strokeDasharray="6 4"
+                    stroke="rgba(255,255,255,0.4)"
+                    strokeWidth="2"
+                    strokeDasharray="8 5"
                     initial={{ pathLength: 0 }}
                     animate={{ pathLength: 1 }}
                     transition={{ duration: 2, delay: 1.3, repeat: Infinity, repeatType: "reverse" }}
                   />
                   <motion.path
-                    d="M 60 80 Q 120 130 160 110"
+                    d="M 60 90 Q 100 140 160 120"
                     fill="none"
-                    stroke="rgba(255,255,255,0.3)"
-                    strokeWidth="1.5"
-                    strokeDasharray="6 4"
+                    stroke="rgba(255,255,255,0.4)"
+                    strokeWidth="2"
+                    strokeDasharray="8 5"
                     initial={{ pathLength: 0 }}
                     animate={{ pathLength: 1 }}
                     transition={{ duration: 2, delay: 1.6, repeat: Infinity, repeatType: "reverse" }}
                   />
                 </svg>
                 {[
-                  { name: "Cebu", x: "18%", y: "58%", delay: 0.9 },
-                  { name: "Butuan", x: "42%", y: "32%", delay: 1.1 },
-                  { name: "Davao", x: "70%", y: "68%", delay: 1.3 },
-                  { name: "Manila", x: "84%", y: "38%", delay: 1.5 },
+                  { name: "Cebu", x: "15%", y: "60%", delay: 0.9 },
+                  { name: "Butuan", x: "40%", y: "28%", delay: 1.1 },
+                  { name: "Davao", x: "68%", y: "72%", delay: 1.3 },
+                  { name: "Manila", x: "85%", y: "36%", delay: 1.5 },
                 ].map((city) => (
                   <motion.div
                     key={city.name}
@@ -367,18 +367,18 @@ export default function LandingPage() {
                     style={{ left: city.x, top: city.y, transform: "translate(-50%, -50%)" }}
                   >
                     <motion.div
-                      animate={{ scale: [1, 1.6, 1], opacity: [0.5, 0, 0.5] }}
+                      animate={{ scale: [1, 2.2, 1], opacity: [0.6, 0, 0.6] }}
                       transition={{ duration: 2.5, repeat: Infinity, ease: "easeOut" }}
-                      className="absolute rounded-full bg-blue-400/40"
-                      style={{ width: 24, height: 24, marginLeft: -12, marginTop: -12 }}
+                      className="absolute rounded-full bg-blue-400/60"
+                      style={{ width: 44, height: 44, marginLeft: -22, marginTop: -22 }}
                     />
                     <motion.div
-                      animate={{ y: [0, -3, 0] }}
+                      animate={{ y: [0, -5, 0] }}
                       transition={{ duration: 2 + Math.random(), repeat: Infinity, ease: "easeInOut" }}
                       className="relative flex flex-col items-center"
                     >
-                      <div className="h-2.5 w-2.5 rounded-full bg-blue-400 shadow-lg shadow-blue-500/50" />
-                      <span className="mt-0.5 text-[10px] font-medium text-white/90 drop-shadow-md whitespace-nowrap">
+                      <div className="h-4 w-4 rounded-full bg-blue-400 shadow-lg shadow-blue-500/60 ring-2 ring-white/30" />
+                      <span className="mt-1.5 text-xs sm:text-sm font-bold text-white drop-shadow-md whitespace-nowrap">
                         {city.name}
                       </span>
                     </motion.div>
@@ -389,7 +389,7 @@ export default function LandingPage() {
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 2 }}
-                className="mt-2 text-[11px] text-white/60"
+                className="mt-3 text-xs sm:text-sm text-white/70 font-medium"
               >
                 Active cities: Cebu • Manila • Butuan • Davao
               </motion.p>
