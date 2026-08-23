@@ -649,19 +649,20 @@ export default function LoginPage() {
                           />
                         </div>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs text-text-secondary">
-                        Forgot password?{" "}
-                        <motion.button
-                          onClick={() => router.push("/reset-password")}
-                          className="text-primary-600 font-semibold"
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                        >
-                          Reset here
-                        </motion.button>
-                      </p>
-                    </div>
+                     <div className="flex items-center justify-between">
+                       <p className="text-xs text-text-secondary">
+                         Forgot password?{" "}
+                         <motion.button
+                           type="button"
+                           onClick={() => router.push("/reset-password")}
+                           className="text-primary-600 font-semibold"
+                           whileHover={{ scale: 1.05 }}
+                           whileTap={{ scale: 0.95 }}
+                         >
+                           Reset here
+                         </motion.button>
+                       </p>
+                     </div>
 
                     <Button
                         type="submit"
@@ -784,19 +785,20 @@ export default function LoginPage() {
                       </div>
                     </div>
 
-                     <div className="flex items-center justify-between">
-                       <p className="text-xs text-text-secondary">
-                         Forgot password?{" "}
-                         <motion.button
-                           onClick={() => toast.info("Password reset is temporarily disabled on this build")}
-                           className="text-primary-600 font-semibold"
-                           whileHover={{ scale: 1.05 }}
-                           whileTap={{ scale: 0.95 }}
-                         >
-                           Reset here
-                         </motion.button>
-                       </p>
-                     </div>
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-text-secondary">
+                          Forgot password?{" "}
+                          <motion.button
+                            type="button"
+                            onClick={() => router.push("/reset-password")}
+                            className="text-primary-600 font-semibold"
+                            whileHover={{ scale: 1.05 }}
+                            whileTap={{ scale: 0.95 }}
+                          >
+                            Reset here
+                          </motion.button>
+                        </p>
+                      </div>
 
                      <Button
                        type="submit"
