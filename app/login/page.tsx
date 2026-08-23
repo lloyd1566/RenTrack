@@ -181,7 +181,7 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [step, setStep] = useState<Step>("signup");
+  const [step, setStep] = useState<Step>("credentials");
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
