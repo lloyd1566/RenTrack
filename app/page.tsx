@@ -17,12 +17,12 @@ const navItems = [
 ];
 
 const unitImages = [
-  "/images/landing/prop-1.jpg",
-  "/images/landing/prop-2.jpg",
-  "/images/landing/prop-3.jpg",
-  "/images/landing/prop-4.jpg",
-  "/images/landing/prop-5.jpg",
-  "/images/landing/prop-6.jpg",
+  "/images/landing/feature-property.jpg",
+  "/images/landing/feature-tenant.jpg",
+  "/images/landing/feature-payment.jpg",
+  "/images/landing/feature-dashboard.jpg",
+  "/images/landing/feature-notifications.jpg",
+  "/images/landing/feature-security.jpg",
 ];
 
 const heroImages = [
