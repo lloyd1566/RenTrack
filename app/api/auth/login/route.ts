@@ -63,6 +63,8 @@ export async function POST(request: NextRequest) {
     const friendlyMessage =
       lowerMessage.includes("does not exist") || lowerMessage.includes("relation") || lowerMessage.includes("table")
         ? "Database not initialized yet. Run scripts/supabase-schema.sql in Supabase SQL Editor first."
+        : lowerMessage.includes("missing")
+        ? `${rawMessage} — set this in Vercel: Project Settings → Environment Variables → NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, SUPABASE_SERVICE_ROLE_KEY`
         : lowerMessage.includes("invalid")
         ? "Invalid email or password"
         : rawMessage || "Login failed";
