@@ -783,39 +783,39 @@ export default function LoginPage() {
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between">
-                      <p className="text-xs text-text-secondary">
-                        Forgot password?{" "}
-                        <motion.button
-                          onClick={() => router.push("/reset-password")}
-                          className="text-primary-600 font-semibold"
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                        >
-                          Reset here
-                        </motion.button>
-                      </p>
-                    </div>
+                     <div className="flex items-center justify-between">
+                       <p className="text-xs text-text-secondary">
+                         Forgot password?{" "}
+                         <motion.button
+                           onClick={() => toast.info("Password reset is temporarily disabled on this build")}
+                           className="text-primary-600 font-semibold"
+                           whileHover={{ scale: 1.05 }}
+                           whileTap={{ scale: 0.95 }}
+                         >
+                           Reset here
+                         </motion.button>
+                       </p>
+                     </div>
 
-                    <Button
-                      type="submit"
-                      variant="gradient"
-                      size="lg"
-                      className="w-full h-10"
-                      disabled={isSubmitting}
-                    >
-                      {isSubmitting ? (
-                        <span className="flex items-center gap-2">
-                          <span className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                          Signing in...
-                        </span>
-                      ) : (
-                        <span className="flex items-center gap-2">
-                          Sign in
-                          <ArrowRight className="h-4 w-4" />
-                        </span>
-                      )}
-                    </Button>
+                     <Button
+                       type="submit"
+                       variant="gradient"
+                       size="lg"
+                       className="w-full h-10"
+                       disabled={isSubmitting}
+                     >
+                       {isSubmitting ? (
+                         <span className="flex items-center gap-2">
+                           <span className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                           Signing in...
+                         </span>
+                       ) : (
+                         <span className="flex items-center gap-2">
+                           Sign in
+                           <ArrowRight className="h-4 w-4" />
+                         </span>
+                       )}
+                     </Button>
 
                     <p className="mt-4 text-center text-xs text-text-secondary">
                       Don&apos;t have an account?{" "}
