@@ -617,7 +617,7 @@ export default function TenantPaymentsPage() {
             setChatMessages([]);
           }}
           otherUser={{
-            id: selectedConversation.userId,
+            id: selectedConversation.otherUser?.id || "",
             name: selectedConversation.otherUser?.name || "Unknown",
             email: selectedConversation.otherUser?.email || "",
             role: selectedConversation.otherUser?.role || "tenant",
