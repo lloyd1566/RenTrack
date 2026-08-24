@@ -120,9 +120,9 @@ export default function AgentDashboard() {
       const property = properties.find((p) => p.id === selectedUnit.propertyId);
       const updated = await updateTenantAssignment(selectedTenant.id, {
         unitId: selectedUnit.id,
-        propertyName: property?.name || selectedUnit.propertyId || "",
-        unitNumber: selectedUnit.unitNumber,
-        rentAmount: selectedUnit.rentAmount,
+        propertyName: assignForm.propertyName || property?.name || "",
+        unitNumber: assignForm.unitNumber || selectedUnit.unitNumber,
+        rentAmount: assignForm.rentAmount || selectedUnit.rentAmount,
         assignmentStatus: "pending",
       });
       if (updated) {
@@ -402,38 +402,38 @@ export default function AgentDashboard() {
                     </CardContent>
                   </Card>
                 </div>
-                {selectedTenant && selectedUnit && (
-                  <Card className="max-w-2xl">
-                    <CardContent className="p-6">
-                      <div className="flex items-center gap-3 mb-4 p-3 rounded-xl bg-primary-50 border border-primary-200">
-                         <Avatar src={selectedTenant.avatarUrl} fallback={getInitials(selectedTenant.name)} size="sm" />
-                        <div>
-                          <p className="text-base font-medium text-foreground">{selectedTenant.name}</p>
-                          <p className="text-sm text-text-secondary">{selectedTenant.email}</p>
-                        </div>
-                      </div>
-                      <form onSubmit={handleAssignTenant} className="space-y-4">
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-base font-medium mb-1.5">Property</label>
-                            <Input value={properties.find((p) => p.id === selectedUnit.propertyId)?.name || ""} readOnly />
-                          </div>
-                          <div>
-                            <label className="block text-base font-medium mb-1.5">Unit</label>
-                            <Input value={selectedUnit.unitNumber} readOnly />
-                          </div>
-                        </div>
-                        <div>
-                          <label className="block text-base font-medium mb-1.5">Monthly Rent (₱)</label>
-                          <Input type="number" value={selectedUnit.rentAmount} readOnly />
-                        </div>
-                        <Button type="submit" disabled={isSubmitting} className="w-full">
-                          {isSubmitting ? "Assigning..." : "Assign Tenant & Submit for Confirmation"}
-                        </Button>
-                      </form>
-                    </CardContent>
-                  </Card>
-                )}
+                 {selectedTenant && selectedUnit && (
+                   <Card className="max-w-2xl">
+                     <CardContent className="p-6">
+                       <div className="flex items-center gap-3 mb-4 p-3 rounded-xl bg-primary-50 border border-primary-200">
+                          <Avatar src={selectedTenant.avatarUrl} fallback={getInitials(selectedTenant.name)} size="sm" />
+                         <div>
+                           <p className="text-base font-medium text-foreground">{selectedTenant.name}</p>
+                           <p className="text-sm text-text-secondary">{selectedTenant.email}</p>
+                         </div>
+                       </div>
+                       <form onSubmit={handleAssignTenant} className="space-y-4">
+                         <div className="grid grid-cols-2 gap-3">
+                           <div>
+                             <label className="block text-base font-medium mb-1.5">Property</label>
+                             <Input value={properties.find((p) => p.id === selectedUnit.propertyId)?.name || ""} onChange={(e) => setAssignForm({ ...assignForm, propertyName: e.target.value })} />
+                           </div>
+                           <div>
+                             <label className="block text-base font-medium mb-1.5">Unit</label>
+                             <Input value={selectedUnit.unitNumber} onChange={(e) => setAssignForm({ ...assignForm, unitNumber: e.target.value })} />
+                           </div>
+                         </div>
+                         <div>
+                           <label className="block text-base font-medium mb-1.5">Monthly Rent (₱)</label>
+                           <Input type="number" value={selectedUnit.rentAmount} onChange={(e) => setAssignForm({ ...assignForm, rentAmount: parseFloat(e.target.value) || 0 })} />
+                         </div>
+                         <Button type="submit" disabled={isSubmitting} className="w-full">
+                           {isSubmitting ? "Assigning..." : "Assign Tenant & Submit for Confirmation"}
+                         </Button>
+                       </form>
+                     </CardContent>
+                   </Card>
+                 )}
               </motion.div>
             )}
 

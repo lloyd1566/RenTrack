@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getTenants, createTenant, deleteTenant } from "@/lib/db";
+import { getAdminSupabase } from "@/lib/db";
 import {
   requireAuth, requireRole, validateApiRequest, withRateLimit,
   sanitizeResponse, withSecurityHeaders, withCorsHeaders,
@@ -58,6 +59,36 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Create tenant error:", error);
     return NextResponse.json({ success: false, error: "Failed to create tenant" }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const auth = await requireRole(request, ["admin", "owner", "agent"]);
+    if (auth instanceof NextResponse) return auth;
+
+    const validation = validateApiRequest(request);
+    if (validation) return validation;
+
+    const body = await request.json();
+    const { tenantId, ...updates } = body;
+
+    if (!tenantId) {
+      return NextResponse.json({ success: false, error: "Tenant ID is required" }, { status: 400 });
+    }
+
+    const { data, error } = await getAdminSupabase()
+      .from("tenants")
+      .update(updates)
+      .eq("id", tenantId)
+      .select("*")
+      .single();
+
+    if (error) throw error;
+    return NextResponse.json({ success: true, tenant: sanitizeResponse(data) });
+  } catch (error) {
+    console.error("Patch tenant error:", error);
+    return NextResponse.json({ success: false, error: "Failed to update tenant" }, { status: 500 });
   }
 }
 
