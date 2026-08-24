@@ -169,7 +169,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         )}
       </AnimatePresence>
 
-       {!isAdmin && (isOwner || isAgent) && (
+       {!isAdmin && isOwner && (
          <div className="flex flex-1">
           <aside
             className={cn(
@@ -454,6 +454,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
        )}
 
        {isAdmin && (
+         <>{children}</>
+       )}
+
+       {isAgent && (
          <>{children}</>
        )}
 
