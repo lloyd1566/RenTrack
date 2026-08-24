@@ -56,6 +56,7 @@ export default function AgentDashboard() {
   const [resubmittingId, setResubmittingId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
+    if (!user) return;
     setIsRefreshing(true);
     try {
       const [props, unitsData, tenantsData, paymentsData, convs] = await Promise.all([

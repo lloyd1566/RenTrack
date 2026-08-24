@@ -537,7 +537,7 @@ export default function TenantPaymentsPage() {
                 <div className="space-y-3">
                   {conversations.map((conv) => (
                     <motion.div
-                      key={conv.userId}
+                      key={conv.otherUser?.id || conv.userId}
                       initial={{ opacity: 0, y: 10 }}
                       animate={{ opacity: 1, y: 0 }}
                       whileHover={{ scale: 1.01 }}
