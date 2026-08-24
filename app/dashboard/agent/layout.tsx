@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { getNotifications, Notification } from "@/lib/data";
 import MessagingPanel from "@/components/messaging-panel";
+import MessagingModal from "@/components/messaging-modal";
 
 const navItems = [
   { label: "Overview", tab: "overview", href: "/dashboard/agent#overview", icon: LayoutDashboard },
@@ -43,6 +44,8 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
   const [showNotifications, setShowNotifications] = useState(false);
   const [showMessages, setShowMessages] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [selectedConversation, setSelectedConversation] = useState<any>(null);
+  const [isMessagingOpen, setIsMessagingOpen] = useState(false);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -254,6 +257,10 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
                     <MessagingPanel
                       isOpen={showMessages}
                       onClose={() => setShowMessages(false)}
+                      onSelectConversation={(conv) => {
+                        setSelectedConversation(conv);
+                        setIsMessagingOpen(true);
+                      }}
                     />
                   )}
                 </AnimatePresence>
@@ -382,6 +389,24 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
             </div>
           </div>,
           document.body
+        )}
+
+        {selectedConversation && (
+          <MessagingModal
+            isOpen={isMessagingOpen}
+            onClose={() => {
+              setIsMessagingOpen(false);
+              setSelectedConversation(null);
+            }}
+            otherUser={{
+              id: selectedConversation.userId,
+              name: selectedConversation.otherUser?.name || "Unknown",
+              email: selectedConversation.otherUser?.email || "",
+              role: selectedConversation.otherUser?.role || "tenant",
+              avatarUrl: selectedConversation.otherUser?.avatarUrl,
+              allowMessages: true,
+            }}
+          />
         )}
       </div>
     </div>
