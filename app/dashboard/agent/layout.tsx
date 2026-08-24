@@ -3,17 +3,17 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createPortal } from "react-dom";
-import {
-  LayoutDashboard, Home, ClipboardCheck, Clock,
-  CreditCard, FileText, Send, LogOut, ChevronRight, Menu, X,
-  Loader2, MessageSquare, ChevronDown, ChevronLeft, KeyRound,
-} from "lucide-react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import Link from "next/link";
-import MessagingPanel from "@/components/messaging-panel";
 import { Avatar } from "@/components/ui/avatar";
+import {
+  LayoutDashboard, Home, ClipboardCheck, Clock,
+  CreditCard, FileText, Send, LogOut, ChevronRight, Menu, X,
+  Loader2, MessageSquare, ChevronDown, ChevronLeft, Bell, KeyRound,
+} from "lucide-react";
+import { getNotifications, Notification } from "@/lib/data";
 
 const navItems = [
   { label: "Overview", tab: "overview", href: "/dashboard/agent#overview", icon: LayoutDashboard },
@@ -38,8 +38,9 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
   const [activeTab, setActiveTab] = useState(getTabFromHash);
-  const [showMessages, setShowMessages] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -59,11 +60,19 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
     return () => window.removeEventListener("hashchange", readHash);
   }, []);
 
+  useEffect(() => {
+    if (user) {
+      getNotifications(user.id).then(setNotifications).catch(() => setNotifications([]));
+    }
+  }, [user]);
+
   const handleLogout = async () => {
     setLogoutLoading(true);
     await logout();
     router.push("/");
   };
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
 
   if (isLoading) {
     return (
@@ -91,13 +100,45 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
           <Menu className="h-5 w-5" />
         </button>
         <span className="font-semibold text-base">Agent Panel</span>
-        <div className="flex items-center gap-1">
-          <button onClick={() => setShowMessages(!showMessages)} className="p-2 rounded-lg hover:bg-surface-secondary relative">
-            <MessageSquare className="h-5 w-5" />
+        <div className="relative">
+          <button onClick={() => setShowNotifications(!showNotifications)} className="p-2 rounded-lg hover:bg-surface-secondary relative">
+            <Bell className="h-5 w-5" />
+            {unreadCount > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                {unreadCount}
+              </span>
+            )}
           </button>
-          <button onClick={() => setShowLogoutModal(true)} className="p-2 rounded-lg hover:bg-surface-secondary text-red-600">
-            <LogOut className="h-5 w-5" />
-          </button>
+          <AnimatePresence initial={false}>
+            {showNotifications && (
+              <motion.div
+                initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                className="absolute right-0 mt-2 w-80 rounded-2xl border border-border bg-surface shadow-dropdown overflow-hidden"
+              >
+                <div className="p-4 border-b border-border">
+                  <h3 className="font-semibold text-foreground">Notifications</h3>
+                </div>
+                <div className="max-h-80 overflow-y-auto">
+                  {notifications.length === 0 ? (
+                    <p className="px-4 py-8 text-center text-sm text-text-secondary">No notifications yet</p>
+                  ) : (
+                    notifications.slice(0, 10).map((n) => (
+                      <button
+                        key={n.id}
+                        onClick={() => setShowNotifications(false)}
+                        className="w-full text-left p-4 border-b border-border last:border-0 hover:bg-surface-secondary transition-colors"
+                      >
+                        <p className="text-sm font-medium text-foreground">{n.title}</p>
+                        <p className="text-xs text-text-secondary mt-0.5 line-clamp-2">{n.message}</p>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </div>
       </div>
 
@@ -194,12 +235,12 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
                     );
                   })}
                 </nav>
-                <div className="p-3 border-t border-border space-y-0.5">
+                <div className="p-3 border-t border-border">
                   <button
-                    onClick={() => setShowMessages(!showMessages)}
+                    onClick={() => router.push("/dashboard/agent#messages")}
                     className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-base font-medium text-text-secondary hover:bg-surface-secondary hover:text-foreground transition-colors"
                   >
-                    <MessageSquare className="h-4 w-4" />
+                    <Send className="h-4 w-4" />
                     {sidebarOpen && <span className="truncate">Messages</span>}
                   </button>
                 </div>
@@ -223,17 +264,44 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
             <div className="flex items-center gap-3">
               <div className="relative">
                 <button
-                  onClick={() => setShowMessages(!showMessages)}
+                  onClick={() => setShowNotifications(!showNotifications)}
                   className="relative p-2 rounded-lg hover:bg-surface-secondary transition-colors text-text-secondary hover:text-foreground"
                 >
-                  <MessageSquare className="h-5 w-5" />
+                  <Bell className="h-5 w-5" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                      {unreadCount}
+                    </span>
+                  )}
                 </button>
                 <AnimatePresence initial={false}>
-                  {showMessages && (
-                    <MessagingPanel
-                      isOpen={showMessages}
-                      onClose={() => setShowMessages(false)}
-                    />
+                  {showNotifications && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl border border-border bg-surface shadow-dropdown overflow-hidden"
+                    >
+                      <div className="p-4 border-b border-border">
+                        <h3 className="font-semibold text-foreground">Notifications</h3>
+                      </div>
+                      <div className="max-h-80 overflow-y-auto">
+                        {notifications.length === 0 ? (
+                          <p className="px-4 py-8 text-center text-sm text-text-secondary">No notifications yet</p>
+                        ) : (
+                          notifications.slice(0, 10).map((n) => (
+                            <button
+                              key={n.id}
+                              onClick={() => setShowNotifications(false)}
+                              className="w-full text-left p-4 border-b border-border last:border-0 hover:bg-surface-secondary transition-colors"
+                            >
+                              <p className="text-sm font-medium text-foreground">{n.title}</p>
+                              <p className="text-xs text-text-secondary mt-0.5 line-clamp-2">{n.message}</p>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </motion.div>
                   )}
                 </AnimatePresence>
               </div>
