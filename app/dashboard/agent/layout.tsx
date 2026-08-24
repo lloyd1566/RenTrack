@@ -264,6 +264,14 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
             <div className="flex items-center gap-3">
               <div className="relative">
                 <button
+                  onClick={() => router.push("/dashboard/agent#messages")}
+                  className="relative p-2 rounded-lg hover:bg-surface-secondary transition-colors text-text-secondary hover:text-foreground"
+                >
+                  <MessageSquare className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="relative">
+                <button
                   onClick={() => setShowNotifications(!showNotifications)}
                   className="relative p-2 rounded-lg hover:bg-surface-secondary transition-colors text-text-secondary hover:text-foreground"
                 >
