@@ -111,23 +111,24 @@ export default function AgentDashboard() {
 
   const handleAssignTenant = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedTenant || !assignForm.unitId) {
+    if (!selectedTenant || !selectedUnit) {
       toast.error("Please select a unit");
       return;
     }
     setIsSubmitting(true);
     try {
-      const unit = units.find((u) => u.id === assignForm.unitId);
-      const property = properties.find((p) => p.id === unit?.propertyId);
+      const property = properties.find((p) => p.id === selectedUnit.propertyId);
       const updated = await updateTenantAssignment(selectedTenant.id, {
-        unitId: assignForm.unitId,
-        propertyName: property?.name || assignForm.propertyName,
-        unitNumber: unit?.unitNumber || assignForm.unitNumber,
-        rentAmount: unit?.rentAmount || assignForm.rentAmount,
+        unitId: selectedUnit.id,
+        propertyName: property?.name || selectedUnit.propertyId || "",
+        unitNumber: selectedUnit.unitNumber,
+        rentAmount: selectedUnit.rentAmount,
         assignmentStatus: "pending",
       });
       if (updated) {
         setTenants(tenants.map((t) => t.id === selectedTenant.id ? { ...t, ...updated } : t));
+        setSelectedTenant(null);
+        setSelectedUnit(null);
         setAssignForm({ unitId: "", propertyName: "", unitNumber: "", rentAmount: 0 });
         toast.success("Assignment submitted for owner confirmation!");
         setActiveTab("confirmations");
