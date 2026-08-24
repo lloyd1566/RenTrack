@@ -399,7 +399,7 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
               setSelectedConversation(null);
             }}
             otherUser={{
-              id: selectedConversation.userId,
+              id: selectedConversation.otherUser?.id || "",
               name: selectedConversation.otherUser?.name || "Unknown",
               email: selectedConversation.otherUser?.email || "",
               role: selectedConversation.otherUser?.role || "tenant",
