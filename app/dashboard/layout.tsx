@@ -30,7 +30,7 @@ import { cn, getInitials } from "@/lib/utils";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { getNotifications, markNotificationRead, markAllNotificationsRead, Notification } from "@/lib/data";
+import { getNotifications, markNotificationRead, markAllNotificationsRead, getUnreadMessageCount, Notification } from "@/lib/data";
 import Link from "next/link";
 import MessagingPanel from "@/components/messaging-panel";
 
@@ -74,6 +74,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [sidebarLoading, setSidebarLoading] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
+  const [unreadMessageCount, setUnreadMessageCount] = useState(0);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -84,6 +85,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   useEffect(() => {
     if (user) {
       getNotifications(user.id).then(setNotifications).catch(() => setNotifications([]));
+      getUnreadMessageCount().then(setUnreadMessageCount).catch(() => setUnreadMessageCount(0));
     }
   }, [user]);
 
@@ -279,6 +281,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                     className="relative p-2 rounded-lg hover:bg-surface-secondary transition-colors text-text-secondary hover:text-foreground"
                   >
                     <MessageSquare className="h-5 w-5" />
+                    {unreadMessageCount > 0 && (
+                      <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                        {unreadMessageCount}
+                      </span>
+                    )}
                   </button>
                   <AnimatePresence initial={false}>
                     {showMessages && (
