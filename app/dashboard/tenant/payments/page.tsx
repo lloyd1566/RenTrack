@@ -543,6 +543,10 @@ export default function TenantPaymentsPage() {
                       whileHover={{ scale: 1.01 }}
                       className="flex items-center justify-between p-4 rounded-xl border border-border hover:bg-surface-secondary transition-all duration-200 cursor-pointer"
                       onClick={() => {
+                        if (!conv.otherUser?.id) {
+                          toast.error("This conversation is unavailable");
+                          return;
+                        }
                         setSelectedConversation(conv);
                         setIsMessagingOpen(true);
                       }}

@@ -283,18 +283,33 @@ export default function SettingsPage() {
                    <label className="block text-sm font-medium text-text-secondary mb-1">Address</label>
                    <p className="text-sm font-medium text-foreground">{address || user?.address || "Not set"}</p>
                  </div>
-                <div>
-                  <label className="block text-sm font-medium text-text-secondary mb-1">Languages Spoken</label>
-                  <p className="text-sm font-medium text-foreground">{languages || "None specified"}</p>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-text-secondary mb-1">Hobbies & Interests</label>
-                  <p className="text-sm font-medium text-foreground">{hobbies || "None specified"}</p>
-                </div>
-                <div className="sm:col-span-2">
-                  <label className="block text-sm font-medium text-text-secondary mb-1">A Little Something About Me</label>
-                  <p className="text-sm font-medium text-foreground">{aboutMe || "Share something about yourself in the Edit Profile tab!"}</p>
-                </div>
+                 <div>
+                   <div className="flex items-center gap-2">
+                     <label className="block text-sm font-medium text-text-secondary mb-1">Languages Spoken</label>
+                     {user?.idVerificationStatus === "approved" && (
+                       <Badge variant="outline" className="text-[10px] border-green-200 text-green-700 bg-green-50">Verified</Badge>
+                     )}
+                   </div>
+                   <p className="text-sm font-medium text-foreground">{languages || "None specified"}</p>
+                 </div>
+                 <div>
+                   <div className="flex items-center gap-2">
+                     <label className="block text-sm font-medium text-text-secondary mb-1">Hobbies & Interests</label>
+                     {user?.idVerificationStatus === "approved" && (
+                       <Badge variant="outline" className="text-[10px] border-green-200 text-green-700 bg-green-50">Verified</Badge>
+                     )}
+                   </div>
+                   <p className="text-sm font-medium text-foreground">{hobbies || "None specified"}</p>
+                 </div>
+                 <div className="sm:col-span-2">
+                   <div className="flex items-center gap-2">
+                     <label className="block text-sm font-medium text-text-secondary mb-1">A Little Something About Me</label>
+                     {user?.idVerificationStatus === "approved" && (
+                       <Badge variant="outline" className="text-[10px] border-green-200 text-green-700 bg-green-50">Verified</Badge>
+                     )}
+                   </div>
+                   <p className="text-sm font-medium text-foreground">{aboutMe || "Share something about yourself in the Edit Profile tab!"}</p>
+                 </div>
               </div>
             </CardContent>
           </Card>

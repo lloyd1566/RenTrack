@@ -102,7 +102,7 @@ export default function MessagingModal({ isOpen, onClose, otherUser }: Messaging
     }
   };
 
-  if (!isOpen) return null;
+  if (!isOpen || !otherUser.id) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">

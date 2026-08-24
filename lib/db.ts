@@ -877,6 +877,7 @@ export async function getConversations(userId: string) {
     if (seen.has(otherId)) continue;
     seen.add(otherId);
     const otherUser = await findUserById(otherId);
+    if (!otherUser) continue;
     const unreadCount = (received || []).filter((m: any) => m.sender_id === otherId && !m.read).length;
     conversations.push({ userId, otherUser, lastMessage: snakeToCamel(msg), unreadCount });
   }
