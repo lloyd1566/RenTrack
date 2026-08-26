@@ -1,14 +1,16 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
-import { getNotifications, Notification } from "@/lib/data";
+import { getNotifications, getUnreadMessageCount, Notification } from "@/lib/data";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 import {
   LayoutDashboard,
   Users,
@@ -27,9 +29,10 @@ import {
   ChevronDown,
   LogOut,
   MessageSquare,
-  RefreshCw,
+  Loader2,
+  User,
 } from "lucide-react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { useReducedMotion } from "framer-motion";
 
 interface NavSection {
@@ -63,15 +66,13 @@ const navSections: NavSection[] = [
     title: "Communication",
     items: [
       { label: "Messages", href: "/dashboard/admin?tab=messages", tab: "messages", icon: MessageSquare },
+      { label: "Support", href: "/dashboard/admin?tab=complaints", tab: "complaints", icon: HeartPulse },
     ],
   },
   {
     title: "System",
     items: [
-      { label: "Activity", href: "/dashboard/admin?tab=activity", tab: "activity", icon: Activity },
       { label: "Audit Logs", href: "/dashboard/admin?tab=audit", tab: "audit", icon: FileText },
-      { label: "Diagnosis", href: "/dashboard/admin?tab=diagnosis", tab: "diagnosis", icon: Stethoscope },
-      { label: "System Health", href: "/dashboard/admin?tab=health", tab: "health", icon: HeartPulse },
       { label: "Maintenance", href: "/dashboard/admin?tab=maintenance", tab: "maintenance", icon: Wrench },
       { label: "Configuration", href: "/dashboard/admin?tab=configuration", tab: "configuration", icon: SlidersHorizontal },
     ],
@@ -79,12 +80,15 @@ const navSections: NavSection[] = [
 ];
 
 export default function AdminSidebar() {
-  const { user, isAuthenticated, isLoading } = useAuth();
+  const { user, logout, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
   const activeTab = searchParams.get("tab") || "overview";
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+  const [showLogoutModal, setShowLogoutModal] = useState(false);
+  const [logoutLoading, setLogoutLoading] = useState(false);
   const reduceMotion = useReducedMotion();
 
   useEffect(() => {
@@ -96,6 +100,7 @@ export default function AdminSidebar() {
   useEffect(() => {
     if (user) {
       getNotifications(user.id).then(setNotifications).catch(() => setNotifications([]));
+      getUnreadMessageCount().then(setUnreadMessageCount).catch(() => setUnreadMessageCount(0));
     }
   }, [user]);
 
@@ -103,6 +108,12 @@ export default function AdminSidebar() {
 
   const navigateTo = (tab: string) => {
     router.push(`/dashboard/admin?tab=${tab}`);
+  };
+
+  const handleLogout = async () => {
+    setLogoutLoading(true);
+    await logout();
+    window.location.href = "/";
   };
 
   if (isLoading) {
@@ -139,8 +150,8 @@ export default function AdminSidebar() {
       >
         {/* Logo */}
         <Link href="/dashboard/admin" className="flex h-14 shrink-0 items-center gap-2 border-b border-white/[0.08] px-3">
-          <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg border border-cyan-300/25 bg-gradient-to-br from-cyan-300/20 to-indigo-500/30 text-cyan-100 shadow-[0_0_20px_rgba(34,211,238,0.12)]">
-            <ShieldCheck className="h-4 w-4" />
+          <span className="h-8 w-8 shrink-0 overflow-hidden rounded-lg">
+            <img src="/images/landing/logo.png" alt="RentTrack" className="h-full w-full object-contain" />
           </span>
           <div>
             <span className="block text-xs font-bold tracking-tight text-white">RentTrack</span>
@@ -184,18 +195,23 @@ export default function AdminSidebar() {
                          >
                            <Icon className={cn("relative h-4 w-4 shrink-0 transition-colors", isActive ? "text-cyan-300" : "text-slate-500")} />
                          </motion.div>
-                         <span className="relative truncate text-[12px] font-medium">{item.label}</span>
-                       {isActive && (
-                         <motion.span
-                           layoutId="admin-sidebar-dot"
-                           className="relative ml-auto h-1.5 w-1.5 rounded-full bg-cyan-300 shadow-[0_0_8px_#67e8f9]"
-                           transition={{ type: "spring", stiffness: 360, damping: 28 }}
-                         >
-                           <motion.span
-                             className="absolute inset-0 rounded-full bg-cyan-300"
-                             animate={{ scale: [1, 1.5, 1], opacity: [1, 0.5, 1] }}
-                             transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-                           />
+                          <span className="relative truncate text-[12px] font-medium">{item.label}</span>
+                        {item.tab === "messages" && unreadMessageCount > 0 && (
+                          <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                            {unreadMessageCount}
+                          </span>
+                        )}
+                        {isActive && (
+                          <motion.span
+                            layoutId="admin-sidebar-dot"
+                            className="relative ml-auto h-1.5 w-1.5 rounded-full bg-cyan-300 shadow-[0_0_8px_#67e8f9]"
+                            transition={{ type: "spring", stiffness: 360, damping: 28 }}
+                          >
+                            <motion.span
+                              className="absolute inset-0 rounded-full bg-cyan-300"
+                              animate={{ scale: [1, 1.5, 1], opacity: [1, 0.5, 1] }}
+                              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+                            />
                          </motion.span>
                        )}
                      </motion.button>
@@ -204,19 +220,43 @@ export default function AdminSidebar() {
                </div>
              </motion.div>
            ))}
-         </nav>
+          </nav>
 
-        {/* Refresh Button */}
-        <div className="p-2 border-t border-border">
+        {/* Logout */}
+        <div className="p-2">
           <button
-            onClick={() => window.location.reload()}
-            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-text-secondary hover:bg-surface-secondary hover:text-foreground transition-colors"
+            onClick={() => setShowLogoutModal(true)}
+            className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[11px] font-medium text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors"
           >
-            <RefreshCw className="h-3 w-3" />
-            Refresh Data
+            <LogOut className="h-3 w-3" />
+            Logout
           </button>
         </div>
       </motion.aside>
+
+        {showLogoutModal && createPortal(
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center">
+            <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowLogoutModal(false)} />
+            <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl p-6">
+              <div className="flex flex-col items-center text-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-red-100 text-red-600 mb-4">
+                  {logoutLoading ? (
+                    <div className="h-6 w-6 animate-spin rounded-full border-2 border-red-200 border-t-red-600" />
+                  ) : (
+                    <LogOut className="h-7 w-7" />
+                  )}
+                </div>
+                <h3 className="text-xl font-semibold text-gray-900 mb-2">{logoutLoading ? "Logging out..." : "Log Out"}</h3>
+                <p className="text-sm text-gray-500 mb-6">{logoutLoading ? "Please wait while we securely log you out." : "Are you sure you want to log out of the admin console?"}</p>
+                <div className="flex w-full gap-3">
+                  <button onClick={() => setShowLogoutModal(false)} disabled={logoutLoading} className="flex-1 px-4 py-2 rounded-xl border border-border hover:bg-surface-secondary transition-colors disabled:opacity-50">Cancel</button>
+                  <button onClick={handleLogout} disabled={logoutLoading} className="flex-1 px-4 py-2 rounded-xl bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50">{logoutLoading ? "Logging out..." : "Log Out"}</button>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
       </>
   );
 }

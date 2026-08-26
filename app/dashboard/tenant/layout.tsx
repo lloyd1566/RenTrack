@@ -38,7 +38,7 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
 
   if (isLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50">
+      <div className="dark min-h-screen flex items-center justify-center bg-[#080d17]">
         <motion.div
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -53,7 +53,7 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
 
   if (!user || !isAuthenticated) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50">
+      <div className="dark min-h-screen flex items-center justify-center bg-[#080d17]">
         <div className="text-center">
           <p className="text-gray-600 font-medium">Redirecting to login...</p>
         </div>
@@ -62,11 +62,11 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
   }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-slate-900">
+    <div className="min-h-screen bg-white text-gray-900">
       <TenantNavbar />
 
       {/* Main Content */}
-      <main className="pt-16 px-4 sm:px-6 lg:px-8">
+      <main className="pt-16 px-4 sm:px-6 lg:px-8 bg-white">
         <motion.div
           key={pathname}
           initial={{ opacity: 0, y: 10 }}

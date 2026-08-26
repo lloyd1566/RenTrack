@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Upload, CheckCircle2, AlertCircle, Eye, X, Clock, Home, FileText, Calendar, DollarSign, Building2, User, CreditCard, TrendingUp, Shield, Bell, Mail } from "lucide-react";
+import { Upload, CheckCircle2, AlertCircle, Eye, Download, X, Clock, Home, FileText, Calendar, Building2, User, CreditCard, TrendingUp, Shield, Bell, Mail, PhilippinePeso } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -40,8 +40,6 @@ export default function TenantPaymentsPage() {
   const [chatMessages, setChatMessages] = useState<Message[]>([]);
   const [isMessagingOpen, setIsMessagingOpen] = useState(false);
 
-  const rentAmount = 6000;
-
   useEffect(() => {
     if (!user) return;
     getPayments(user).then(setPayments).catch(() => setPayments([]));
@@ -53,9 +51,10 @@ export default function TenantPaymentsPage() {
   }, [user]);
 
   const myPayments = payments;
-  const latestPayment = myPayments.length > 0 ? myPayments[myPayments.length - 1] : null;
+  const latestPayment = myPayments.length > 0 ? myPayments[0] : null;
   const balance = latestPayment?.balance ?? 0;
   const rentAmountDisplay = tenant?.rentAmount ?? latestPayment?.amountDue ?? 0;
+  const rentAmount = rentAmountDisplay;
 
   const contractStart = tenant?.contractStart ? new Date(tenant.contractStart) : null;
   const contractEnd = tenant?.contractEnd ? new Date(tenant.contractEnd) : null;
@@ -70,7 +69,7 @@ export default function TenantPaymentsPage() {
     return due.toISOString().split("T")[0];
   };
 
-  const handleUpload = () => {
+  const handleUpload = async () => {
     if (!selectedFile) { toast.error("Please select a receipt image to upload"); return; }
     if (!paymentAmount || isNaN(Number(paymentAmount)) || Number(paymentAmount) <= 0) {
       toast.error("Please enter a valid payment amount"); return;
@@ -85,27 +84,31 @@ export default function TenantPaymentsPage() {
       toast.error("Please fill in all bank/account details"); return;
     }
     setIsUploading(true);
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const base64Data = e.target?.result as string;
-      if (user) {
-        const dueDate = new Date(); dueDate.setDate(5); if (dueDate < new Date()) dueDate.setMonth(dueDate.getMonth() + 1);
-        const methodNote = paymentMethod === "other" ? otherMethodName.trim() : undefined;
-        addPayment({ tenantId: user.id, tenantName: user.name, unitId: "", propertyName: "", amountPaid: Number(paymentAmount), amountDue: rentAmount, balance: Math.max(0, rentAmount - Number(paymentAmount)), paymentDate: new Date().toISOString().split("T")[0], dueDate: dueDate.toISOString().split("T")[0], status: "pending", paymentMethod, paymentMethodNote: methodNote, bankName: bankName || undefined, accountNumber: accountNumber || undefined, accountHolder: accountHolder || undefined, cardLast4: cardLast4 || undefined, cardExpiry: cardExpiry || undefined, notes: "Receipt uploaded", receiptUrl: base64Data, createdBy: user.id });
-        addNotification({ userId: user.id, title: "Payment Receipt Uploaded", message: `Your payment of ${formatCurrency(Number(paymentAmount))} has been submitted for verification`, type: "payment", read: false });
-        notifyAdmins({ title: "New Payment Receipt Uploaded", message: `${user.name} uploaded a payment receipt of ${formatCurrency(Number(paymentAmount))} for verification`, type: "payment", read: false });
-        getPayments(user).then((latest) => {
-          setPayments(latest);
-          const last = latest[0];
-          if (last && last.receiptUrl) {
-            setViewingReceipt(last.receiptUrl);
-          }
-        });
-        setShowReceiptForm(false); setSelectedFile(null); setPaymentAmount(""); setPaymentType("regular"); setPaymentMethod("gcash"); setOtherMethodName(""); setBankName(""); setAccountNumber(""); setAccountHolder(""); setCardLast4(""); setCardExpiry(""); setIsUploading(false);
-        toast.success("Payment receipt uploaded! Awaiting verification.");
-      }
-    };
-    reader.readAsDataURL(selectedFile);
+    if (!user) return;
+    try {
+      const uploadData = new FormData();
+      uploadData.append("file", selectedFile);
+      uploadData.append("type", "receipt");
+      const uploadResponse = await fetch("/api/auth/upload", { method: "POST", credentials: "include", body: uploadData });
+      const uploadResult = await uploadResponse.json();
+      if (!uploadResponse.ok || !uploadResult.success) throw new Error(uploadResult.error || "Receipt upload failed");
+
+      const dueDate = new Date(); dueDate.setDate(5); if (dueDate < new Date()) dueDate.setMonth(dueDate.getMonth() + 1);
+      const methodNote = paymentMethod === "other" ? otherMethodName.trim() : undefined;
+      const payment = await addPayment({ tenantId: user.id, tenantName: user.name, unitId: tenant?.unitId || "", propertyName: tenant?.propertyName || "", amountPaid: Number(paymentAmount), amountDue: rentAmount, balance: Math.max(0, rentAmount - Number(paymentAmount)), paymentDate: new Date().toISOString().split("T")[0], dueDate: dueDate.toISOString().split("T")[0], status: "pending", paymentMethod, paymentMethodNote: methodNote, bankName: bankName || undefined, accountNumber: accountNumber || undefined, accountHolder: accountHolder || undefined, cardLast4: cardLast4 || undefined, cardExpiry: cardExpiry || undefined, notes: "Receipt uploaded", receiptUrl: uploadResult.url, createdBy: user.id });
+      await Promise.all([
+        addNotification({ userId: user.id, title: "Payment Receipt Uploaded", message: `Your payment of ${formatCurrency(Number(paymentAmount))} has been submitted for verification`, type: "payment", read: false }),
+        notifyAdmins({ title: "New Payment Receipt Uploaded", message: `${user.name} uploaded a payment receipt of ${formatCurrency(Number(paymentAmount))} for verification`, type: "payment", read: false }),
+      ]);
+      setPayments((current) => [payment, ...current]);
+      setViewingReceipt(payment.receiptUrl || null);
+      setShowReceiptForm(false); setSelectedFile(null); setPaymentAmount(""); setPaymentType("regular"); setPaymentMethod("gcash"); setOtherMethodName(""); setBankName(""); setAccountNumber(""); setAccountHolder(""); setCardLast4(""); setCardExpiry("");
+      toast.success("Payment submitted. Your receipt is ready to download.");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to submit payment");
+    } finally {
+      setIsUploading(false);
+    }
   };
 
   return (
@@ -122,8 +125,8 @@ export default function TenantPaymentsPage() {
           {/* Stats Grid */}
           <motion.div variants={staggerContainer} initial="hidden" animate="visible" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {[
-              { label: "Current Balance", value: formatCurrency(balance), icon: DollarSign, color: "from-blue-500 to-blue-600", change: balance > 0 ? "Outstanding" : "Cleared" },
-              { label: "Monthly Rent", value: formatCurrency(rentAmountDisplay), icon: Home, color: "from-purple-500 to-purple-600", change: "Due on 5th" },
+              { label: "Current Balance", value: formatCurrency(balance), icon: PhilippinePeso, color: "from-blue-500 to-blue-600", change: balance > 0 ? "Outstanding" : "Cleared" },
+              { label: "Monthly Rent", value: formatCurrency(rentAmountDisplay), icon: Home, color: "from-blue-500 to-blue-600", change: "Due on 5th" },
               { label: "Total Payments", value: myPayments.length.toString(), icon: CreditCard, color: "from-emerald-500 to-emerald-600", change: "All time" },
               { label: "Account Status", value: tenant?.status === "active" ? "Active" : "Inactive", icon: Shield, color: "from-amber-500 to-amber-600", change: tenant?.idVerificationStatus === "approved" ? "Verified" : "Pending verification" },
             ].map((stat, i) => (
@@ -168,7 +171,7 @@ export default function TenantPaymentsPage() {
                 </motion.div>
                 <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                   <Button onClick={() => { setActiveTab("payments"); setPaymentType("advance"); setShowReceiptForm(true); }} className="w-full h-20 flex flex-col gap-1.5 bg-gradient-to-br from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white">
-                    <DollarSign className="h-5 w-5" />
+                    <PhilippinePeso className="h-5 w-5" />
                     <span className="text-sm font-medium">Advance Payment</span>
                   </Button>
                 </motion.div>
@@ -199,7 +202,7 @@ export default function TenantPaymentsPage() {
                     {[
                       { label: "Property", value: tenant.propertyName || "Not assigned", icon: Building2 },
                       { label: "Unit Number", value: tenant.unitNumber || "Not assigned", icon: Home },
-                      { label: "Rent Amount", value: formatCurrency(tenant.rentAmount || 0), icon: DollarSign },
+                      { label: "Rent Amount", value: formatCurrency(tenant.rentAmount || 0), icon: PhilippinePeso },
                       { label: "Contract Start", value: contractStart ? formatDate(tenant.contractStart!) : "Not set", icon: Calendar },
                       { label: "Contract End", value: contractEnd ? formatDate(tenant.contractEnd!) : "Not set", icon: Calendar },
                       { label: "Duration", value: contractDuration ? `${contractDuration} months` : "Not set", icon: Clock },
@@ -258,7 +261,7 @@ export default function TenantPaymentsPage() {
                         </motion.div>
                         <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
                           <Button onClick={() => { setActiveTab("payments"); setPaymentType("advance"); setShowReceiptForm(true); }} className="w-full h-32 flex flex-col gap-2 bg-gradient-to-br from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white">
-                            <DollarSign className="h-8 w-8" />
+                            <PhilippinePeso className="h-8 w-8" />
                             <span className="font-medium">Advance Payment</span>
                             <span className="text-xs opacity-80">Record advance payment credit</span>
                           </Button>
@@ -306,7 +309,7 @@ export default function TenantPaymentsPage() {
                             onClick={() => setPaymentType("advance")}
                             className="flex-1"
                           >
-                            <DollarSign className="h-4 w-4 mr-2" />
+                            <PhilippinePeso className="h-4 w-4 mr-2" />
                             Advance Payment
                           </Button>
                         </div>
@@ -429,10 +432,10 @@ export default function TenantPaymentsPage() {
                     )}
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1.5">Payment Amount</label>
+                    <label className="block text-sm font-medium mb-1.5">Payment Amount (₱)</label>
                     <input
                       type="number"
-                      placeholder="0.00"
+                      placeholder="₱0.00"
                       value={paymentAmount}
                       onChange={(e) => setPaymentAmount(e.target.value)}
                       className="w-full h-12 px-4 rounded-xl border border-border bg-surface text-lg"
@@ -605,7 +608,22 @@ export default function TenantPaymentsPage() {
               >
                 <X className="h-4 w-4" />
               </motion.button>
-              <img src={viewingReceipt} alt="Receipt" className="w-full h-auto rounded-2xl shadow-2xl" />
+              {viewingReceipt.includes("application/pdf") || viewingReceipt.toLowerCase().endsWith(".pdf") ? (
+                <div className="rounded-2xl bg-white p-8 text-center shadow-2xl">
+                  <FileText className="mx-auto mb-3 h-12 w-12 text-blue-600" />
+                  <p className="mb-4 text-sm text-gray-600">Your receipt is a PDF document.</p>
+                  <a href={viewingReceipt} download className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                    <Download className="h-4 w-4" /> Download Receipt
+                  </a>
+                </div>
+              ) : (
+                <div>
+                  <img src={viewingReceipt} alt="Receipt" className="w-full h-auto rounded-2xl shadow-2xl" />
+                  <a href={viewingReceipt} download className="mt-3 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                    <Download className="h-4 w-4" /> Download Receipt
+                  </a>
+                </div>
+              )}
             </motion.div>
           </motion.div>
         )}

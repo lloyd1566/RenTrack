@@ -1,0 +1,116 @@
+import { NextRequest, NextResponse } from "next/server";
+import { getAdminSupabase, initDatabase } from "@/lib/db";
+import { sendSystemEmail } from "@/lib/mail";
+
+export async function POST(request: NextRequest) {
+  try {
+    await initDatabase();
+    const body = await request.json();
+    const text = String(body.text || "").trim();
+    const propertyId = body.propertyId || null;
+    const senderName = String(body.senderName || "Landing Visitor").trim();
+    const senderEmail = String(body.senderEmail || "").trim();
+    const senderPhone = body.senderPhone || null;
+    const agentId = body.agentId || null;
+    const agentName = body.agentName || null;
+
+    if (!text) {
+      return NextResponse.json({ success: false, error: "Message is required" }, { status: 400 });
+    }
+
+    const id = `chat_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+
+    const { error } = await getAdminSupabase().from("chat_messages").insert({
+      id,
+      text,
+      property_id: propertyId,
+      sender_name: senderName,
+      sender_email: senderEmail,
+      sender_phone: senderPhone,
+      agent_id: agentId,
+      agent_name: agentName,
+      status: "new",
+      created_at: new Date().toISOString(),
+    });
+
+    if (error) {
+      console.error("Chat insert error:", error);
+      return NextResponse.json({ success: false, error: "Failed to save message" }, { status: 500 });
+    }
+
+    let agentEmails: string[] = [];
+    let agentIds: string[] = [];
+
+    if (agentId) {
+      const { data: selectedAgent } = await getAdminSupabase().from("users").select("id, email").eq("id", agentId).single();
+      if (selectedAgent) {
+        const email = (selectedAgent as any).email;
+        const idVal = (selectedAgent as any).id;
+        if (email) agentEmails.push(email);
+        if (idVal) agentIds.push(idVal);
+      }
+    }
+
+    if (!agentId && propertyId) {
+      const { data: prop } = await getAdminSupabase().from("properties").select("agent_id, users!properties_agent_id_fkey(email)").eq("id", propertyId).single();
+      const agentEmail = (prop as any)?.users?.email;
+      const agentIdFromProp = (prop as any)?.agent_id;
+      if (agentEmail) agentEmails.push(agentEmail);
+      if (agentIdFromProp) agentIds.push(agentIdFromProp);
+    }
+
+    if (agentEmails.length > 0 && senderEmail) {
+      const subject = `New chat message from ${senderName}`;
+      const html = `
+        <h2>New Chat Message</h2>
+        <p><strong>From:</strong> ${senderName} (${senderEmail})${senderPhone ? `<br/><strong>Phone:</strong> ${senderPhone}` : ""}</p>
+        <p><strong>Property:</strong> ${propertyId || "General inquiry"}</p>
+        <p><strong>Message:</strong></p>
+        <p>${text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>
+      `;
+      const textBody = `New Chat Message\nFrom: ${senderName} (${senderEmail})${senderPhone ? `\nPhone: ${senderPhone}` : ""}\nProperty: ${propertyId || "General inquiry"}\nMessage: ${text}`;
+
+      for (const email of agentEmails) {
+        try {
+          await sendSystemEmail({ to: email, subject, text: textBody, html });
+        } catch (mailErr) {
+          console.error("Chat notification email failed", mailErr);
+        }
+      }
+    }
+
+    if (agentIds.length > 0) {
+      const notificationId = `not_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+      const { error: notifError } = await getAdminSupabase().from("notifications").insert({
+        id: notificationId,
+        user_id: agentIds[0],
+        title: `New inquiry from ${senderName}`,
+        message: text,
+        type: "tenant",
+        read: false,
+        created_at: new Date().toISOString(),
+      });
+
+      if (notifError) {
+        console.error("Chat notification insert failed", notifError);
+      }
+    }
+
+    return NextResponse.json({ success: true, message: "Message received. An agent will reply by email." });
+  } catch (err) {
+    console.error("Chat API error:", err);
+    return NextResponse.json({ success: false, error: "Failed to send message" }, { status: 500 });
+  }
+}
+
+export async function GET() {
+  try {
+    await initDatabase();
+    const { data, error } = await getAdminSupabase().from("chat_messages").select("*").order("created_at", { ascending: true });
+    if (error) throw error;
+    return NextResponse.json({ success: true, messages: (data || []).map((row: any) => ({ id: row.id, text: row.text, propertyId: row.property_id, senderName: row.sender_name, senderEmail: row.sender_email, senderPhone: row.sender_phone, status: row.status, createdAt: row.created_at })) });
+  } catch (err) {
+    console.error("Chat GET error:", err);
+    return NextResponse.json({ success: false, error: "Failed to load messages" }, { status: 500 });
+  }
+}

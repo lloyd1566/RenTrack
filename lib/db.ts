@@ -74,12 +74,11 @@ function camelToSnake(obj: Record<string, any>): Record<string, any> {
 }
 
 export async function query(text: string, params?: any[]) {
-  const { data, error } = await getAdminSupabase().rpc("exec_sql", { sql: text, params: params || [] });
+  const { error } = await getAdminSupabase().rpc("exec_sql", { sql: text, params: params || [] });
   if (error) {
     console.error("Database query error:", error);
     throw error;
   }
-  return data;
 }
 
 export async function initDatabase() {
@@ -147,6 +146,7 @@ export async function initDatabase() {
   )`);
 
   statements.push(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS image_url TEXT`);
+  statements.push(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS agent_id TEXT REFERENCES users(id)`);
 
   statements.push(`CREATE TABLE IF NOT EXISTS units (
     id TEXT PRIMARY KEY,
@@ -180,6 +180,8 @@ export async function initDatabase() {
     created_at TIMESTAMPTZ DEFAULT NOW(),
     created_by TEXT REFERENCES users(id)
   )`);
+
+  statements.push(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS assignment_status TEXT DEFAULT '' CHECK (assignment_status IN ('', 'pending', 'confirmed', 'rejected'))`);
 
   statements.push(`CREATE TABLE IF NOT EXISTS payments (
     id TEXT PRIMARY KEY,
@@ -238,7 +240,7 @@ export async function initDatabase() {
   statements.push(`CREATE TABLE IF NOT EXISTS ratings (
     id TEXT PRIMARY KEY,
     user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-    target_type TEXT NOT NULL CHECK (target_type IN ('property', 'unit')),
+    target_type TEXT NOT NULL CHECK (target_type IN ('property', 'unit', 'support')),
     target_id TEXT NOT NULL,
     rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
     comment TEXT,
@@ -257,8 +259,42 @@ export async function initDatabase() {
     priority TEXT DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high', 'urgent')),
     assigned_to TEXT REFERENCES users(id),
     resolved_at TIMESTAMPTZ,
+    response_text TEXT,
+    response_by TEXT,
+    response_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+  statements.push(`ALTER TABLE complaints ADD COLUMN IF NOT EXISTS response_text TEXT`);
+  statements.push(`ALTER TABLE complaints ADD COLUMN IF NOT EXISTS response_by TEXT`);
+  statements.push(`ALTER TABLE complaints ADD COLUMN IF NOT EXISTS response_at TIMESTAMPTZ`);
+  statements.push(`ALTER TABLE complaints DROP CONSTRAINT IF EXISTS complaints_target_type_check`);
+  statements.push(`ALTER TABLE complaints ADD CONSTRAINT complaints_target_type_check CHECK (target_type IN ('property', 'unit', 'support'))`);
+
+  statements.push(`CREATE TABLE IF NOT EXISTS messages (
+    id TEXT PRIMARY KEY,
+    sender_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    receiver_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    subject TEXT,
+    body TEXT NOT NULL,
+    read BOOLEAN DEFAULT FALSE,
+    attachment_url TEXT,
+    attachment_type TEXT CHECK (attachment_type IN ('image', 'audio')),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+
+  statements.push(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachment_url TEXT`);
+  statements.push(`ALTER TABLE messages ADD COLUMN IF NOT EXISTS attachment_type TEXT CHECK (attachment_type IN ('image', 'audio'))`);
+
+  statements.push(`CREATE TABLE IF NOT EXISTS chat_messages (
+    id TEXT PRIMARY KEY,
+    text TEXT NOT NULL,
+    property_id TEXT REFERENCES properties(id),
+    sender_name TEXT,
+    sender_email TEXT,
+    sender_phone TEXT,
+    status TEXT DEFAULT 'new' CHECK (status IN ('new', 'read', 'replied')),
+    created_at TIMESTAMPTZ DEFAULT NOW()
   )`);
 
   for (const sqlText of statements) {
@@ -494,6 +530,7 @@ export async function createProperty(data: any, userId: string) {
     status: "active",
     created_by: userId,
     image_url: data.imageUrl || null,
+    agent_id: data.agentId || null,
     created_at: new Date().toISOString(),
   });
   if (error) throw error;
@@ -518,12 +555,36 @@ export async function createUnit(data: any) {
     property_id: data.propertyId,
     unit_number: data.unitNumber,
     floor: data.floor || null,
-    status: "vacant",
+    status: data.status || "vacant",
     rent_amount: data.rentAmount || 0,
     image_url: data.imageUrl || null,
   });
   if (error) throw error;
-  return { id, ...data, status: "vacant" };
+  return { id, ...data, status: data.status || "vacant" };
+}
+
+export async function syncTenantUnit(tenantId: string, unitId: string | null, assignmentStatus: string) {
+  const client = getAdminSupabase();
+  const { data: currentTenant, error: tenantError } = await client
+    .from("tenants")
+    .select("unit_id")
+    .eq("id", tenantId)
+    .maybeSingle();
+  if (tenantError) throw tenantError;
+
+  if (currentTenant?.unit_id && currentTenant.unit_id !== unitId) {
+    const { error } = await client.from("units").update({ status: "vacant", tenant_id: null, tenant_name: null }).eq("id", currentTenant.unit_id);
+    if (error) throw error;
+  }
+
+  if (!unitId) return;
+  const { data: tenant } = await client.from("tenants").select("name").eq("id", tenantId).maybeSingle();
+  const { error } = await client.from("units").update({
+    status: assignmentStatus === "confirmed" ? "occupied" : "vacant",
+    tenant_id: assignmentStatus === "confirmed" ? tenantId : null,
+    tenant_name: assignmentStatus === "confirmed" ? tenant?.name || null : null,
+  }).eq("id", unitId);
+  if (error) throw error;
 }
 
 export async function deleteUnit(id: string) {
@@ -532,30 +593,40 @@ export async function deleteUnit(id: string) {
 }
 
 export async function getTenants() {
-  const { data, error } = await getAdminSupabase().from("users").select("*").eq("role", "tenant").order("created_at", { ascending: false });
-  if (error) throw error;
-  return (data || []).map((u: any) => ({
-    id: u.id,
-    name: u.name,
-    email: u.email,
-    phone: u.phone || "",
-    address: u.address || "",
-    occupation: "",
-    emergencyContact: "",
-    emergencyPhone: "",
-    unitId: "",
-    propertyName: "",
-    unitNumber: "",
-    contractStart: "",
-    contractEnd: "",
-    rentAmount: 0,
-    status: "active" as const,
-    createdBy: "",
-    createdAt: u.created_at,
-    avatarUrl: u.avatar_url,
-    idVerificationUrl: u.id_verification_url,
-    idVerificationStatus: u.id_verification_status,
-  }));
+  const { data: users, error: usersError } = await getAdminSupabase().from("users").select("*").eq("role", "tenant").order("created_at", { ascending: false });
+  if (usersError) throw usersError;
+
+  const { data: tenantRecords, error: tenantsError } = await getAdminSupabase().from("tenants").select("*");
+  if (tenantsError) throw tenantsError;
+
+  const tenantMap = new Map((tenantRecords || []).map((t: any) => [t.id, t]));
+
+  return (users || []).map((u: any) => {
+    const tr = tenantMap.get(u.id);
+    return {
+      id: u.id,
+      name: u.name,
+      email: u.email || "",
+      phone: u.phone || "",
+      address: u.address || "",
+      occupation: tr?.occupation || "",
+      emergencyContact: tr?.emergency_contact || "",
+      emergencyPhone: tr?.emergency_phone || "",
+      unitId: tr?.unit_id || "",
+      propertyName: tr?.property_name || "",
+      unitNumber: tr?.unit_number || "",
+      contractStart: tr?.contract_start || "",
+      contractEnd: tr?.contract_end || "",
+      rentAmount: tr?.rent_amount || 0,
+      status: tr?.status || "active",
+      createdBy: tr?.created_by || "",
+      createdAt: u.created_at,
+      avatarUrl: u.avatar_url,
+      idVerificationUrl: u.id_verification_url,
+      idVerificationStatus: u.id_verification_status,
+      assignmentStatus: tr?.assignment_status || (tr?.unit_id ? "pending" : ""),
+    };
+  });
 }
 
 export async function createTenant(data: any, userId: string) {
@@ -713,7 +784,7 @@ export async function getAverageRating(targetType: string, targetId: string) {
   return { average: Math.round((sum / ratings.length) * 100) / 100, total: ratings.length };
 }
 
-export async function createComplaint(data: { tenantId: string; targetType: "property" | "unit"; targetId: string; subject: string; message: string; priority?: string }) {
+export async function createComplaint(data: { tenantId: string; targetType: "property" | "unit" | "support"; targetId: string; subject: string; message: string; priority?: string }) {
   const id = `comp_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   const { error } = await getAdminSupabase().from("complaints").insert({
     id,
@@ -732,7 +803,7 @@ export async function createComplaint(data: { tenantId: string; targetType: "pro
 }
 
 export async function getComplaints(tenantId?: string) {
-  let query = getAdminSupabase().from("complaints").select("id, tenant_id, target_type, target_id, subject, message, status, priority, assigned_to, resolved_at, created_at, updated_at, users!complaints_tenant_id_fkey(name, email)").order("created_at", { ascending: false });
+  let query = getAdminSupabase().from("complaints").select("id, tenant_id, target_type, target_id, subject, message, status, priority, assigned_to, resolved_at, response_text, response_by, response_at, created_at, updated_at, users!complaints_tenant_id_fkey(name, email)").order("created_at", { ascending: false });
   if (tenantId) query = query.eq("tenant_id", tenantId);
   const { data, error } = await query;
   if (error) throw error;
@@ -743,10 +814,11 @@ export async function getComplaints(tenantId?: string) {
   }));
 }
 
-export async function updateComplaintStatus(id: string, status: string, assignedTo?: string) {
+export async function updateComplaintStatus(id: string, status: string, assignedTo?: string, responseText?: string, responseBy?: string) {
   const updates: Record<string, any> = { status, updated_at: new Date().toISOString() };
   if (assignedTo) updates.assigned_to = assignedTo;
   if (status === "resolved" || status === "closed") updates.resolved_at = new Date().toISOString();
+  if (responseText?.trim()) { updates.response_text = responseText.trim(); updates.response_by = responseBy || null; updates.response_at = new Date().toISOString(); }
 
   const { data, error } = await getAdminSupabase().from("complaints").update(updates).eq("id", id).select().single();
   if (error) throw error;
@@ -894,7 +966,7 @@ export async function getMessages(userId: string, otherId: string) {
   return (data || []).map((row: any) => snakeToCamel(row));
 }
 
-export async function sendMessage(senderId: string, receiverId: string, subject: string, body: string) {
+export async function sendMessage(senderId: string, receiverId: string, subject: string, body: string, attachmentUrl?: string, attachmentType?: string) {
   const id = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   const { error } = await getAdminSupabase().from("messages").insert({
     id,
@@ -903,10 +975,13 @@ export async function sendMessage(senderId: string, receiverId: string, subject:
     subject,
     body,
     read: false,
+    attachment_url: attachmentUrl || null,
+    attachment_type: attachmentType || null,
     created_at: new Date().toISOString(),
   });
   if (error) throw error;
-  return { id, senderId, receiverId, subject, body, read: false, createdAt: new Date().toISOString() };
+  const { data } = await getAdminSupabase().from("messages").select("*").eq("id", id).single();
+  return data ? snakeToCamel(data) : { id, senderId, receiverId, subject, body, read: false, createdAt: new Date().toISOString(), attachmentUrl, attachmentType };
 }
 
 export async function markMessagesRead(userId: string, otherId: string) {

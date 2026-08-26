@@ -1,6 +1,14 @@
 -- RentTrack Supabase Schema
 -- Run this in Supabase Dashboard → SQL Editor → New query → Paste & Run
 
+CREATE OR REPLACE FUNCTION exec_sql(sql text, params text[] DEFAULT '{}')
+RETURNS boolean AS $$
+BEGIN
+  EXECUTE sql USING params;
+  RETURN true;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
@@ -56,7 +64,7 @@ CREATE TABLE IF NOT EXISTS properties (
   monthly_revenue DECIMAL(12,2) DEFAULT 0,
   status TEXT DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  created_by TEXT REFERENCES users(id),
+  created_by TEXT REFERENCES users(id) ON DELETE SET NULL,
   image_url TEXT
 );
 
@@ -89,6 +97,7 @@ CREATE TABLE IF NOT EXISTS tenants (
   contract_end DATE,
   rent_amount DECIMAL(10,2) DEFAULT 0,
   status TEXT DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
+  assignment_status TEXT DEFAULT '' CHECK (assignment_status IN ('', 'pending', 'confirmed', 'rejected')),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   created_by TEXT REFERENCES users(id)
 );
@@ -108,15 +117,15 @@ CREATE TABLE IF NOT EXISTS payments (
   payment_method TEXT CHECK (payment_method IN ('cash', 'bank_transfer', 'gcash', 'other')),
   receipt_url TEXT,
   notes TEXT,
-  verified_by TEXT REFERENCES users(id),
+  verified_by TEXT REFERENCES users(id) ON DELETE SET NULL,
   verified_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  created_by TEXT REFERENCES users(id)
+  created_by TEXT REFERENCES users(id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS notifications (
   id TEXT PRIMARY KEY,
-  user_id TEXT REFERENCES users(id),
+  user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
   title TEXT NOT NULL,
   message TEXT,
   type TEXT DEFAULT 'system' CHECK (type IN ('payment', 'tenant', 'property', 'system', 'id_verification')),
@@ -150,7 +159,7 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 CREATE TABLE IF NOT EXISTS ratings (
   id TEXT PRIMARY KEY,
   user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  target_type TEXT NOT NULL CHECK (target_type IN ('property', 'unit')),
+  target_type TEXT NOT NULL CHECK (target_type IN ('property', 'unit', 'support')),
   target_id TEXT NOT NULL,
   rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
   comment TEXT,
@@ -167,11 +176,38 @@ CREATE TABLE IF NOT EXISTS complaints (
   message TEXT NOT NULL,
   status TEXT DEFAULT 'open' CHECK (status IN ('open', 'in_progress', 'resolved', 'closed')),
   priority TEXT DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high', 'urgent')),
-  assigned_to TEXT REFERENCES users(id),
+  assigned_to TEXT REFERENCES users(id) ON DELETE SET NULL,
   resolved_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+ALTER TABLE complaints ADD COLUMN IF NOT EXISTS response_text TEXT;
+ALTER TABLE complaints ADD COLUMN IF NOT EXISTS response_by TEXT;
+ALTER TABLE complaints ADD COLUMN IF NOT EXISTS response_at TIMESTAMPTZ;
+ALTER TABLE complaints DROP CONSTRAINT IF EXISTS complaints_target_type_check;
+ALTER TABLE complaints ADD CONSTRAINT complaints_target_type_check CHECK (target_type IN ('property', 'unit', 'support'));
+
+ALTER TABLE properties ADD COLUMN IF NOT EXISTS image_url TEXT;
+ALTER TABLE properties ADD COLUMN IF NOT EXISTS agent_id TEXT REFERENCES users(id);
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+  id TEXT PRIMARY KEY,
+  text TEXT NOT NULL,
+  property_id TEXT REFERENCES properties(id),
+  sender_name TEXT,
+  sender_email TEXT,
+  sender_phone TEXT,
+  agent_id TEXT REFERENCES users(id),
+  agent_name TEXT,
+  status TEXT DEFAULT 'new' CHECK (status IN ('new', 'read', 'replied')),
+  reply_text TEXT,
+  replied_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS reply_text TEXT;
+ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS replied_at TIMESTAMPTZ;
 
 CREATE TABLE IF NOT EXISTS messages (
   id TEXT PRIMARY KEY,
@@ -180,6 +216,8 @@ CREATE TABLE IF NOT EXISTS messages (
   subject TEXT,
   body TEXT NOT NULL,
   read BOOLEAN DEFAULT FALSE,
+  attachment_url TEXT,
+  attachment_type TEXT CHECK (attachment_type IN ('image', 'audio')),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

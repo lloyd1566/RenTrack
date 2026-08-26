@@ -11,9 +11,10 @@ import { Avatar } from "@/components/ui/avatar";
 import {
   LayoutDashboard, Home, ClipboardCheck, Clock,
   CreditCard, FileText, Send, LogOut, ChevronRight, Menu, X,
-  Loader2, MessageSquare, ChevronDown, ChevronLeft, Bell, KeyRound,
+  Loader2, ChevronDown, ChevronLeft, Bell, KeyRound, Mail, User,
 } from "lucide-react";
-import { getNotifications, Notification } from "@/lib/data";
+import { getNotifications, getUnreadMessageCount, getUnreadInquiryCount, Notification } from "@/lib/data";
+import { getProperties, Property } from "@/lib/data";
 import MessagingPanel from "@/components/messaging-panel";
 import MessagingModal from "@/components/messaging-modal";
 
@@ -21,10 +22,10 @@ const navItems = [
   { label: "Overview", tab: "overview", href: "/dashboard/agent#overview", icon: LayoutDashboard },
   { label: "Properties", tab: "properties", href: "/dashboard/agent#properties", icon: Home },
   { label: "Assign Unit", tab: "assign", href: "/dashboard/agent#assign", icon: ClipboardCheck },
-  { label: "Confirmations", tab: "confirmations", href: "/dashboard/agent#confirmations", icon: Clock },
   { label: "Payments", tab: "payments", href: "/dashboard/agent#payments", icon: CreditCard },
   { label: "History", tab: "history", href: "/dashboard/agent#history", icon: FileText },
   { label: "Messages", tab: "messages", href: "/dashboard/agent#messages", icon: Send },
+  { label: "Inquiries", tab: "inquiries", href: "/dashboard/agent#inquiries", icon: Mail },
 ];
 
 function getTabFromHash() {
@@ -44,8 +45,11 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
   const [showNotifications, setShowNotifications] = useState(false);
   const [showMessages, setShowMessages] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+  const [unreadInquiryCount, setUnreadInquiryCount] = useState(0);
   const [selectedConversation, setSelectedConversation] = useState<any>(null);
   const [isMessagingOpen, setIsMessagingOpen] = useState(false);
+  const [agentProperties, setAgentProperties] = useState<Property[]>([]);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -54,10 +58,21 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
   }, [isLoading, isAuthenticated, router]);
 
   useEffect(() => {
+    (async () => {
+      try {
+        const props = await getProperties(user);
+        setAgentProperties(props);
+      } catch (err) {
+        console.error("Failed to load properties for messaging", err);
+      }
+    })();
+  }, [user]);
+
+  useEffect(() => {
     const readHash = () => {
       const hash = window.location.hash.replace("#", "");
-      if (hash && navItems.some((item) => item.tab === hash)) {
-        setActiveTab(hash);
+      if (hash && (navItems.some((item) => item.tab === hash) || hash === "profile")) {
+        setActiveTab(hash as any);
       }
     };
     readHash();
@@ -66,8 +81,17 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
   }, []);
 
   useEffect(() => {
+    const activeButton = document.getElementById(`sidebar-${activeTab}`);
+    if (activeButton) {
+      activeButton.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [activeTab]);
+
+  useEffect(() => {
     if (user) {
       getNotifications(user.id).then(setNotifications).catch(() => setNotifications([]));
+      getUnreadMessageCount().then(setUnreadMessageCount).catch(() => setUnreadMessageCount(0));
+      getUnreadInquiryCount().then(setUnreadInquiryCount).catch(() => setUnreadInquiryCount(0));
     }
   }, [user]);
 
@@ -106,9 +130,6 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
         </button>
         <span className="font-semibold text-base">Agent Panel</span>
         <div className="flex items-center gap-1">
-          <button onClick={() => setShowMessages(!showMessages)} className="p-2 rounded-lg hover:bg-surface-secondary relative">
-            <MessageSquare className="h-5 w-5" />
-          </button>
           <div className="relative">
             <button onClick={() => setShowNotifications(!showNotifications)} className="p-2 rounded-lg hover:bg-surface-secondary relative">
               <Bell className="h-5 w-5" />
@@ -130,8 +151,8 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
         <div className={cn("hidden lg:flex flex-col border-r border-border bg-surface transition-all self-start", sidebarOpen ? "w-56" : "w-16")}>
           <div className="p-4 border-b border-border">
             <Link href="/dashboard/agent" className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary-600 to-secondary-600 flex items-center justify-center">
-                <LayoutDashboard className="h-4 w-4 text-white" />
+              <div className="h-8 w-8 rounded-lg overflow-hidden">
+                <img src="/images/landing/logo.png" alt="RentTrack" className="h-full w-full object-contain" />
               </div>
               {sidebarOpen && <span className="font-bold text-foreground text-sm">Agent Panel</span>}
             </Link>
@@ -143,6 +164,7 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
               return (
                 <button
                   key={item.tab}
+                  id={`sidebar-${item.tab}`}
                   onClick={() => {
                     setActiveTab(item.tab);
                     window.location.hash = item.tab;
@@ -156,6 +178,16 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
                 >
                   <Icon className={cn("h-4 w-4 shrink-0", isActive ? "text-primary-600" : "text-text-tertiary")} />
                   {sidebarOpen && <span className="truncate">{item.label}</span>}
+                  {item.tab === "messages" && unreadMessageCount > 0 && (
+                    <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                      {unreadMessageCount}
+                    </span>
+                  )}
+                  {item.tab === "inquiries" && unreadInquiryCount > 0 && (
+                    <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                      {unreadInquiryCount}
+                    </span>
+                  )}
                   {isActive && sidebarOpen && <ChevronRight className="h-3.5 w-3.5 ml-auto text-primary-600" />}
                 </button>
               );
@@ -184,8 +216,8 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
               >
                 <div className="p-4 border-b border-border flex items-center justify-between">
                   <Link href="/dashboard/agent" className="flex items-center gap-2">
-                    <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary-600 to-secondary-600 flex items-center justify-center">
-                      <LayoutDashboard className="h-4 w-4 text-white" />
+                    <div className="h-8 w-8 rounded-lg overflow-hidden">
+                      <img src="/images/landing/logo.png" alt="RentTrack" className="h-full w-full object-contain" />
                     </div>
                     <span className="font-bold text-foreground text-sm">Agent Panel</span>
                   </Link>
@@ -200,6 +232,7 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
                     return (
                       <button
                         key={item.tab}
+                        id={`sidebar-${item.tab}`}
                         onClick={() => {
                           setActiveTab(item.tab);
                           window.location.hash = item.tab;
@@ -246,12 +279,6 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
             </div>
             <div className="flex items-center gap-3">
               <div className="relative">
-                <button
-                  onClick={() => setShowMessages(!showMessages)}
-                  className="relative p-2 rounded-lg hover:bg-surface-secondary transition-colors text-text-secondary hover:text-foreground"
-                >
-                  <MessageSquare className="h-5 w-5" />
-                </button>
                 <AnimatePresence initial={false}>
                   {showMessages && (
                     <MessagingPanel
@@ -331,11 +358,11 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
                       </div>
                       <div className="p-1.5">
                         <button
-                          onClick={() => { setShowUserMenu(false); router.push("/reset-password"); }}
+                          onClick={() => { setShowUserMenu(false); window.location.hash = "profile"; }}
                           className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-text-secondary hover:bg-surface-secondary hover:text-foreground w-full transition-colors"
                         >
-                          <KeyRound className="h-4 w-4" />
-                          Reset Password
+                          <User className="h-4 w-4" />
+                          My Profile
                         </button>
                         <button
                           onClick={() => { setShowUserMenu(false); setShowLogoutModal(true); }}
@@ -406,6 +433,7 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
               avatarUrl: selectedConversation.otherUser?.avatarUrl,
               allowMessages: true,
             }}
+            properties={agentProperties.map(p => ({ id: p.id, name: p.name, location: p.location, type: p.type, units: p.units, rentAmount: p.monthlyRevenue }))}
           />
         )}
       </div>

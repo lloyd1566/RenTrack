@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createComplaint, getComplaints, getComplaintById, updateComplaintStatus } from "@/lib/db";
+import { createComplaint, getComplaints, getComplaintById, updateComplaintStatus, createNotification, getAdminSupabase } from "@/lib/db";
 import { requireAuth, validateApiRequest, withSecurityHeaders, withCorsHeaders, sanitizeObject, getClientIp } from "@/lib/api-security";
 import { logAudit } from "@/lib/db";
 import { sendSystemEmail, isSmtpConfigured } from "@/lib/mail";
@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
 
     const complaint = await createComplaint({
       tenantId: auth.userId,
-      targetType: sanitized.targetType as "property" | "unit",
+      targetType: sanitized.targetType as "property" | "unit" | "support",
       targetId: sanitized.targetId,
       subject: sanitized.subject,
       message: sanitized.message,
@@ -84,7 +84,7 @@ export async function PATCH(request: NextRequest) {
     const validation = validateApiRequest(request);
     if (validation) return validation;
 
-    const { id, status, assignedTo } = await request.json();
+    const { id, status, assignedTo, responseText, responseBy } = await request.json();
     if (!id || !status) {
       return NextResponse.json({ success: false, error: "Complaint ID and status are required" }, { status: 400 });
     }
@@ -94,7 +94,11 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Invalid status" }, { status: 400 });
     }
 
-    const complaint = await updateComplaintStatus(id, status, assignedTo);
+    const complaint = await updateComplaintStatus(id, status, assignedTo, responseText, responseBy || auth.user.name);
+    if (responseText?.trim()) {
+      const { data: request } = await getAdminSupabase().from("complaints").select("tenant_id, subject").eq("id", id).maybeSingle();
+      if (request?.tenant_id) await createNotification({ userId: request.tenant_id, title: "Support request updated", message: `${responseBy || auth.user.name} replied to: ${request.subject}`, type: "system" });
+    }
     await logAudit(auth.userId, "complaint_updated", { complaintId: id, status }, auth.ip, auth.userAgent);
     return NextResponse.json({ success: true, complaint });
   } catch (error) {

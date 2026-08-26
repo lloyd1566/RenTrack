@@ -12,12 +12,10 @@ import {
   HeartPulse,
   LayoutDashboard,
   LogOut,
-  Moon,
   ScrollText,
   ShieldCheck,
   SlidersHorizontal,
   Stethoscope,
-  Sun,
   UsersRound,
 } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
@@ -27,8 +25,6 @@ import type { Notification } from "@/lib/data";
 type AdminNavbarProps = {
   user: { name: string; email: string };
   notifications: Notification[];
-  darkMode: boolean;
-  onToggleTheme: () => void;
   onMarkRead: (id: string) => void;
   onMarkAllRead: () => void;
   onLogout: () => void;
@@ -48,8 +44,6 @@ const adminLinks = [
 export function AdminNavbar({
   user,
   notifications,
-  darkMode,
-  onToggleTheme,
   onMarkRead,
   onMarkAllRead,
   onLogout,
@@ -112,17 +106,6 @@ export function AdminNavbar({
             <span className="h-1.5 w-1.5 rounded-full bg-emerald-300 shadow-[0_0_9px_#6ee7b7]" />
             Operational
           </span>
-          <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-            <button
-              type="button"
-              onClick={onToggleTheme}
-              className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 transition-colors hover:bg-white/[0.07] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-300/80"
-              aria-label="Toggle color theme"
-            >
-              {darkMode ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-            </button>
-          </motion.div>
-
           <div className="relative">
             <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
               <button

@@ -40,6 +40,7 @@ export async function POST(request: NextRequest) {
       { key: "monthlyRevenue", type: "number" },
       { key: "status", type: "string", maxLength: 20 },
       { key: "imageUrl", type: "string", maxLength: 5000000 },
+      { key: "agentId", type: "string", maxLength: 200 },
     ]);
 
     if (!sanitized.name || !sanitized.location) {

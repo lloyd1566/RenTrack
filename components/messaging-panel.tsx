@@ -13,9 +13,10 @@ interface MessagingPanelProps {
   isOpen: boolean;
   onClose: () => void;
   onSelectConversation?: (conv: Conversation) => void;
+  fullPage?: boolean;
 }
 
-export default function MessagingPanel({ isOpen, onClose, onSelectConversation }: MessagingPanelProps) {
+export default function MessagingPanel({ isOpen, onClose, onSelectConversation, fullPage = false }: MessagingPanelProps) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -46,7 +47,10 @@ export default function MessagingPanel({ isOpen, onClose, onSelectConversation }
       animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
       exit={{ opacity: 0, y: 8, scale: 0.95, filter: "blur(4px)" }}
       transition={{ duration: 0.2 }}
-      className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl border border-border bg-surface shadow-dropdown overflow-hidden z-50"
+      className={cn(
+        "rounded-2xl border border-border bg-surface shadow-dropdown overflow-hidden z-50",
+        fullPage ? "relative w-full" : "absolute right-0 mt-2 w-80 sm:w-96"
+      )}
     >
       <div className="p-4 border-b border-border flex items-center justify-between">
         <h3 className="font-semibold text-foreground">Messages</h3>
@@ -57,7 +61,7 @@ export default function MessagingPanel({ isOpen, onClose, onSelectConversation }
           <X className="h-4 w-4" />
         </button>
       </div>
-      <div className="max-h-80 overflow-y-auto">
+      <div className={cn(fullPage ? "min-h-[360px] max-h-[560px]" : "max-h-80", "overflow-y-auto")}>
         {loading ? (
           <div className="p-8 text-center">
             <div className="h-5 w-5 border-2 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto" />

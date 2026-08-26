@@ -4,8 +4,9 @@ import { useState, useEffect, useCallback } from "react";
 import { motion } from "framer-motion";
 import {
   LayoutDashboard, Home, UserPlus, ClipboardCheck, Clock,
-  CreditCard, FileText, Send, RefreshCw,
-  CheckCircle2, MessageSquare, Send as SendIcon, Loader2,
+  CreditCard, FileText, Send,
+  CheckCircle2, MessageSquare, Send as SendIcon, Loader2, Mail, User,
+  Search, Plus, X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -16,23 +17,27 @@ import { useAuth } from "@/lib/auth";
 import {
   getProperties, getUnits, getTenants, getPayments,
   addTenant, updateTenantAssignment, verifyPayment,
-  getConversations, sendMessage, notifyAdmins,
-  Property, Unit, TenantRecord, Payment, Conversation,
+  getConversations, sendMessage, notifyAdmins, updateTenantVerification,
+  getInquiries, updateInquiryStatus,
+  Property, Unit, TenantRecord, Payment, Conversation, ChatInquiry,
 } from "@/lib/data";
 import { cn, formatCurrency, formatDate, getInitials } from "@/lib/utils";
 import { toast } from "sonner";
 import MessagingModal from "@/components/messaging-modal";
+import ProfilePanel from "@/components/profile-panel";
 
-type Step = "overview" | "properties" | "assign" | "confirmations" | "payments" | "history" | "messages";
+type Step = "overview" | "properties" | "assign" | "payments" | "history" | "messages" | "verifications" | "inquiries" | "profile";
 
 const flowSteps: { key: Step; label: string; icon: React.ElementType }[] = [
   { key: "overview", label: "Overview", icon: LayoutDashboard },
   { key: "properties", label: "Properties", icon: Home },
   { key: "assign", label: "Assign Unit", icon: ClipboardCheck },
-  { key: "confirmations", label: "Confirmations", icon: Clock },
+  { key: "verifications", label: "Verifications", icon: CheckCircle2 },
   { key: "payments", label: "Payments", icon: CreditCard },
   { key: "history", label: "History", icon: FileText },
   { key: "messages", label: "Messages", icon: Send },
+  { key: "inquiries", label: "Inquiries", icon: Mail },
+  { key: "profile", label: "Profile", icon: User },
 ];
 
 export default function AgentDashboard() {
@@ -45,12 +50,19 @@ export default function AgentDashboard() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<any>(null);
   const [isMessagingOpen, setIsMessagingOpen] = useState(false);
+  const [inquiries, setInquiries] = useState<ChatInquiry[]>([]);
+  const [replyingInquiry, setReplyingInquiry] = useState<string | null>(null);
+  const [inquiryReply, setInquiryReply] = useState("");
+  const [replying, setReplying] = useState(false);
 
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
   const [selectedTenant, setSelectedTenant] = useState<TenantRecord | null>(null);
+  const [tenantSearch, setTenantSearch] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showRegisterTenant, setShowRegisterTenant] = useState(false);
+  const [newTenant, setNewTenant] = useState({ name: "", email: "", phone: "" });
 
-  const [assignForm, setAssignForm] = useState({ unitId: "", propertyName: "", unitNumber: "", rentAmount: 0 });
+  const [assignForm, setAssignForm] = useState({ unitId: "", propertyName: "", unitNumber: "", rentAmount: 0, contractStart: "" });
   const [paymentFilter, setPaymentFilter] = useState<string>("all");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [resubmittingId, setResubmittingId] = useState<string | null>(null);
@@ -59,18 +71,20 @@ export default function AgentDashboard() {
     if (!user) return;
     setIsRefreshing(true);
     try {
-      const [props, unitsData, tenantsData, paymentsData, convs] = await Promise.all([
+      const [props, unitsData, tenantsData, paymentsData, convs, inquiriesData] = await Promise.all([
         getProperties(user),
         getUnits(user),
         getTenants(user),
         getPayments(user),
         getConversations(),
+        getInquiries(),
       ]);
       setProperties(props);
       setUnits(unitsData);
       setTenants(tenantsData);
       setPayments(paymentsData);
       setConversations(convs);
+      setInquiries(inquiriesData);
     } catch (err) {
       console.error("Agent dashboard load error:", err);
     } finally {
@@ -124,19 +138,55 @@ export default function AgentDashboard() {
         propertyName: assignForm.propertyName || property?.name || "",
         unitNumber: assignForm.unitNumber || selectedUnit.unitNumber,
         rentAmount: assignForm.rentAmount || selectedUnit.rentAmount,
+        contractStart: assignForm.contractStart || undefined,
         assignmentStatus: "pending",
       });
       if (updated) {
-        setTenants(tenants.map((t) => t.id === selectedTenant.id ? { ...t, ...updated } : t));
+        await loadData();
         setSelectedTenant(null);
         setSelectedUnit(null);
-        setAssignForm({ unitId: "", propertyName: "", unitNumber: "", rentAmount: 0 });
+        setAssignForm({ unitId: "", propertyName: "", unitNumber: "", rentAmount: 0, contractStart: "" });
         toast.success("Assignment submitted for owner confirmation!");
-        setActiveTab("confirmations");
-        window.location.hash = "confirmations";
+        setActiveTab("assign");
+        window.location.hash = "assign";
+        notifyAdmins({
+          title: "New Assignment Pending",
+          message: `${selectedTenant.name} has been assigned to ${assignForm.propertyName || property?.name || "a unit"}. Please review and confirm.`,
+          type: "tenant",
+          read: false,
+        }).catch(() => {});
       }
     } catch {
       toast.error("Failed to assign tenant");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleRegisterTenant = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTenant.name || !newTenant.email) {
+      toast.error("Name and email are required");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const res = await fetch("/api/data/tenants", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(newTenant),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success("Tenant registered successfully!");
+        setNewTenant({ name: "", email: "", phone: "" });
+        setShowRegisterTenant(false);
+        loadData();
+      } else {
+        toast.error(data.error || "Failed to register tenant");
+      }
+    } catch {
+      toast.error("Failed to register tenant");
     } finally {
       setIsSubmitting(false);
     }
@@ -181,28 +231,8 @@ export default function AgentDashboard() {
     return <Badge variant={variants[status] || "outline"} className="text-sm font-semibold capitalize">{status}</Badge>;
   };
 
-  const currentStepIdx = flowSteps.findIndex((s) => s.key === activeTab);
-
   return (
     <div className="w-full px-4 sm:px-6 lg:px-8">
-            {/* Flow Progress */}
-            <div className="mb-8">
-              <div className="flex items-center gap-1.5 text-sm font-medium text-text-secondary mb-3">
-                {flowSteps.map((s, i) => (
-                  <div key={s.key} className="flex items-center gap-1.5">
-                    <div className={cn("h-5 w-5 rounded-full flex items-center justify-center text-xs", i <= currentStepIdx ? "bg-primary-600 text-white" : "bg-surface-secondary text-text-tertiary border border-border")}>
-                      {i <= currentStepIdx ? "✓" : String(i + 1)}
-                    </div>
-                    <span className="hidden sm:inline">{s.label}</span>
-                    {i < flowSteps.length - 1 && <span className="text-text-tertiary mx-1">›</span>}
-                  </div>
-                ))}
-              </div>
-              <div className="h-1.5 rounded-full bg-primary-600/20 overflow-hidden">
-                <div className="h-full rounded-full bg-primary-600 transition-all duration-500" style={{ width: `${(currentStepIdx / (flowSteps.length - 1)) * 100}%` }} />
-              </div>
-            </div>
-
             {/* OVERVIEW */}
             {activeTab === "overview" && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
@@ -212,20 +242,16 @@ export default function AgentDashboard() {
                       <h1 className="text-4xl font-bold text-foreground">Agent Dashboard</h1>
                       <p className="text-lg text-text-secondary mt-1">Welcome back, {user?.name?.split(" ")[0] || "Agent"}</p>
                     </div>
-                    <Button size="sm" variant="outline" onClick={loadData} disabled={isRefreshing}>
-                      <RefreshCw className={`h-4 w-4 mr-1.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-                      Refresh
-                    </Button>
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                   {[
-                    { label: "Properties", value: properties.length, icon: Home, color: "from-primary-500 to-primary-600" },
-                    { label: "Active Tenants", value: activeTenants.length, icon: UserPlus, color: "from-secondary-500 to-secondary-600" },
-                    { label: "Pending", value: pendingTenants.length, icon: Clock, color: "from-amber-500 to-amber-600" },
-                    { label: "Payments Due", value: pendingPayments.length, icon: CreditCard, color: "from-accent-500 to-accent-600" },
+                    { label: "Properties", value: properties.length, icon: Home, color: "from-primary-500 to-primary-600", tab: "properties" as const },
+                    { label: "Active Tenants", value: activeTenants.length, icon: UserPlus, color: "from-secondary-500 to-secondary-600", tab: "assign" as const },
+                    { label: "Pending", value: pendingTenants.length, icon: Clock, color: "from-amber-500 to-amber-600", tab: "assign" as const },
+                    { label: "Payments Due", value: pendingPayments.length, icon: CreditCard, color: "from-accent-500 to-accent-600", tab: "payments" as const },
                   ].map((stat, i) => (
-                    <Card key={i} className="hover:shadow-lg transition-shadow">
+                    <Card key={i} onClick={() => { setActiveTab(stat.tab); window.location.hash = stat.tab; }} className="hover:shadow-lg transition-all duration-300 cursor-pointer hover:scale-105 active:scale-95">
                       <CardContent className="min-h-[180px] p-8">
                         <div className="flex items-center justify-between mb-4">
                           <span className="text-lg font-medium text-text-secondary">{stat.label}</span>
@@ -348,133 +374,334 @@ export default function AgentDashboard() {
                   <h1 className="text-3xl font-bold text-foreground">Assign Tenant to Unit</h1>
                   <p className="text-base text-text-secondary mt-1">Select a tenant and assign them to an available unit</p>
                 </div>
+
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Select Tenant</CardTitle>
-                      <CardDescription>Choose from registered tenants without a unit</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        {tenants.filter((t) => !t.unitId).length === 0 ? (
-                          <p className="text-center py-8 text-text-secondary">No unassigned tenants</p>
-                        ) : (
-                          tenants.filter((t) => !t.unitId).map((tenant) => (
-                            <div key={tenant.id} onClick={() => setSelectedTenant(tenant)} className={cn("flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-all", selectedTenant?.id === tenant.id ? "border-primary-500 bg-primary-50" : "border-border hover:bg-surface-secondary")}>
-                              <div className="flex items-center gap-3">
-                                 <Avatar src={tenant.avatarUrl} fallback={getInitials(tenant.name)} size="sm" />
-                                <div>
-                                  <p className="text-base font-medium text-foreground">{tenant.name}</p>
-                                  <p className="text-sm text-text-secondary">{tenant.email}</p>
-                                </div>
-                              </div>
-                              {selectedTenant?.id === tenant.id && <CheckCircle2 className="h-5 w-5 text-primary-600" />}
-                            </div>
-                          ))
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Select Vacant Unit</CardTitle>
-                      <CardDescription>Available units for assignment</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-3">
-                        {vacantUnits.length === 0 ? (
-                          <p className="text-center py-8 text-text-secondary">No vacant units available</p>
-                        ) : (
-                          vacantUnits.map((unit) => {
-                            const property = properties.find((p) => p.id === unit.propertyId);
-                            return (
-                              <div key={unit.id} onClick={() => setSelectedUnit(unit)} className={cn("flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-all", selectedUnit?.id === unit.id ? "border-primary-500 bg-primary-50" : "border-border hover:bg-surface-secondary")}>
-                                <div>
-                                  <p className="text-base font-medium text-foreground">Unit {unit.unitNumber}</p>
-                                  <p className="text-sm text-text-secondary">{property?.name || "Unknown Property"}</p>
-                                  <p className="text-sm text-text-tertiary">{formatCurrency(unit.rentAmount)}/mo</p>
-                                </div>
-                                {selectedUnit?.id === unit.id && <CheckCircle2 className="h-5 w-5 text-primary-600" />}
-                              </div>
-                            );
-                          })
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </div>
-                 {selectedTenant && selectedUnit && (
-                   <Card className="max-w-2xl">
-                     <CardContent className="p-6">
-                       <div className="flex items-center gap-3 mb-4 p-3 rounded-xl bg-primary-50 border border-primary-200">
-                          <Avatar src={selectedTenant.avatarUrl} fallback={getInitials(selectedTenant.name)} size="sm" />
-                         <div>
-                           <p className="text-base font-medium text-foreground">{selectedTenant.name}</p>
-                           <p className="text-sm text-text-secondary">{selectedTenant.email}</p>
-                         </div>
-                       </div>
-                       <form onSubmit={handleAssignTenant} className="space-y-4">
-                         <div className="grid grid-cols-2 gap-3">
-                           <div>
-                             <label className="block text-base font-medium mb-1.5">Property</label>
-                             <Input value={properties.find((p) => p.id === selectedUnit.propertyId)?.name || ""} onChange={(e) => setAssignForm({ ...assignForm, propertyName: e.target.value })} />
+                   {/* SELECT TENANT */}
+                   <Card className="flex flex-col">
+                     <CardHeader>
+                       <div className="flex items-center justify-between">
+                         <div className="flex items-center gap-3">
+                           <div className="h-10 w-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                             <UserPlus className="h-5 w-5 text-blue-600" />
                            </div>
                            <div>
-                             <label className="block text-base font-medium mb-1.5">Unit</label>
-                             <Input value={selectedUnit.unitNumber} onChange={(e) => setAssignForm({ ...assignForm, unitNumber: e.target.value })} />
+                             <CardTitle className="text-lg">Step 1: Select Tenant</CardTitle>
+                             <CardDescription>Choose a tenant without a unit assignment</CardDescription>
                            </div>
                          </div>
-                         <div>
-                           <label className="block text-base font-medium mb-1.5">Monthly Rent (₱)</label>
-                           <Input type="number" value={selectedUnit.rentAmount} onChange={(e) => setAssignForm({ ...assignForm, rentAmount: parseFloat(e.target.value) || 0 })} />
-                         </div>
-                         <Button type="submit" disabled={isSubmitting} className="w-full">
-                           {isSubmitting ? "Assigning..." : "Assign Tenant & Submit for Confirmation"}
+                         <Button size="sm" onClick={() => setShowRegisterTenant(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
+                           <Plus className="h-4 w-4 mr-1" /> Register
                          </Button>
-                       </form>
+                       </div>
+                     </CardHeader>
+                     <CardContent className="flex-1 flex flex-col">
+                       <div className="relative mb-4">
+                         <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-tertiary" />
+                         <Input
+                           placeholder="Search tenants..."
+                           value={tenantSearch}
+                           onChange={(e) => setTenantSearch(e.target.value)}
+                           className="pl-9"
+                         />
+                       </div>
+                       <div className="flex-1 overflow-y-auto space-y-2 max-h-[360px] pr-1">
+                         {(() => {
+                           const unassigned = tenants.filter((t) => !t.unitId);
+                           const filtered = unassigned.filter((t) => t.name.toLowerCase().includes(tenantSearch.toLowerCase()) || t.email.toLowerCase().includes(tenantSearch.toLowerCase()));
+                           if (unassigned.length === 0) {
+                             return (
+                               <div className="text-center py-12">
+                                 <UserPlus className="h-12 w-12 text-text-tertiary mx-auto mb-3" />
+                                 <p className="text-text-secondary font-medium">No unassigned tenants</p>
+                                 <p className="text-xs text-text-tertiary mt-1">All tenants have been assigned to units</p>
+                               </div>
+                             );
+                           }
+                           if (filtered.length === 0 && tenantSearch) {
+                             return (
+                               <div className="text-center py-8">
+                                 <p className="text-text-secondary font-medium">No matching tenants</p>
+                                 <p className="text-xs text-text-tertiary mt-1">Try a different search term</p>
+                               </div>
+                             );
+                           }
+                           return filtered.map((tenant) => (
+                             <motion.div
+                               key={tenant.id}
+                               whileHover={{ scale: 1.01 }}
+                               whileTap={{ scale: 0.99 }}
+                               onClick={() => setSelectedTenant(selectedTenant?.id === tenant.id ? null : tenant)}
+                               className={cn("flex items-center gap-3 p-4 rounded-xl border cursor-pointer transition-all", selectedTenant?.id === tenant.id ? "border-primary-500 bg-primary-50 shadow-sm" : "border-border hover:bg-surface-secondary hover:shadow-sm")}
+                             >
+                               <Avatar src={tenant.avatarUrl} fallback={getInitials(tenant.name)} size="sm" className={selectedTenant?.id === tenant.id ? "ring-2 ring-primary-200" : ""} />
+                               <div className="flex-1 min-w-0">
+                                 <p className="text-base font-medium text-foreground truncate">{tenant.name}</p>
+                                 <p className="text-sm text-text-secondary truncate">{tenant.email}</p>
+                               </div>
+                               {selectedTenant?.id === tenant.id && (
+                                 <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 500, damping: 15 }}>
+                                   <CheckCircle2 className="h-5 w-5 text-primary-600" />
+                                 </motion.div>
+                               )}
+                             </motion.div>
+                           ));
+                        })()}
+                      </div>
+                      {selectedTenant && (
+                        <div className="mt-3 pt-3 border-t border-border">
+                          <Button type="button" variant="outline" size="sm" onClick={() => setSelectedTenant(null)} className="w-full">
+                            <X className="h-4 w-4 mr-1.5" /> Clear Selection
+                          </Button>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+
+                   {/* SELECT UNIT */}
+                   <Card className="flex flex-col">
+                     <CardHeader>
+                       <div className="flex items-center justify-between">
+                         <div className="flex items-center gap-3">
+                           <div className="h-10 w-10 rounded-xl bg-emerald-50 flex items-center justify-center">
+                             <Home className="h-5 w-5 text-emerald-600" />
+                           </div>
+                           <div>
+                             <CardTitle className="text-lg">Step 2: Select Vacant Unit</CardTitle>
+                             <CardDescription>Available units for assignment</CardDescription>
+                           </div>
+                         </div>
+                         {selectedUnit && (
+                           <Button size="sm" variant="outline" onClick={() => setSelectedUnit(null)} className="text-red-600 hover:text-red-700">
+                             <X className="h-4 w-4 mr-1" /> Cancel
+                           </Button>
+                         )}
+                       </div>
+                     </CardHeader>
+                     <CardContent className="flex-1 flex flex-col">
+                       <div className="flex-1 overflow-y-auto space-y-3 max-h-[400px] pr-1">
+                         {vacantUnits.length === 0 ? (
+                           <div className="text-center py-12">
+                             <Home className="h-12 w-12 text-text-tertiary mx-auto mb-3" />
+                             <p className="text-text-secondary font-medium">No vacant units available</p>
+                             <p className="text-xs text-text-tertiary mt-1">All units are currently occupied</p>
+                           </div>
+                         ) : (
+                           vacantUnits.map((unit) => {
+                             const property = properties.find((p) => p.id === unit.propertyId);
+                             const isSelected = selectedUnit?.id === unit.id;
+                             return (
+                               <motion.div
+                                 key={unit.id}
+                                 whileHover={{ scale: 1.01 }}
+                                 whileTap={{ scale: 0.99 }}
+                                 onClick={() => setSelectedUnit(isSelected ? null : unit)}
+                                 className={cn("p-4 rounded-xl border cursor-pointer transition-all", isSelected ? "border-primary-500 bg-primary-50 shadow-sm" : "border-border hover:bg-surface-secondary hover:shadow-sm")}
+                               >
+                                 <div className="flex items-start justify-between">
+                                   <div className="flex items-center gap-3">
+                                     <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center font-bold text-sm">
+                                       {unit.unitNumber}
+                                     </div>
+                                     <div>
+                                       <p className="text-base font-medium text-foreground">{property?.name || "Unknown Property"}</p>
+                                       <p className="text-sm text-text-secondary">Unit {unit.unitNumber}</p>
+                                     </div>
+                                   </div>
+                                   {isSelected && (
+                                     <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: "spring", stiffness: 500, damping: 15 }}>
+                                       <CheckCircle2 className="h-5 w-5 text-primary-600" />
+                                     </motion.div>
+                                   )}
+                                 </div>
+                                 <div className="mt-3 flex items-center gap-4 text-sm">
+                                   <span className="text-text-secondary">Floor {unit.floor || "N/A"}</span>
+                                   <span className="text-text-tertiary">|</span>
+                                   <span className="font-semibold text-foreground">{formatCurrency(unit.rentAmount)}/mo</span>
+                                 </div>
+                               </motion.div>
+                             );
+                           })
+                         )}
+                       </div>
                      </CardContent>
                    </Card>
-                 )}
-              </motion.div>
-            )}
+                </div>
 
-            {/* PENDING CONFIRMATIONS */}
-            {activeTab === "confirmations" && (
+                {/* REVIEW & CONFIRM */}
+                {selectedTenant && selectedUnit && (
+                  <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }}>
+                    <Card className="border-primary-200 shadow-lg">
+                      <CardHeader>
+                        <div className="flex items-center gap-3">
+                          <div className="h-10 w-10 rounded-xl bg-amber-50 flex items-center justify-center">
+                            <ClipboardCheck className="h-5 w-5 text-amber-600" />
+                          </div>
+                          <div>
+                            <CardTitle className="text-lg">Step 3: Review & Confirm</CardTitle>
+                            <CardDescription>Verify the assignment details before submitting</CardDescription>
+                          </div>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                          <div className="space-y-4">
+                            <h4 className="text-sm font-semibold text-text-secondary uppercase tracking-wider">Tenant Information</h4>
+                            <div className="flex items-center gap-3 p-4 rounded-xl bg-surface-secondary">
+                              <Avatar src={selectedTenant.avatarUrl} fallback={getInitials(selectedTenant.name)} size="md" />
+                              <div>
+                                <p className="font-medium text-foreground">{selectedTenant.name}</p>
+                                <p className="text-sm text-text-secondary">{selectedTenant.email}</p>
+                                {selectedTenant.phone && <p className="text-sm text-text-tertiary">{selectedTenant.phone}</p>}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="space-y-4">
+                            <h4 className="text-sm font-semibold text-text-secondary uppercase tracking-wider">Unit Information</h4>
+                            <div className="p-4 rounded-xl bg-surface-secondary space-y-2">
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm text-text-secondary">Property</span>
+                                <span className="text-sm font-medium text-foreground">{properties.find((p) => p.id === selectedUnit.propertyId)?.name || "N/A"}</span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm text-text-secondary">Unit</span>
+                                <span className="text-sm font-medium text-foreground">{selectedUnit.unitNumber}</span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm text-text-secondary">Floor</span>
+                                <span className="text-sm font-medium text-foreground">{selectedUnit.floor || "N/A"}</span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-sm text-text-secondary">Monthly Rent</span>
+                                <span className="text-sm font-bold text-foreground">{formatCurrency(selectedUnit.rentAmount)}</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="mt-6 pt-6 border-t border-border">
+                          <form onSubmit={handleAssignTenant} className="space-y-4">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-sm font-medium text-foreground mb-1.5">Property Name</label>
+                                <Input value={assignForm.propertyName || properties.find((p) => p.id === selectedUnit.propertyId)?.name || ""} onChange={(e) => setAssignForm({ ...assignForm, propertyName: e.target.value })} />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-foreground mb-1.5">Unit Number</label>
+                                <Input value={assignForm.unitNumber || selectedUnit.unitNumber} onChange={(e) => setAssignForm({ ...assignForm, unitNumber: e.target.value })} />
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                              <div>
+                                <label className="block text-sm font-medium text-foreground mb-1.5">Monthly Rent (₱)</label>
+                                <Input type="number" value={assignForm.rentAmount || selectedUnit.rentAmount} onChange={(e) => setAssignForm({ ...assignForm, rentAmount: parseFloat(e.target.value) || 0 })} />
+                              </div>
+                              <div>
+                                <label className="block text-sm font-medium text-foreground mb-1.5">Contract Start</label>
+                                <Input type="date" value={assignForm.contractStart || ""} onChange={(e) => setAssignForm({ ...assignForm, contractStart: e.target.value })} />
+                              </div>
+                            </div>
+                            <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto">
+                               {isSubmitting ? (
+                                 <span className="flex items-center gap-2">
+                                   <span className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                                   Assigning...
+                                 </span>
+                               ) : (
+                                 <span className="flex items-center gap-2">
+                                   <CheckCircle2 className="h-4 w-4" />
+                                   Assign Tenant & Submit for Confirmation
+                                 </span>
+                               )}
+                             </Button>
+                           </form>
+                         </div>
+                       </CardContent>
+                     </Card>
+                   </motion.div>
+                 )}
+               </motion.div>
+             )}
+
+             {/* Register Tenant Modal */}
+             {showRegisterTenant && (
+               <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+                 <div className="absolute inset-0 bg-black/50" onClick={() => setShowRegisterTenant(false)} />
+                 <div className="relative w-full max-w-md rounded-2xl border border-border bg-white shadow-2xl">
+                   <div className="p-6 border-b border-border flex items-center justify-between">
+                     <div>
+                       <h3 className="text-lg font-semibold text-foreground">Register New Tenant</h3>
+                       <p className="text-sm text-text-secondary">Add a tenant to the system</p>
+                     </div>
+                     <button onClick={() => setShowRegisterTenant(false)} className="h-8 w-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-foreground hover:bg-surface-secondary transition-colors">
+                       <X className="h-4 w-4" />
+                     </button>
+                   </div>
+                   <form onSubmit={handleRegisterTenant} className="p-6 space-y-4">
+                     <div>
+                       <label className="block text-sm font-medium text-foreground mb-1.5">Full Name *</label>
+                       <Input value={newTenant.name} onChange={(e) => setNewTenant({ ...newTenant, name: e.target.value })} placeholder="Juan Dela Cruz" required />
+                     </div>
+                     <div>
+                       <label className="block text-sm font-medium text-foreground mb-1.5">Email *</label>
+                       <Input type="email" value={newTenant.email} onChange={(e) => setNewTenant({ ...newTenant, email: e.target.value })} placeholder="juan@example.com" required />
+                     </div>
+                     <div>
+                       <label className="block text-sm font-medium text-foreground mb-1.5">Phone</label>
+                       <Input value={newTenant.phone} onChange={(e) => setNewTenant({ ...newTenant, phone: e.target.value })} placeholder="+63 XXX XXX XXXX" />
+                     </div>
+                     <Button type="submit" disabled={isSubmitting} className="w-full">
+                       {isSubmitting ? (
+                         <span className="flex items-center gap-2">
+                           <span className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                           Registering...
+                         </span>
+                       ) : (
+                         <span className="flex items-center gap-2">
+                           <UserPlus className="h-4 w-4" />
+                           Register Tenant
+                         </span>
+                       )}
+                     </Button>
+                   </form>
+                 </div>
+               </div>
+              )}
+
+             {/* VERIFICATIONS */}
+            {activeTab === "verifications" && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
                 <div>
-                  <h1 className="text-3xl font-bold text-foreground">Pending Owner Confirmations</h1>
-                  <p className="text-base text-text-secondary mt-1">Track tenant assignments awaiting owner approval</p>
+                  <h1 className="text-3xl font-bold text-foreground">Tenant Verifications</h1>
+                  <p className="text-base text-text-secondary mt-1">Review and verify tenant ID documents</p>
                 </div>
                 <Card>
                   <CardContent className="p-6">
                     <div className="space-y-3">
-                      {pendingTenants.length === 0 ? (
+                      {tenants.filter(t => t.idVerificationStatus === "pending").length === 0 ? (
                         <div className="text-center py-12">
                           <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-3" />
                           <p className="text-text-secondary font-medium">All caught up!</p>
-                          <p className="text-xs text-text-tertiary mt-1">No pending assignments</p>
+                          <p className="text-xs text-text-tertiary mt-1">No pending verifications</p>
                         </div>
                       ) : (
-                        pendingTenants.map((tenant) => (
-                          <div key={tenant.id} className="flex items-center justify-between p-4 rounded-xl border border-amber-200 bg-amber-50">
+                        tenants.filter(t => t.idVerificationStatus === "pending").map((tenant) => (
+                          <div key={tenant.id} className="flex items-center justify-between p-4 rounded-xl border border-border hover:bg-surface-secondary transition-colors">
                             <div className="flex items-center gap-3">
                               <Avatar src={tenant.avatarUrl} fallback={getInitials(tenant.name)} />
                               <div>
                                 <p className="font-medium text-foreground">{tenant.name}</p>
-                                <p className="text-xs text-text-secondary">{tenant.propertyName} • {tenant.unitNumber}</p>
-                                <p className="text-xs text-text-tertiary">{formatCurrency(tenant.rentAmount || 0)}/mo</p>
+                                <p className="text-xs text-text-secondary">{tenant.email}</p>
+                                {tenant.phone && <p className="text-xs text-text-tertiary">{tenant.phone}</p>}
                               </div>
                             </div>
-                              <div className="flex items-center gap-2">
-                                {getStatusBadge(tenant.assignmentStatus || "pending")}
-                                <Button size="sm" onClick={() => handleResubmitAssignment(tenant.id)} disabled={resubmittingId === tenant.id} className="bg-amber-500 hover:bg-amber-600">
-                                  {resubmittingId === tenant.id ? (
-                                    <><Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />Resubmitting...</>
-                                  ) : (
-                                    <><SendIcon className="h-3.5 w-3.5 mr-1" />Resubmit</>
-                                  )}
-                                </Button>
-                              </div>
+                            <div className="flex items-center gap-2">
+                              {tenant.idVerificationUrl && (
+                                <a href={tenant.idVerificationUrl} target="_blank" rel="noopener noreferrer">
+                                  <Button size="sm" variant="outline">View ID</Button>
+                                </a>
+                              )}
+                              <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={async () => { await updateTenantVerification(tenant.id, "approved"); toast.success("Tenant verified"); loadData(); }}>Approve</Button>
+                              <Button size="sm" variant="destructive" onClick={async () => { await updateTenantVerification(tenant.id, "rejected"); toast.success("Verification rejected"); loadData(); }}>Reject</Button>
+                            </div>
                           </div>
                         ))
                       )}
@@ -627,7 +854,6 @@ export default function AgentDashboard() {
                     <div className="space-y-3">
                       {conversations.length === 0 ? (
                         <div className="text-center py-12">
-                          <MessageSquare className="h-12 w-12 text-text-tertiary mx-auto mb-3" />
                           <p className="text-text-secondary font-medium">No messages yet</p>
                           <p className="text-xs text-text-tertiary mt-1">Start a conversation with an owner or tenant</p>
                         </div>
@@ -653,21 +879,75 @@ export default function AgentDashboard() {
                 </Card>
               </motion.div>
             )}
-  
+
+            {/* INQUIRIES */}
+            {activeTab === "inquiries" && (
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+                <div>
+                  <h1 className="text-3xl font-bold text-foreground">Landing Inquiries</h1>
+                  <p className="text-base text-text-secondary mt-1">Messages from visitors through the landing page</p>
+                </div>
+                <Card>
+                  <CardContent className="p-6">
+                    <div className="space-y-3">
+                      {inquiries.length === 0 ? (
+                        <div className="text-center py-12">
+                          <Mail className="h-12 w-12 text-text-tertiary mx-auto mb-3" />
+                          <p className="text-text-secondary font-medium">No inquiries yet</p>
+                          <p className="text-xs text-text-tertiary mt-1">When visitors contact you from the landing page, they will appear here.</p>
+                        </div>
+                      ) : (
+                        inquiries.map((inq) => (
+                          <div key={inq.id} className="p-4 rounded-xl border border-border hover:bg-surface-secondary transition-colors">
+                            <div className="flex items-start justify-between gap-4">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <p className="font-medium text-foreground">{inq.senderName}</p>
+                                  <Badge variant={inq.status === "new" ? "default" : "outline"} className="text-[10px]">{inq.status}</Badge>
+                                </div>
+                                <p className="text-xs text-text-secondary mb-1">{inq.senderEmail}{inq.senderPhone ? ` • ${inq.senderPhone}` : ""}</p>
+                                <p className="text-sm text-foreground whitespace-pre-wrap">{inq.text}</p>
+                                {inq.replyText && <div className="mt-3 rounded-lg bg-blue-50 p-3"><p className="text-xs font-semibold text-blue-700">Your reply{inq.agentName ? ` • ${inq.agentName}` : ""}</p><p className="mt-1 whitespace-pre-wrap text-sm text-gray-700">{inq.replyText}</p></div>}
+                                <p className="text-[10px] text-text-tertiary mt-2">{new Date(inq.createdAt).toLocaleString()}</p>
+                              </div>
+                              <div className="flex flex-col gap-2">
+                                <Button size="sm" variant="outline" onClick={() => { setReplyingInquiry(inq.id); setInquiryReply(""); }}>Reply</Button>
+                                {inq.status === "new" && (
+                                  <Button size="sm" onClick={async () => { await updateInquiryStatus(inq.id, "read"); setInquiries(prev => prev.map(i => i.id === inq.id ? { ...i, status: "read" } : i)); }}>Mark Read</Button>
+                                )}
+                                <Button size="sm" variant="outline" onClick={async () => { await updateInquiryStatus(inq.id, "replied"); setInquiries(prev => prev.map(i => i.id === inq.id ? { ...i, status: "replied" } : i)); }}>Mark Replied</Button>
+                              </div>
+                            </div>
+                            {replyingInquiry === inq.id && <form className="mt-4 border-t border-border pt-4" onSubmit={async (event) => { event.preventDefault(); if (!inquiryReply.trim()) return; setReplying(true); try { await updateInquiryStatus(inq.id, "replied", inquiryReply); setInquiries((current) => current.map((item) => item.id === inq.id ? { ...item, status: "replied", replyText: inquiryReply, agentName: user?.name } : item)); setReplyingInquiry(null); setInquiryReply(""); toast.success("Reply sent"); } catch { toast.error("Failed to send reply"); } finally { setReplying(false); } }}><textarea value={inquiryReply} onChange={(event) => setInquiryReply(event.target.value)} placeholder="Write your reply..." rows={3} className="w-full rounded-lg border border-border bg-surface p-3 text-sm" /><Button type="submit" disabled={replying || !inquiryReply.trim()} className="mt-2">{replying ? "Sending..." : "Send Reply"}</Button></form>}
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+
         {/* Messaging Modal */}
         {selectedConversation && (
           <MessagingModal
             isOpen={isMessagingOpen}
             onClose={() => { setIsMessagingOpen(false); setSelectedConversation(null); }}
             otherUser={{
-              id: selectedConversation.userId,
+              id: selectedConversation.otherUser?.id || "",
               name: selectedConversation.otherUser?.name || "Unknown",
               email: selectedConversation.otherUser?.email || "",
               role: selectedConversation.otherUser?.role || "tenant",
               avatarUrl: selectedConversation.otherUser?.avatarUrl,
               allowMessages: true,
             }}
+            properties={properties.map(p => ({ id: p.id, name: p.name, location: p.location, type: p.type, units: p.units, rentAmount: p.monthlyRevenue }))}
           />
+        )}
+
+        {/* Profile Tab */}
+        {activeTab === "profile" && (
+          <ProfilePanel />
         )}
       </div>
   );

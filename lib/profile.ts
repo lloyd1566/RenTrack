@@ -25,8 +25,6 @@ export function calculateProfileCompleteness(profile: UserProfile): { percentage
     { key: "birthdate", label: "Birthdate" },
     { key: "country", label: "Country" },
     { key: "address", label: "Address" },
-    { key: "languages", label: "Languages Spoken" },
-    { key: "aboutMe", label: "About Me" },
     { key: "idVerificationUrl", label: "ID Verification" },
   ];
 

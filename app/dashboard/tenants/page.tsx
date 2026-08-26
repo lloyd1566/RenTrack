@@ -28,6 +28,9 @@ export default function TenantsPage() {
   const [deleteTarget, setDeleteTarget] = useState<TenantRecord | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showIdModal, setShowIdModal] = useState(false);
+  const [showCreateTenant, setShowCreateTenant] = useState(false);
+  const [createForm, setCreateForm] = useState({ name: "", email: "", password: "", phone: "", address: "", role: "tenant" as "tenant" | "agent" | "owner" });
+  const [creating, setCreating] = useState(false);
   const [openDropdownId, setOpenDropdownId] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
 
@@ -110,6 +113,37 @@ export default function TenantsPage() {
     }
   };
 
+  const handleCreateTenant = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!createForm.name || !createForm.email || !createForm.password) {
+      toast.error("Name, email, and password are required");
+      return;
+    }
+    setCreating(true);
+    try {
+      const res = await fetch("/api/auth/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(createForm),
+      });
+      const result = await res.json();
+      if (result.success) {
+        toast.success("Account created successfully");
+        setCreateForm({ name: "", email: "", password: "", phone: "", address: "", role: "tenant" });
+        setShowCreateTenant(false);
+        const records = await getTenants(user);
+        setTenants(records);
+      } else {
+        toast.error(result.error || "Failed to create account");
+      }
+    } catch {
+      toast.error("An error occurred");
+    } finally {
+      setCreating(false);
+    }
+  };
+
   const activeCount = tenants.filter((t) => t.status === "active").length;
   const avgRent = tenants.length > 0 ? tenants.reduce((s, t) => s + (t.rentAmount || 0), 0) / tenants.length : 0;
 
@@ -120,6 +154,10 @@ export default function TenantsPage() {
           <h2 className="text-2xl font-bold text-foreground">Tenants</h2>
           <p className="text-text-secondary text-sm mt-1">All tenants currently using the platform</p>
         </div>
+        <Button onClick={() => setShowCreateTenant(true)} className="bg-blue-600 hover:bg-blue-700">
+          <Users className="h-4 w-4 mr-2" />
+          Create Tenant
+        </Button>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4 mb-6">
@@ -273,8 +311,8 @@ export default function TenantsPage() {
                     <p className="text-sm font-medium text-foreground">{selectedTenant.propertyName || "-"}</p>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-text-secondary mb-1">Unit</label>
-                    <p className="text-sm font-medium text-foreground">{selectedTenant.unitNumber ? `Unit ${selectedTenant.unitNumber}` : "-"}</p>
+                    <label className="block text-xs font-medium text-text-secondary mb-1">Unit Number</label>
+                    <p className="text-sm font-medium text-foreground">{selectedTenant.unitNumber ? `Unit Number: ${selectedTenant.unitNumber}` : "-"}</p>
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-text-secondary mb-1">Rent Amount</label>
@@ -376,6 +414,67 @@ export default function TenantsPage() {
             </Button>
           </div>
         </div>
+      </Modal>
+
+      <Modal isOpen={showCreateTenant} onClose={() => setShowCreateTenant(false)} title="Create Tenant Account">
+        <form onSubmit={handleCreateTenant} className="space-y-4">
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">Full Name</label>
+            <input
+              type="text"
+              value={createForm.name}
+              onChange={(e) => setCreateForm({ ...createForm, name: e.target.value })}
+              className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+              placeholder="Juan Dela Cruz"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">Email Address</label>
+            <input
+              type="email"
+              value={createForm.email}
+              onChange={(e) => setCreateForm({ ...createForm, email: e.target.value })}
+              className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+              placeholder="juan@email.com"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">Password</label>
+            <input
+              type="text"
+              value={createForm.password}
+              onChange={(e) => setCreateForm({ ...createForm, password: e.target.value })}
+              className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+              placeholder="Min. 8 characters"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">Phone Number</label>
+            <input
+              type="tel"
+              value={createForm.phone}
+              onChange={(e) => setCreateForm({ ...createForm, phone: e.target.value })}
+              className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+              placeholder="+63 917 123 4567"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-gray-700 mb-1.5">Address</label>
+            <input
+              type="text"
+              value={createForm.address}
+              onChange={(e) => setCreateForm({ ...createForm, address: e.target.value })}
+              className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+              placeholder="Street, City, Province"
+            />
+          </div>
+          <div className="flex gap-3 pt-2">
+            <Button type="button" variant="outline" onClick={() => setShowCreateTenant(false)} disabled={creating} className="flex-1">Cancel</Button>
+            <Button type="submit" disabled={creating} className="flex-1 bg-blue-600 hover:bg-blue-700">
+              {creating ? "Creating..." : "Create Account"}
+            </Button>
+          </div>
+        </form>
       </Modal>
     </motion.div>
   );

@@ -1,112 +1,34 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { Mail, Phone, MapPin, Send, Sparkles } from "lucide-react";
+import { FormEvent, useEffect, useState } from "react";
+import { MessageSquare, Send } from "lucide-react";
+import { useAuth } from "@/lib/auth";
+import { createComplaint, getComplaints, Complaint } from "@/lib/data";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Card } from "@/components/ui/card";
-
-const contactInfo = [
-  { icon: Mail, title: "Email", value: "support@renttrack.com" },
-  { icon: Phone, title: "Phone", value: "+63 912 345 6789" },
-  { icon: MapPin, title: "Address", value: "Cebu, Manila, Butuan, Davao, Philippines" },
-];
-
-const container = {
-  hidden: { opacity: 0 },
-  show: { opacity: 1, transition: { staggerChildren: 0.12 } },
-};
-
-const item = {
-  hidden: { opacity: 0, y: 24, scale: 0.98 },
-  show: { opacity: 1, y: 0, scale: 1 },
-};
+import { Badge } from "@/components/ui/badge";
 
 export default function TenantContactPage() {
-  return (
-    <div className="min-h-screen bg-white dark:bg-slate-900">
-      <div className="relative bg-gradient-to-br from-blue-600 to-blue-700 text-white py-10 overflow-hidden">
-        <motion.div
-          animate={{ x: [0, 30, 0], y: [0, -20, 0] }}
-          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute top-10 right-10 w-96 h-96 rounded-full bg-blue-400/20 blur-3xl"
-        />
-        <div className="relative w-full px-4 sm:px-6 lg:px-8">
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/20 text-white text-xs font-medium mb-3">
-              <Sparkles className="h-3 w-3" />
-              Get In Touch
-            </div>
-            <h1 className="text-3xl md:text-4xl font-bold mb-2">Contact Us</h1>
-            <p className="text-lg text-blue-100">Get in touch with our team for support and inquiries.</p>
-          </motion.div>
-        </div>
-      </div>
-      <div className="w-full px-4 sm:px-6 lg:px-8 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-          <motion.div
-            variants={container}
-            initial="hidden"
-            whileInView="show"
-            viewport={{ once: true, margin: "-80px" }}
-            className="lg:col-span-1 space-y-6"
-          >
-            {contactInfo.map((contact, idx) => (
-              <motion.div
-                key={contact.title}
-                variants={item}
-                whileHover={{ x: 4 }}
-                transition={{ type: "spring", stiffness: 300, damping: 20 }}
-              >
-                 <Card className="p-4 border-gray-200 hover:shadow-2xl transition-all duration-300">
-                   <div className="flex items-center gap-3">
-                    <motion.div
-                      animate={{ y: [0, -4, 0] }}
-                      transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: idx * 0.3 }}
-                      className="h-12 w-12 rounded-xl bg-blue-100 flex items-center justify-center"
-                    >
-                      <contact.icon className="h-6 w-6 text-blue-600" />
-                    </motion.div>
-                    <div>
-                      <h3 className="font-semibold text-gray-900">{contact.title}</h3>
-                      <p className="text-sm text-gray-600">{contact.value}</p>
-                    </div>
-                  </div>
-                </Card>
-              </motion.div>
-            ))}
-          </motion.div>
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-80px" }}
-            transition={{ duration: 0.5, delay: 0.3 }}
-            className="lg:col-span-2"
-          >
-            <Card className="p-5 border-gray-200 hover:shadow-2xl transition-all duration-300">
-              <h3 className="text-xl font-semibold text-gray-900 mb-3">Send us a message</h3>
-              <div className="space-y-3">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <Input placeholder="Your Name" />
-                  <Input placeholder="Your Email" type="email" />
-                </div>
-                <Input placeholder="Subject" />
-                <textarea
-                  placeholder="Your Message"
-                  className="w-full rounded-xl border border-gray-200 p-3 text-sm resize-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-all"
-                  rows={5}
-                />
-                <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                  <Button className="w-full md:w-auto">
-                    <Send className="h-4 w-4 mr-2" />
-                    Send Message
-                  </Button>
-                </motion.div>
-              </div>
-            </Card>
-          </motion.div>
-        </div>
-      </div>
-    </div>
-  );
+  const { user } = useAuth();
+  const [requests, setRequests] = useState<Complaint[]>([]);
+  const [subject, setSubject] = useState("");
+  const [message, setMessage] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  const loadRequests = () => { if (user) getComplaints(user.id).then(setRequests).catch(() => setRequests([])); };
+  useEffect(loadRequests, [user]);
+
+  const submit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!subject.trim() || !message.trim()) { toast.error("Subject and message are required"); return; }
+    setSubmitting(true);
+    try {
+      const request = await createComplaint({ tenantId: user?.id || "", targetType: "support", targetId: "support", subject, message, priority: "medium" });
+      setRequests((current) => [request, ...current]); setSubject(""); setMessage(""); toast.success("Support request submitted");
+    } catch { toast.error("Failed to submit support request"); } finally { setSubmitting(false); }
+  };
+
+  return <div className="mx-auto w-full max-w-6xl space-y-6 py-6 sm:py-10"><div><p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-600">Tenant Support</p><h1 className="mt-1 text-3xl font-bold text-gray-900">How can we help?</h1><p className="mt-1 text-sm text-gray-500">Send a request to the RentTrack support team and follow its status here.</p></div><div className="grid grid-cols-1 gap-5 lg:grid-cols-5"><Card className="lg:col-span-2"><CardHeader><CardTitle className="flex items-center gap-2 text-lg"><MessageSquare className="h-5 w-5 text-blue-600" />New Support Request</CardTitle></CardHeader><CardContent><form onSubmit={submit} className="space-y-4"><div><label className="mb-1.5 block text-sm font-medium">Subject / Category</label><Input value={subject} onChange={(event) => setSubject(event.target.value)} placeholder="Payment, maintenance, account..." /></div><div><label className="mb-1.5 block text-sm font-medium">Message</label><textarea value={message} onChange={(event) => setMessage(event.target.value)} rows={6} placeholder="Describe what you need help with..." className="w-full rounded-xl border border-gray-200 p-3 text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10" /></div><Button type="submit" disabled={submitting} className="w-full"><Send className="mr-2 h-4 w-4" />{submitting ? "Submitting..." : "Submit Request"}</Button></form></CardContent></Card><Card className="lg:col-span-3"><CardHeader><CardTitle className="text-lg">My Support Requests</CardTitle></CardHeader><CardContent>{requests.length ? <div className="space-y-4">{requests.map((request) => <div key={request.id} className="rounded-xl border border-gray-200 p-4"><div className="flex items-start justify-between gap-3"><div><h3 className="font-semibold text-gray-900">{request.subject}</h3><p className="mt-1 whitespace-pre-wrap text-sm text-gray-600">{request.message}</p></div><Badge variant={request.status === "resolved" || request.status === "closed" ? "success" : "warning"} className="capitalize">{request.status.replace("_", " ")}</Badge></div>{request.response_text && <div className="mt-3 rounded-lg bg-blue-50 p-3"><p className="text-xs font-semibold text-blue-700">Admin response</p><p className="mt-1 whitespace-pre-wrap text-sm text-gray-700">{request.response_text}</p></div>}</div>)}</div> : <p className="py-12 text-center text-sm text-gray-500">No support requests yet.</p>}</CardContent></Card></div></div>;
 }

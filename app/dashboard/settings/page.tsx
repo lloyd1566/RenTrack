@@ -33,7 +33,6 @@ export default function SettingsPage() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
   const [languages, setLanguages] = useState(user?.languages || "");
   const [hobbies, setHobbies] = useState(user?.hobbies || "");
   const [aboutMe, setAboutMe] = useState(user?.aboutMe || "");
@@ -81,18 +80,6 @@ export default function SettingsPage() {
     }
    }, [user]);
 
-  useEffect(() => {
-    const isDark = localStorage.getItem("renttrack_dark") === "true";
-    setDarkMode(isDark);
-  }, []);
-
-  const toggleDark = () => {
-    const next = !darkMode;
-    setDarkMode(next);
-    localStorage.setItem("renttrack_dark", String(next));
-    document.documentElement.classList.toggle("dark", next);
-    toast.success(`Dark mode ${next ? "enabled" : "disabled"}`);
-  };
 
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
@@ -275,41 +262,14 @@ export default function SettingsPage() {
                    <label className="block text-sm font-medium text-text-secondary mb-1">Account Email</label>
                    <p className="text-sm font-medium text-foreground">{user?.email || "Not set"}</p>
                  </div>
-                 <div>
-                   <label className="block text-sm font-medium text-text-secondary mb-1">Phone Number</label>
-                   <p className="text-sm font-medium text-foreground">{phone || user?.phone || "Not set"}</p>
-                 </div>
-                 <div>
-                   <label className="block text-sm font-medium text-text-secondary mb-1">Address</label>
-                   <p className="text-sm font-medium text-foreground">{address || user?.address || "Not set"}</p>
-                 </div>
-                 <div>
-                   <div className="flex items-center gap-2">
-                     <label className="block text-sm font-medium text-text-secondary mb-1">Languages Spoken</label>
-                     {user?.idVerificationStatus === "approved" && (
-                       <Badge variant="outline" className="text-[10px] border-green-200 text-green-700 bg-green-50">Verified</Badge>
-                     )}
-                   </div>
-                   <p className="text-sm font-medium text-foreground">{languages || "None specified"}</p>
-                 </div>
-                 <div>
-                   <div className="flex items-center gap-2">
-                     <label className="block text-sm font-medium text-text-secondary mb-1">Hobbies & Interests</label>
-                     {user?.idVerificationStatus === "approved" && (
-                       <Badge variant="outline" className="text-[10px] border-green-200 text-green-700 bg-green-50">Verified</Badge>
-                     )}
-                   </div>
-                   <p className="text-sm font-medium text-foreground">{hobbies || "None specified"}</p>
-                 </div>
-                 <div className="sm:col-span-2">
-                   <div className="flex items-center gap-2">
-                     <label className="block text-sm font-medium text-text-secondary mb-1">A Little Something About Me</label>
-                     {user?.idVerificationStatus === "approved" && (
-                       <Badge variant="outline" className="text-[10px] border-green-200 text-green-700 bg-green-50">Verified</Badge>
-                     )}
-                   </div>
-                   <p className="text-sm font-medium text-foreground">{aboutMe || "Share something about yourself in the Edit Profile tab!"}</p>
-                 </div>
+                  <div>
+                    <label className="block text-sm font-medium text-text-secondary mb-1">Phone Number</label>
+                    <p className="text-sm font-medium text-foreground">{phone || user?.phone || "Not set"}</p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-text-secondary mb-1">Address</label>
+                    <p className="text-sm font-medium text-foreground">{address || user?.address || "Not set"}</p>
+                  </div>
               </div>
             </CardContent>
           </Card>
@@ -414,18 +374,6 @@ export default function SettingsPage() {
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1.5">Country</label>
                     <Input value={country} onChange={(e) => setCountry(e.target.value)} placeholder="e.g. Philippines" />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className="block text-sm font-medium text-foreground mb-1.5">Languages Spoken</label>
-                    <Input value={languages} onChange={(e) => setLanguages(e.target.value)} placeholder="e.g. English, Filipino" />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className="block text-sm font-medium text-foreground mb-1.5">Hobbies & Interests</label>
-                    <Input value={hobbies} onChange={(e) => setHobbies(e.target.value)} placeholder="e.g. Basketball, Coding" />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className="block text-sm font-medium text-foreground mb-1.5">A Little Something About Me</label>
-                    <textarea value={aboutMe} onChange={(e) => setAboutMe(e.target.value)} placeholder="Tell us a bit about yourself..." className="w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-text-tertiary focus:border-primary-500 focus:outline-none" rows={3} />
                   </div>
                   {(user?.role === "tenant" || user?.role === "agent") && (
                     <div className="sm:col-span-2 pt-4 border-t border-border">

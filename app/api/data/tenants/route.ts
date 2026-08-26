@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getTenants, createTenant, deleteTenant } from "@/lib/db";
+import { getTenants, createTenant, deleteTenant, syncTenantUnit } from "@/lib/db";
 import { getAdminSupabase } from "@/lib/db";
 import {
   requireAuth, requireRole, validateApiRequest, withRateLimit,
@@ -77,15 +77,172 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Tenant ID is required" }, { status: 400 });
     }
 
+    const camelToSnake: Record<string, string> = {
+      unitId: "unit_id",
+      propertyName: "property_name",
+      unitNumber: "unit_number",
+      contractStart: "contract_start",
+      contractEnd: "contract_end",
+      rentAmount: "rent_amount",
+      assignmentStatus: "assignment_status",
+    };
+
+    const cleaned: Record<string, any> = {};
+    for (const [key, value] of Object.entries(updates)) {
+      const snake = camelToSnake[key] || key;
+      if (value === undefined || value === null) continue;
+      cleaned[snake] = value;
+    }
+
     const { data, error } = await getAdminSupabase()
       .from("tenants")
-      .update(updates)
+      .update(cleaned)
       .eq("id", tenantId)
       .select("*")
       .single();
 
-    if (error) throw error;
-    return NextResponse.json({ success: true, tenant: sanitizeResponse(data) });
+    if (error) {
+      const code = String((error as any)?.code || "");
+      const message = String(error?.message || "");
+      const details = String((error as any)?.details || "");
+
+      if (code === "PGRST116" || message.includes("0 rows") || details.includes("0 rows")) {
+        const { data: userRow, error: userError } = await getAdminSupabase()
+          .from("users")
+          .select("*")
+          .eq("id", tenantId)
+          .eq("role", "tenant")
+          .maybeSingle();
+
+        if (userError || !userRow) throw error;
+
+        const { data: existingTenant } = await getAdminSupabase()
+          .from("tenants")
+          .select("*")
+          .eq("id", tenantId)
+          .maybeSingle();
+
+        const mapTenant = (row: any) => sanitizeResponse({
+          id: row.id,
+          name: row.name,
+          email: row.email,
+          phone: row.phone,
+          address: row.address,
+          occupation: row.occupation,
+          emergencyContact: row.emergency_contact,
+          emergencyPhone: row.emergency_phone,
+          unitId: row.unit_id,
+          propertyName: row.property_name,
+          unitNumber: row.unit_number,
+          contractStart: row.contract_start,
+          contractEnd: row.contract_end,
+          rentAmount: row.rent_amount,
+          status: row.status,
+          assignmentStatus: row.assignment_status,
+          createdBy: row.created_by,
+          createdAt: row.created_at,
+          avatarUrl: null,
+          idVerificationUrl: null,
+          idVerificationStatus: null,
+        });
+
+        if (!existingTenant) {
+          const { error: insertError } = await getAdminSupabase().from("tenants").insert({
+            id: tenantId,
+            name: (userRow as any).name,
+            email: (userRow as any).email,
+            phone: (userRow as any).phone || null,
+            address: (userRow as any).address || null,
+            status: "active",
+            ...cleaned,
+          });
+          if (insertError) throw insertError;
+          const { data: inserted, error: insertedError } = await getAdminSupabase().from("tenants").select("*").eq("id", tenantId).single();
+          if (insertedError) throw insertedError;
+          return NextResponse.json({ success: true, tenant: mapTenant(inserted) });
+        }
+
+        const { data: relinked, error: relinkError } = await getAdminSupabase()
+          .from("tenants")
+          .update(cleaned)
+          .eq("id", tenantId)
+          .select("*")
+          .single();
+        if (relinkError) throw relinkError;
+        return NextResponse.json({ success: true, tenant: mapTenant(relinked) });
+      }
+
+      if (code === "PGRST204" || message.includes("assignmentStatus") || details.includes("assignmentStatus") || (message.toLowerCase().includes("column") && message.toLowerCase().includes("does not exist"))) {
+        const mapTenant = (row: any) => sanitizeResponse({
+          id: row.id,
+          name: row.name,
+          email: row.email,
+          phone: row.phone,
+          address: row.address,
+          occupation: row.occupation,
+          emergencyContact: row.emergency_contact,
+          emergencyPhone: row.emergency_phone,
+          unitId: row.unit_id,
+          propertyName: row.property_name,
+          unitNumber: row.unit_number,
+          contractStart: row.contract_start,
+          contractEnd: row.contract_end,
+          rentAmount: row.rent_amount,
+          status: row.status,
+          assignmentStatus: row.assignment_status,
+          createdBy: row.created_by,
+          createdAt: row.created_at,
+          avatarUrl: null,
+          idVerificationUrl: null,
+          idVerificationStatus: null,
+        });
+
+        try {
+          await getAdminSupabase().rpc("exec_sql", { sql: `ALTER TABLE tenants ADD COLUMN IF NOT EXISTS assignment_status TEXT DEFAULT '' CHECK (assignment_status IN ('', 'pending', 'confirmed', 'rejected'))`, params: [] });
+        } catch {
+          // ignore migration errors from cached RPC
+        }
+        const { data: retryData, error: retryError } = await getAdminSupabase()
+          .from("tenants")
+          .update(cleaned)
+          .eq("id", tenantId)
+          .select("*")
+          .single();
+        if (retryError) throw retryError;
+        return NextResponse.json({ success: true, tenant: mapTenant(retryData) });
+      }
+
+      throw error;
+    }
+
+    const mapTenant = (row: any) => sanitizeResponse({
+      id: row.id,
+      name: row.name,
+      email: row.email,
+      phone: row.phone,
+      address: row.address,
+      occupation: row.occupation,
+      emergencyContact: row.emergency_contact,
+      emergencyPhone: row.emergency_phone,
+      unitId: row.unit_id,
+      propertyName: row.property_name,
+      unitNumber: row.unit_number,
+      contractStart: row.contract_start,
+      contractEnd: row.contract_end,
+      rentAmount: row.rent_amount,
+      status: row.status,
+      assignmentStatus: row.assignment_status,
+      createdBy: row.created_by,
+      createdAt: row.created_at,
+      avatarUrl: null,
+      idVerificationUrl: null,
+      idVerificationStatus: null,
+    });
+
+    if (cleaned.unit_id !== undefined || cleaned.assignment_status !== undefined) {
+      await syncTenantUnit(tenantId, cleaned.unit_id || data.unit_id || null, cleaned.assignment_status || data.assignment_status || "");
+    }
+    return NextResponse.json({ success: true, tenant: mapTenant(data) });
   } catch (error) {
     console.error("Patch tenant error:", error);
     return NextResponse.json({ success: false, error: "Failed to update tenant" }, { status: 500 });

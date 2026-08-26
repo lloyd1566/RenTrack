@@ -316,7 +316,7 @@ export default function DashboardOverview() {
                           <td className="py-2 px-2 text-slate-600 dark:text-slate-400 text-xs">{tenant.phone}</td>
                           <td className="py-2 px-2">
                             <div className="text-slate-900 dark:text-white text-sm">{tenant.propertyName}</div>
-                            <div className="text-[10px] text-slate-400 dark:text-slate-500">Unit {tenant.unitNumber}</div>
+                            <div className="text-[10px] text-slate-400 dark:text-slate-500">Unit Number: {tenant.unitNumber}</div>
                           </td>
                           <td className="py-2 px-2">
                             <Badge variant="outline" className={cn(

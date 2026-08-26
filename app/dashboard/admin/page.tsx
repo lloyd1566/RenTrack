@@ -6,7 +6,7 @@ import {
   Shield, Users, Settings, Activity, FileText, Stethoscope,
   Heart, Wrench, CheckCircle2, XCircle, Search, Eye, Trash2,
   UserPlus, RefreshCw, Download, Server, Gauge, Sliders,
-  Bell, Home, Building2, CreditCard, Star, MessageSquare, ToggleLeft, ToggleRight,
+  Bell, Home, Building2, CreditCard, Star, MessageSquare, ToggleLeft, ToggleRight, Plus, X,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,17 +14,19 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
-import { cn, formatCurrency, formatDate } from "@/lib/utils";
+import { cn, formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import {
   getUsers, getProperties, getUnits, getTenants, getNotifications,
   getPayments, getComplaints, getAllRatings, getAuditLogs,
   UserRecord, Property, Unit, TenantRecord, Notification, Payment, Complaint, Rating, AuditLog,
-  deleteUser, updateUserRole,
+  deleteUser, updateUserRole, updateUser, adminResetUserPassword,
   getConversations,
+  updateComplaintStatus,
 } from "@/lib/data";
 import { toast } from "sonner";
 import { useSearchParams, useRouter } from "next/navigation";
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
 import MessagingModal from "@/components/messaging-modal";
 
 const fadeInUp = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.5 } } };
@@ -57,6 +59,15 @@ export default function AdminDashboard() {
   const [conversations, setConversations] = useState<any[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<any>(null);
   const [isMessagingOpen, setIsMessagingOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<UserRecord | null>(null);
+  const [editForm, setEditForm] = useState({ name: "", email: "" });
+  const [resettingPassword, setResettingPassword] = useState<UserRecord | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [showCreateTenant, setShowCreateTenant] = useState(false);
+  const [newTenant, setNewTenant] = useState({ name: "", email: "", phone: "", password: "" });
+  const [isCreatingTenant, setIsCreatingTenant] = useState(false);
+  const [replyingComplaint, setReplyingComplaint] = useState<string | null>(null);
+  const [complaintReply, setComplaintReply] = useState("");
 
   const loadData = useCallback(async () => {
     setIsRefreshing(true);
@@ -131,6 +142,35 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleCreateTenant = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newTenant.name || !newTenant.email || !newTenant.password) {
+      toast.error("Name, email, and password are required");
+      return;
+    }
+    setIsCreatingTenant(true);
+    try {
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...newTenant, role: "tenant" }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        toast.success("Tenant account created successfully!");
+        setNewTenant({ name: "", email: "", phone: "", password: "" });
+        setShowCreateTenant(false);
+        loadData();
+      } else {
+        toast.error(data.error || "Failed to create tenant account");
+      }
+    } catch {
+      toast.error("Failed to create tenant account");
+    } finally {
+      setIsCreatingTenant(false);
+    }
+  };
+
   const filteredUsers = users.filter(u =>
     u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -158,6 +198,43 @@ export default function AdminDashboard() {
     }
   };
 
+  const handleEditUser = (u: UserRecord) => {
+    setEditingUser(u);
+    setEditForm({ name: u.name, email: u.email });
+  };
+
+  const handleSaveEdit = async () => {
+    if (!editingUser) return;
+    try {
+      const updated = await updateUser(editingUser.id, { name: editForm.name, email: editForm.email });
+      if (updated) {
+        setUsers(users.map(u => u.id === editingUser.id ? { ...u, ...updated } : u));
+        toast.success("User updated successfully");
+        setEditingUser(null);
+      } else {
+        toast.error("Failed to update user");
+      }
+    } catch {
+      toast.error("Failed to update user");
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!resettingPassword || !newPassword) return;
+    if (newPassword.length < 8) {
+      toast.error("Password must be at least 8 characters");
+      return;
+    }
+    try {
+      await adminResetUserPassword(resettingPassword.id, newPassword);
+      toast.success("Password reset successfully");
+      setResettingPassword(null);
+      setNewPassword("");
+    } catch {
+      toast.error("Failed to reset password");
+    }
+  };
+
   const systemStats = useMemo(() => [
     { label: "Total Users", value: users.length, icon: Users, color: "from-blue-500 to-blue-600" },
     { label: "Properties", value: properties.length, icon: Building2, color: "from-emerald-500 to-emerald-600" },
@@ -167,194 +244,79 @@ export default function AdminDashboard() {
     { label: "Notifications", value: notifications.length, icon: Bell, color: "from-pink-500 to-pink-600" },
   ], [users.length, properties.length, units.length, tenants.length, payments.length, notifications.length]);
 
+  const occupiedUnits = units.filter((unit) => unit.status === "occupied").length;
+  const availableUnits = units.filter((unit) => unit.status === "vacant").length;
+  const rentingTenants = tenants.filter((tenant) => tenant.status === "active" && tenant.assignmentStatus === "confirmed").length;
+  const roleCounts = {
+    admin: users.filter((account) => account.role === "admin").length,
+    owner: users.filter((account) => account.role === "owner").length,
+    agent: users.filter((account) => account.role === "agent").length,
+    tenant: users.filter((account) => account.role === "tenant").length,
+  };
+  const recentActivities = [...notifications.map((notification) => ({
+    id: `notification-${notification.id}`,
+    title: notification.title,
+    detail: notification.message,
+    type: notification.type,
+    date: notification.createdAt,
+  })), ...auditLogs.map((log) => ({
+    id: `audit-${log.id}`,
+    title: log.action.replace(/_/g, " "),
+    detail: `${log.actor} • ${formatDate(log.createdAt)}`,
+    type: "system",
+    date: log.createdAt,
+  }))].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
+
   return (
-    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }} className="space-y-6">
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }} className="space-y-6 w-full max-w-none">
       {/* Overview Tab */}
       {activeTab === "overview" && (
-        <>
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-            className="relative overflow-hidden rounded-2xl bg-gray-900 p-6"
-          >
-            <motion.div
-              animate={{ scale: [1, 1.1, 1] }}
-              transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
-              className="absolute top-0 right-0 w-48 h-48 bg-purple-500/10 rounded-full blur-3xl"
-            />
-            <motion.div
-              animate={{ scale: [1, 1.15, 1] }}
-              transition={{ duration: 5, repeat: Infinity, ease: "easeInOut", delay: 1 }}
-              className="absolute bottom-0 left-0 w-36 h-36 bg-blue-500/10 rounded-full blur-2xl"
-            />
-            <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-              <div>
-                <motion.div
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.2, duration: 0.5 }}
-                  className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 text-white/80 text-xs font-medium mb-2 border border-white/10"
-                >
-                  <Shield className="h-3.5 w-3.5" />
-                  Administrator Portal
-                </motion.div>
-                <motion.h2
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.3, duration: 0.5 }}
-                  className="text-xl sm:text-2xl font-bold text-white tracking-tight"
-                >
-                  System Administration
-                </motion.h2>
-                <motion.p
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.4, duration: 0.5 }}
-                  className="text-white/60 text-xs sm:text-sm mt-1"
-                >
-                  Monitor system health, manage users, and maintain platform integrity
-                </motion.p>
-              </div>
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.3, duration: 0.4 }}
-              >
-                <Button size="sm" variant="outline" className="bg-white/10 hover:bg-white/20 text-white border border-white/10 transition-all duration-200 hover:scale-105" onClick={loadData} disabled={isRefreshing}>
-                  <RefreshCw className={`h-4 w-4 mr-1.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-                  Refresh
-                </Button>
-              </motion.div>
-            </div>
-          </motion.div>
+        <div className="space-y-5">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-600">Administrator Overview</p>
+            <h1 className="mt-1 text-2xl font-bold tracking-tight text-gray-900 dark:text-white">System at a glance</h1>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Monitor properties, occupancy, users, and platform health.</p>
+          </div>
 
-          {/* Stats Grid */}
-          <motion.div variants={fadeInUp} initial="hidden" animate="visible" className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            {systemStats.map((stat, i) => (
-              <motion.div
-                key={i}
-                variants={fadeInUp}
-                whileHover={{ y: -4, scale: 1.02 }}
-                transition={{ type: "spring", stiffness: 400, damping: 17 }}
-              >
-                <Card className="border border-gray-200 hover:shadow-lg transition-all duration-300 cursor-pointer group">
-                  <CardContent className="p-4">
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="text-xs font-medium text-gray-500 group-hover:text-gray-700 transition-colors">{stat.label}</span>
-                      <motion.div
-                        className={`flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br ${stat.color} text-white shadow-lg`}
-                        whileHover={{ rotate: 10, scale: 1.1 }}
-                        transition={{ type: "spring", stiffness: 400, damping: 10 }}
-                      >
-                        <stat.icon className="h-4 w-4" />
-                      </motion.div>
-                    </div>
-                    <motion.div
-                      className="text-xl font-bold text-gray-900"
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: i * 0.1 + 0.3, duration: 0.4 }}
-                    >
-                      {stat.value}
-                    </motion.div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
-          </motion.div>
-
-            {/* Recent Activity */}
-            <motion.div variants={fadeInUp} initial="hidden" animate="visible">
-              <Card className="border border-gray-200 hover:shadow-lg transition-all duration-300">
-                <CardHeader>
-                  <CardTitle className="text-base font-semibold flex items-center justify-between text-gray-900">
-                    <div className="flex items-center gap-2">
-                      <motion.div
-                        animate={{ rotate: [0, 10, -10, 0] }}
-                        transition={{ duration: 2, repeat: Infinity, repeatDelay: 3 }}
-                      >
-                        <Activity className="h-5 w-5 text-gray-600" />
-                      </motion.div>
-                      Recent System Activity
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => loadData()}
-                      disabled={isRefreshing || isRunningDiagnosis}
-                    >
-                      <RefreshCw className={`h-4 w-4 ${(isRefreshing || isRunningDiagnosis) ? "animate-spin" : ""}`} />
-                    </Button>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  {notifications.length === 0 && auditLogs.length === 0 ? (
-                    <motion.p
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      className="text-center py-6 text-gray-500"
-                    >
-                      No recent activity
-                    </motion.p>
-                  ) : (
-                    <div className="space-y-2">
-                      {notifications.slice(0, 4).map((n, i) => (
-                        <motion.div
-                          key={`notif-${n.id}`}
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: i * 0.05, duration: 0.2 }}
-                          whileHover={{ x: 4, backgroundColor: "rgb(249, 250, 251)" }}
-                          className="flex items-center justify-between p-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-all duration-200 cursor-pointer"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className={cn(
-                              "flex h-9 w-9 items-center justify-center rounded-lg",
-                              n.type === "payment" && "bg-green-50 text-green-600",
-                              n.type === "tenant" && "bg-blue-50 text-blue-600",
-                              n.type === "property" && "bg-amber-50 text-amber-600",
-                              n.type === "system" && "bg-purple-50 text-purple-600",
-                              n.type === "id_verification" && "bg-orange-50 text-orange-600",
-                            )}>
-                              <Activity className="h-4 w-4" />
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium text-gray-900">{n.title}</p>
-                              <p className="text-xs text-gray-500 line-clamp-1">{n.message}</p>
-                            </div>
-                          </div>
-                          <Badge variant="outline" className="text-xs border-gray-200 capitalize">{n.type}</Badge>
-                        </motion.div>
-                      ))}
-                      {auditLogs.slice(0, 4).map((log, i) => (
-                        <motion.div
-                          key={`audit-${log.id}`}
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: (i + notifications.length) * 0.05, duration: 0.2 }}
-                          className="flex items-center justify-between p-3 rounded-xl bg-gray-50 border-l-4 border-indigo-400"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-indigo-50 text-indigo-600">
-                              <FileText className="h-4 w-4" />
-                            </div>
-                            <div>
-                              <p className="text-sm font-medium text-gray-900">{log.action}</p>
-                              <p className="text-xs text-gray-500 line-clamp-1">
-                                {log.actor} • {formatDate(log.createdAt)}
-                              </p>
-                            </div>
-                          </div>
-                          <Badge variant="outline" className="text-xs border-gray-200">audit</Badge>
-                        </motion.div>
-                      ))}
-                    </div>
-                  )}
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {[
+              { label: "Total Properties", value: properties.length, icon: Building2, tone: "text-blue-600 bg-blue-50" },
+              { label: "Total Units", value: units.length, icon: Home, tone: "text-indigo-600 bg-indigo-50" },
+              { label: "Occupied Units", value: occupiedUnits, icon: Users, tone: "text-emerald-600 bg-emerald-50" },
+              { label: "Available Units", value: availableUnits, icon: Home, tone: "text-amber-600 bg-amber-50" },
+            ].map((stat) => (
+              <Card key={stat.label} className="border-gray-200 shadow-sm transition-shadow hover:shadow-md dark:border-gray-700">
+                <CardContent className="flex items-center justify-between p-5">
+                  <div><p className="text-xs font-medium text-gray-500 dark:text-gray-400">{stat.label}</p><p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">{stat.value}</p></div>
+                  <div className={cn("flex h-11 w-11 items-center justify-center rounded-xl", stat.tone)}><stat.icon className="h-5 w-5" /></div>
                 </CardContent>
               </Card>
-            </motion.div>
-        </>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
+            {[
+              { title: "Unit Occupancy", description: "Occupied and available rental units", primary: occupiedUnits, secondary: availableUnits, primaryLabel: "Occupied Units", secondaryLabel: "Available Units", primaryColor: "#2563eb", secondaryColor: "#cbd5e1" },
+              { title: "Rental Status", description: "Tenants renting versus units available", primary: rentingTenants, secondary: availableUnits, primaryLabel: "Currently Renting", secondaryLabel: "Available Units", primaryColor: "#16a34a", secondaryColor: "#cbd5e1" },
+            ].map((chart) => {
+              const total = chart.primary + chart.secondary;
+              const primaryPercent = total ? Math.round((chart.primary / total) * 100) : 0;
+              return <Card key={chart.title} className="border-gray-200 shadow-sm dark:border-gray-700">
+                <CardHeader><CardTitle className="text-base text-gray-900 dark:text-white">{chart.title}</CardTitle><CardDescription>{chart.description}</CardDescription></CardHeader>
+                <CardContent className="grid grid-cols-1 items-center gap-4 sm:grid-cols-[220px_1fr]">
+                  <div className="h-56"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={[{ name: chart.primaryLabel, value: chart.primary }, { name: chart.secondaryLabel, value: chart.secondary }]} innerRadius={58} outerRadius={88} paddingAngle={3} dataKey="value" stroke="none"><Cell fill={chart.primaryColor} /><Cell fill={chart.secondaryColor} /></Pie><Tooltip /></PieChart></ResponsiveContainer></div>
+                  <div className="space-y-4">{[[chart.primaryLabel, chart.primary, chart.primaryColor, primaryPercent], [chart.secondaryLabel, chart.secondary, chart.secondaryColor, 100 - primaryPercent]].map(([label, value, color, percent]) => <div key={String(label)} className="flex items-center justify-between border-b border-gray-100 pb-3 last:border-0 dark:border-gray-700"><div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: String(color) }} /><span className="text-sm text-gray-600 dark:text-gray-300">{label}</span></div><span className="text-sm font-semibold text-gray-900 dark:text-white">{value} <span className="ml-1 text-xs font-normal text-gray-400">({percent}%)</span></span></div>)}</div>
+                </CardContent>
+              </Card>;
+            })}
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
+            <Card className="border-gray-200 shadow-sm dark:border-gray-700"><CardHeader><CardTitle className="text-base text-gray-900 dark:text-white">User Overview</CardTitle><CardDescription>Accounts by role</CardDescription></CardHeader><CardContent className="space-y-3">{[["Total Users", users.length], ["Administrators", roleCounts.admin], ["Property Owners", roleCounts.owner], ["Agents", roleCounts.agent], ["Tenants", roleCounts.tenant]].map(([label, value]) => <div key={String(label)} className="flex justify-between text-sm"><span className="text-gray-500 dark:text-gray-400">{label}</span><span className="font-semibold text-gray-900 dark:text-white">{value}</span></div>)}</CardContent></Card>
+            <Card className="border-gray-200 shadow-sm dark:border-gray-700"><CardHeader><CardTitle className="text-base text-gray-900 dark:text-white">System Status</CardTitle><CardDescription>Live platform checks</CardDescription></CardHeader><CardContent className="space-y-3">{[["Application Status", "Online"], ["Database Status", healthData?.checks?.database || "Connected"], ["System Health", healthData?.success ? "Good" : "Checking"], ["Last System Check", healthData ? "Just now" : "Loading..."]].map(([label, value]) => <div key={String(label)} className="flex items-center justify-between text-sm"><span className="text-gray-500 dark:text-gray-400">{label}</span><span className="flex items-center gap-1.5 font-medium text-emerald-600"><span className="h-2 w-2 rounded-full bg-emerald-500" />{value}</span></div>)}</CardContent></Card>
+            <Card className="border-gray-200 shadow-sm dark:border-gray-700"><CardHeader><CardTitle className="text-base text-gray-900 dark:text-white">Recent System Activity</CardTitle><CardDescription>Latest important changes</CardDescription></CardHeader><CardContent className="space-y-3">{recentActivities.length ? recentActivities.map((activity) => <div key={activity.id} className="flex gap-2 border-b border-gray-100 pb-3 last:border-0 dark:border-gray-700"><Activity className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" /><div className="min-w-0"><p className="truncate text-sm font-medium capitalize text-gray-900 dark:text-white">{activity.title}</p><p className="truncate text-xs text-gray-500 dark:text-gray-400">{activity.detail}</p></div></div>) : <p className="py-4 text-center text-sm text-gray-500">No recent activity</p>}</CardContent></Card>
+          </div>
+        </div>
       )}
 
       {/* User Accounts Tab */}
@@ -426,16 +388,23 @@ export default function AdminDashboard() {
                         </span>
                       </TableCell>
                       <TableCell className="text-text-secondary text-xs">{u.createdAt ? formatDate(u.createdAt) : "N/A"}</TableCell>
-                       <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0"><Eye className="h-4 w-4" /></Button>
-                            </motion.div>
-                            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-500" onClick={() => handleDeleteUser(u.id)}><Trash2 className="h-4 w-4" /></Button>
-                            </motion.div>
-                          </div>
-                       </TableCell>
+                        <TableCell className="text-right">
+                           <div className="flex items-center justify-end gap-1">
+                             <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                               <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="Edit user" onClick={() => handleEditUser(u)}>
+                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-blue-500"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
+                               </Button>
+                             </motion.div>
+                             <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                               <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-amber-500" title="Reset password" onClick={() => setResettingPassword(u)}>
+                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
+                               </Button>
+                             </motion.div>
+                             <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                               <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-500" onClick={() => handleDeleteUser(u.id)}><Trash2 className="h-4 w-4" /></Button>
+                             </motion.div>
+                           </div>
+                        </TableCell>
                      </motion.tr>
                    ))}
                  </TableBody>
@@ -529,7 +498,7 @@ export default function AdminDashboard() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Unit</TableHead>
+                      <TableHead>Unit Number</TableHead>
                       <TableHead>Property</TableHead>
                       <TableHead>Floor</TableHead>
                       <TableHead>Rent</TableHead>
@@ -546,9 +515,9 @@ export default function AdminDashboard() {
                         className="border-b border-border/50 hover:bg-surface-secondary"
                       >
                         <TableCell className="font-medium">{u.unitNumber}</TableCell>
-                        <TableCell className="text-text-secondary">{u.propertyId}</TableCell>
+                        <TableCell className="text-text-secondary">{properties.find((p) => p.id === u.propertyId)?.name || u.propertyId}</TableCell>
                         <TableCell>{u.floor ?? "-"}</TableCell>
-                        <TableCell>${Number(u.rentAmount || 0).toFixed(2)}</TableCell>
+                        <TableCell className="font-medium">{formatCurrency(u.rentAmount || 0)}</TableCell>
                         <TableCell>
                           <span className={cn(
                             "inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium",
@@ -573,11 +542,19 @@ export default function AdminDashboard() {
       {activeTab === "tenants" && (
         <Card className="border border-gray-200">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-gray-900">
-              <UserPlus className="h-5 w-5 text-gray-600" />
-              Tenants
-            </CardTitle>
-            <CardDescription>Manage tenant accounts and assignments</CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-gray-900">
+                  <UserPlus className="h-5 w-5 text-gray-600" />
+                  Tenants
+                </CardTitle>
+                <CardDescription>Manage tenant accounts and assignments</CardDescription>
+              </div>
+              <Button size="sm" onClick={() => setShowCreateTenant(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
+                <Plus className="h-4 w-4 mr-1.5" />
+                Create Tenant
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {tenants.length === 0 ? (
@@ -590,7 +567,7 @@ export default function AdminDashboard() {
                       <TableHead>Name</TableHead>
                       <TableHead>Email</TableHead>
                       <TableHead>Phone</TableHead>
-                      <TableHead>Unit</TableHead>
+                      <TableHead>Unit Number</TableHead>
                       <TableHead>Status</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -645,7 +622,7 @@ export default function AdminDashboard() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Tenant</TableHead>
-                      <TableHead>Unit</TableHead>
+                      <TableHead>Unit Number</TableHead>
                       <TableHead>Amount Paid</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Date</TableHead>
@@ -662,7 +639,7 @@ export default function AdminDashboard() {
                       >
                         <TableCell className="font-medium">{p.tenantName}</TableCell>
                         <TableCell className="text-text-secondary">{p.unitId}</TableCell>
-                        <TableCell>${Number(p.amountPaid || 0).toFixed(2)}</TableCell>
+                        <TableCell className="text-text-secondary">{formatCurrency(p.amountPaid || 0)}</TableCell>
                         <TableCell>
                           <span className={cn(
                             "inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium",
@@ -749,7 +726,6 @@ export default function AdminDashboard() {
         <Card className="border border-gray-200">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-gray-900">
-              <MessageSquare className="h-5 w-5 text-gray-600" />
               Complaints
             </CardTitle>
             <CardDescription>View and manage tenant complaints</CardDescription>
@@ -803,12 +779,14 @@ export default function AdminDashboard() {
                           </span>
                         </TableCell>
                         <TableCell className="text-text-secondary text-xs">{c.created_at ? formatDate(c.created_at) : "N/A"}</TableCell>
+                        <TableCell><Button size="sm" variant="outline" onClick={() => { setReplyingComplaint(c.id); setComplaintReply(""); }}>Reply</Button></TableCell>
                       </motion.tr>
                     ))}
                   </TableBody>
                 </Table>
               </div>
             )}
+            {replyingComplaint && <form className="mt-4 border-t border-gray-200 pt-4" onSubmit={async (event) => { event.preventDefault(); if (!complaintReply.trim()) return; try { const updated = await updateComplaintStatus(replyingComplaint, "in_progress", undefined, complaintReply, user?.name); if (updated) setComplaints((current) => current.map((item) => item.id === replyingComplaint ? { ...item, ...updated } : item)); setReplyingComplaint(null); setComplaintReply(""); toast.success("Support response sent"); } catch { toast.error("Failed to send response"); } }}><textarea value={complaintReply} onChange={(event) => setComplaintReply(event.target.value)} rows={3} placeholder="Write a response to the tenant..." className="w-full rounded-lg border border-gray-200 p-3 text-sm" /><Button type="submit" className="mt-2">Send Response</Button></form>}
           </CardContent>
         </Card>
       )}
@@ -818,7 +796,6 @@ export default function AdminDashboard() {
         <Card className="border border-gray-200">
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-gray-900">
-              <MessageSquare className="h-5 w-5 text-gray-600" />
               Messages
             </CardTitle>
             <CardDescription>Conversations with owners and agents</CardDescription>
@@ -826,7 +803,6 @@ export default function AdminDashboard() {
           <CardContent>
             {conversations.length === 0 ? (
               <div className="text-center py-12">
-                <MessageSquare className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                 <p className="text-gray-600 font-medium">No messages yet</p>
                 <p className="text-xs text-gray-500 mt-1">Messages from your conversations will appear here</p>
               </div>
@@ -885,7 +861,7 @@ export default function AdminDashboard() {
             setSelectedConversation(null);
           }}
           otherUser={{
-            id: selectedConversation.userId,
+            id: selectedConversation.otherUser?.id || "",
             name: selectedConversation.otherUser?.name || "Unknown",
             email: selectedConversation.otherUser?.email || "",
             role: selectedConversation.otherUser?.role || "tenant",
@@ -1005,14 +981,6 @@ export default function AdminDashboard() {
                 <FileText className="h-5 w-5 text-gray-600" />
                 Audit Logs
               </div>
-              <Button
-                size="sm"
-                variant="ghost"
-                onClick={() => loadData()}
-                disabled={isRefreshing}
-              >
-                <RefreshCw className={`h-4 w-4 ${isRefreshing ? "animate-spin" : ""}`} />
-              </Button>
             </CardTitle>
             <CardDescription>System activity and user action logs</CardDescription>
           </CardHeader>
@@ -1040,7 +1008,7 @@ export default function AdminDashboard() {
                       <div>
                         <p className="text-sm font-medium text-gray-900">{log.action}</p>
                         <p className="text-xs text-gray-500">
-                          {log.actor} • {formatDate(log.createdAt)}
+                          {log.actor} • {formatDateTime(log.createdAt)}
                           {log.ipAddress && log.ipAddress !== "system" && ` • IP: ${log.ipAddress}`}
                         </p>
                       </div>
@@ -1395,6 +1363,108 @@ export default function AdminDashboard() {
             </div>
           </CardContent>
         </Card>
+      )}
+
+      {/* Edit User Modal */}
+      {editingUser && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setEditingUser(null)} />
+          <div className="relative w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Edit User</h3>
+              <button onClick={() => setEditingUser(null)} className="p-1 rounded-lg hover:bg-gray-100 transition-colors">
+                <XCircle className="h-5 w-5 text-gray-400" />
+              </button>
+            </div>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Name</label>
+                <Input value={editForm.name} onChange={(e) => setEditForm({ ...editForm, name: e.target.value })} className="h-10 rounded-xl border-gray-200" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Email</label>
+                <Input type="email" value={editForm.email} onChange={(e) => setEditForm({ ...editForm, email: e.target.value })} className="h-10 rounded-xl border-gray-200" />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-6">
+              <Button variant="outline" className="flex-1" onClick={() => setEditingUser(null)}>Cancel</Button>
+              <Button className="flex-1 bg-gray-900 hover:bg-gray-800 text-white" onClick={handleSaveEdit}>Save Changes</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reset Password Modal */}
+      {resettingPassword && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => { setResettingPassword(null); setNewPassword(""); }} />
+          <div className="relative w-full max-w-md rounded-2xl border border-gray-200 bg-white p-6 shadow-2xl">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-gray-900">Reset Password</h3>
+              <button onClick={() => { setResettingPassword(null); setNewPassword(""); }} className="p-1 rounded-lg hover:bg-gray-100 transition-colors">
+                <XCircle className="h-5 w-5 text-gray-400" />
+              </button>
+            </div>
+            <p className="text-sm text-gray-500 mb-4">Set a new password for <strong>{resettingPassword.name}</strong> ({resettingPassword.email})</p>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">New Password</label>
+              <Input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="Min. 8 characters" className="h-10 rounded-xl border-gray-200" />
+            </div>
+            <div className="flex gap-3 mt-6">
+              <Button variant="outline" className="flex-1" onClick={() => { setResettingPassword(null); setNewPassword(""); }}>Cancel</Button>
+              <Button className="flex-1 bg-red-600 hover:bg-red-700 text-white" onClick={handleResetPassword} disabled={!newPassword || newPassword.length < 8}>Reset Password</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Create Tenant Modal */}
+      {showCreateTenant && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowCreateTenant(false)} />
+          <div className="relative w-full max-w-md rounded-2xl border border-gray-200 bg-white shadow-2xl">
+            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-900">Create Tenant Account</h3>
+                <p className="text-sm text-gray-500">Add a new tenant to the system</p>
+              </div>
+              <button onClick={() => setShowCreateTenant(false)} className="h-8 w-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <form onSubmit={handleCreateTenant} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Full Name *</label>
+                <Input value={newTenant.name} onChange={(e) => setNewTenant({ ...newTenant, name: e.target.value })} placeholder="Juan Dela Cruz" required />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Email *</label>
+                <Input type="email" value={newTenant.email} onChange={(e) => setNewTenant({ ...newTenant, email: e.target.value })} placeholder="juan@example.com" required />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone</label>
+                <Input value={newTenant.phone} onChange={(e) => setNewTenant({ ...newTenant, phone: e.target.value })} placeholder="+63 XXX XXX XXXX" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1.5">Password *</label>
+                <Input type="text" value={newTenant.password} onChange={(e) => setNewTenant({ ...newTenant, password: e.target.value })} placeholder="Min. 6 characters" required />
+              </div>
+              <Button type="submit" disabled={isCreatingTenant} className="w-full">
+                {isCreatingTenant ? (
+                  <span className="flex items-center gap-2">
+                    <span className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    Creating...
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    <Plus className="h-4 w-4" />
+                    Create Tenant Account
+                  </span>
+                )}
+              </Button>
+            </form>
+          </div>
+        </div>
       )}
     </motion.div>
   );

@@ -6,12 +6,13 @@ import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
-import { getNotifications, getUnreadMessageCount, Notification } from "@/lib/data";
+import { getNotifications, markNotificationRead, markAllNotificationsRead, getUnreadMessageCount, Notification } from "@/lib/data";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import AdminSidebar from "@/components/admin-sidebar";
-import { ChevronDown, LogOut, Bell, MessageSquare } from "lucide-react";
+import Link from "next/link";
+import { ChevronDown, LogOut, Bell, User, Pencil } from "lucide-react";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { user, logout, isAuthenticated, isLoading } = useAuth();
@@ -41,11 +42,41 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
   }, [user]);
 
+  useEffect(() => {
+    document.documentElement.classList.remove("dark");
+  }, []);
+
   const unreadCount = notifications.filter((n) => !n.read).length;
+
+  const handleNotificationClick = async (id: string) => {
+    setShowNotifications(false);
+    try {
+      await markNotificationRead(id);
+      const updated = await getNotifications(user?.id);
+      setNotifications(updated);
+    } catch {
+      // ignore
+    }
+  };
+
+  const handleOpenNotifications = async () => {
+    setShowNotifications(!showNotifications);
+    setShowUserMenu(false);
+    if (!showNotifications && user) {
+      try {
+        await markAllNotificationsRead(user.id);
+        const updated = await getNotifications(user.id);
+        setNotifications(updated);
+      } catch {
+        // ignore
+      }
+    }
+  };
 
   const navigateTo = (tab: string) => {
     router.push(`/dashboard/admin?tab=${tab}`);
   };
+
 
   if (isLoading) {
     return (
@@ -75,16 +106,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const initials = user.name.split(" ").map((word) => word[0]).join("").slice(0, 2).toUpperCase();
 
   return (
-    <div className="min-h-screen flex bg-gradient-to-br from-gray-50 to-blue-50/30 dark:from-gray-900 dark:to-gray-800">
+    <div className="min-h-screen flex w-full bg-gradient-to-br from-gray-50 to-blue-50/30 dark:from-gray-900 dark:to-gray-800">
       {/* Sidebar - fixed on all screens */}
       <AdminSidebar />
 
-      {/* Main Area - add left margin on desktop for fixed sidebar */}
+      {/* Main Area - offset for fixed sidebar */}
         <motion.div
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.4 }}
-          className="flex-1 flex flex-col min-w-0 lg:ml-[220px]"
+          className="flex-1 flex flex-col lg:ml-[220px] w-full min-h-screen"
         >
           {/* Top Header */}
           <motion.header
@@ -103,7 +134,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             {/* Notification Bell */}
             <div className="relative">
               <button
-                onClick={() => { setShowNotifications(!showNotifications); setShowUserMenu(false); }}
+                onClick={handleOpenNotifications}
                 className="relative p-2 rounded-lg text-gray-500 dark:text-gray-400 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800"
               >
                 <Bell className="h-5 w-5" />
@@ -131,13 +162,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                         <p className="px-4 py-8 text-center text-sm text-gray-500">No notifications yet</p>
                       ) : (
                         notifications.slice(0, 10).map((n) => (
-                          <button
-                            key={n.id}
-                            onClick={() => {
-                              setShowNotifications(false);
-                            }}
-                            className="w-full text-left p-4 border-b border-gray-100 dark:border-gray-700 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
-                          >
+                            <button
+                              key={n.id}
+                              onClick={() => handleNotificationClick(n.id)}
+                              className="w-full text-left p-4 border-b border-gray-100 dark:border-gray-700 last:border-0 hover:bg-gray-50 dark:hover:bg-gray-700/50 transition-colors"
+                            >
                             <p className="text-sm font-medium text-gray-900 dark:text-white">{n.title}</p>
                             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">{n.message}</p>
                           </button>
@@ -147,21 +176,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                   </motion.div>
                 )}
               </AnimatePresence>
-            </div>
-
-            {/* Messages Icon */}
-            <div className="relative">
-              <button
-                onClick={() => { navigateTo("messages"); setShowUserMenu(false); setShowNotifications(false); }}
-                className="relative p-2 rounded-lg text-gray-500 dark:text-gray-400 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 cursor-pointer"
-              >
-                <MessageSquare className="h-5 w-5" />
-                {unreadMessageCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
-                    {unreadMessageCount}
-                  </span>
-                )}
-              </button>
             </div>
 
             {/* User Dropdown */}
@@ -190,18 +204,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     <div className="border-b border-gray-200 dark:border-gray-700 px-3 py-2.5">
                       <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">{user.name}</p>
                       <p className="truncate text-[11px] text-gray-500 dark:text-gray-400">{user.email}</p>
-                    </div>
-                    <div className="p-1.5">
-                      <button
-                        type="button"
-                        onClick={() => { setShowUserMenu(false); setShowLogoutModal(true); }}
-                        className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2.5 text-left text-xs font-medium text-red-600 transition-colors hover:bg-red-50 dark:hover:bg-red-900/20"
-                      >
-                        <LogOut className="h-3.5 w-3.5" />
-                        Secure logout
-                      </button>
-                    </div>
-                  </motion.div>
+                      </div>
+                    <button onClick={() => router.push("/dashboard/settings?section=profile")} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-700/50"><Pencil className="h-4 w-4" /> Change Name</button>
+                    <div className="my-1 border-t border-gray-200 dark:border-gray-700" />
+                    <button onClick={() => setShowLogoutModal(true)} className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20"><LogOut className="h-4 w-4" /> Logout</button>
+                    </motion.div>
                 )}
               </AnimatePresence>
             </div>
@@ -209,7 +216,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         </motion.header>
 
         {/* Page Content */}
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-auto">
+        <main className="flex-1 w-full p-4 sm:p-6 lg:p-8 overflow-auto">
           <motion.div
             key={activeTab}
             initial={{ opacity: 0, y: 20, scale: 0.98 }}

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X, Sun, Moon, LayoutDashboard, Users, Building2, CreditCard } from "lucide-react";
+import { Menu, X, LayoutDashboard, Users, Building2, CreditCard } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 
@@ -18,7 +18,6 @@ const navItems = [
 export default function AgentNavbar() {
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
   const pathname = usePathname();
 
   useEffect(() => {
@@ -27,18 +26,6 @@ export default function AgentNavbar() {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  useEffect(() => {
-    const isDark = localStorage.getItem("renttrack_dark") === "true";
-    setDarkMode(isDark);
-    if (isDark) document.documentElement.classList.add("dark");
-  }, []);
-
-  const toggleDarkMode = () => {
-    const next = !darkMode;
-    setDarkMode(next);
-    localStorage.setItem("renttrack_dark", String(next));
-    document.documentElement.classList.toggle("dark", next);
-  };
 
   return (
     <nav
@@ -74,18 +61,9 @@ export default function AgentNavbar() {
                   <span>{item.label}</span>
                 </Link>
               ))}
-            <button
-              onClick={toggleDarkMode}
-              className="ml-2 p-2 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
-            >
-              {darkMode ? <Sun className="h-5 w-5 text-yellow-500" /> : <Moon className="h-5 w-5 text-gray-600 dark:text-gray-300" />}
-            </button>
           </div>
 
           <div className="flex items-center gap-2 md:hidden">
-            <button onClick={toggleDarkMode} className="p-2 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800">
-              {darkMode ? <Sun className="h-5 w-5 text-yellow-500" /> : <Moon className="h-5 w-5 text-gray-600 dark:text-gray-300" />}
-            </button>
             <button onClick={() => setMobileOpen(!mobileOpen)} className="p-2 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800">
               {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>

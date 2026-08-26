@@ -18,8 +18,6 @@ import {
   ChevronDown,
   Menu,
   X,
-  Sun,
-  Moon,
   AlertTriangle,
   User,
   MessageSquare,
@@ -69,7 +67,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showMessages, setShowMessages] = useState(false);
-  const [darkMode, setDarkMode] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [sidebarLoading, setSidebarLoading] = useState(false);
@@ -90,17 +87,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   }, [user]);
 
   useEffect(() => {
-    const isDark = localStorage.getItem("renttrack_dark") === "true";
-    setDarkMode(isDark);
-    if (isDark) document.documentElement.classList.add("dark");
+    document.documentElement.classList.remove("dark");
   }, []);
-
-  const toggleDarkMode = () => {
-    const next = !darkMode;
-    setDarkMode(next);
-    localStorage.setItem("renttrack_dark", String(next));
-    document.documentElement.classList.toggle("dark", next);
-  };
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
@@ -144,19 +132,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     return item.label;
   };
 
-  const isOwnerOverview = pathname === "/dashboard/owner" || pathname.startsWith("/dashboard/owner/");
-  const isActiveItem = (item: NavItem) => {
-    if (item.href === "/dashboard/owner") {
-      return pathname === "/dashboard/owner" || pathname === "/dashboard/owner/";
-    }
-    if (item.href === "/dashboard/owner/agents") {
-      return pathname.startsWith("/dashboard/owner/agents");
-    }
-    return pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
-  };
+   const isOwnerOverview = pathname === "/dashboard/owner" || pathname.startsWith("/dashboard/owner/");
+   const isAgentOverview = pathname === "/dashboard/agent" || pathname.startsWith("/dashboard/agent/");
+   const isTenantOverview = pathname === "/dashboard/tenant" || pathname.startsWith("/dashboard/tenant/");
+   const isActiveItem = (item: NavItem) => {
+     if (item.href === "/dashboard/owner") {
+       return pathname === "/dashboard/owner" || pathname === "/dashboard/owner/";
+     }
+     if (item.href === "/dashboard/owner/agents") {
+       return pathname.startsWith("/dashboard/owner/agents");
+     }
+     return pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href));
+   };
 
-  return (
-    <div className={cn("min-h-screen", (isAdmin || isOwner) ? "" : "flex bg-surface-secondary")}>
+   return (
+     <div className={cn("min-h-screen", (!isOwner && !isAgent && !isTenant) ? "flex bg-surface-secondary" : "")}>
       <AnimatePresence initial={false}>
         {mobileSidebarOpen && !isTenant && !isAdmin && !isAgent && (
           <motion.div
@@ -169,7 +159,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         )}
       </AnimatePresence>
 
-       {!isAdmin && isOwner && (
+       {!isAdmin && !isOwner && !isAgent && !isTenant && (
          <div className="flex flex-1">
           <aside
             className={cn(
@@ -270,10 +260,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             </div>
 
             <div className="flex items-center gap-2">
-              <button onClick={toggleDarkMode} className="p-2 rounded-lg hover:bg-surface-secondary transition-colors text-text-secondary hover:text-foreground">
-                {darkMode ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-                </button>
-
                 {/* Messages Icon */}
                 <div className="relative">
                   <button
@@ -457,11 +443,15 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
          <>{children}</>
        )}
 
-       {isAgent && (
-         <>{children}</>
-       )}
+        {isAgent && (
+          <>{children}</>
+        )}
 
-      {showLogoutModal && createPortal(
+        {isOwner && (
+          <>{children}</>
+        )}
+
+       {showLogoutModal && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowLogoutModal(false)} />
           <div className="relative w-full max-w-sm bg-white rounded-2xl shadow-2xl p-6">

@@ -16,6 +16,7 @@ export interface Property {
   createdAt: string;
   createdBy: string;
   imageUrl?: string;
+  agentId?: string;
 }
 
 export interface Unit {
@@ -150,6 +151,15 @@ async function apiPost(url: string, body: any) {
   return res.json();
 }
 
+async function apiPostForm(url: string, formData: FormData) {
+  const res = await fetch(url, {
+    method: "POST",
+    body: formData,
+    credentials: "include",
+  });
+  return res.json();
+}
+
 async function apiPatch(url: string, body: any) {
   const res = await fetch(url, {
     method: "PATCH",
@@ -232,6 +242,11 @@ export async function updateTenantAssignment(tenantId: string, data: {
   assignmentStatus?: string;
 }): Promise<TenantRecord | null> {
   const result = await apiPatch("/api/data/tenants", { tenantId, ...data });
+  return result.tenant || null;
+}
+
+export async function updateTenantVerification(tenantId: string, status: "approved" | "rejected" | "pending", comment?: string): Promise<TenantRecord | null> {
+  const result = await apiPatch("/api/data/tenants", { tenantId, idVerificationStatus: status });
   return result.tenant || null;
 }
 
@@ -334,6 +349,8 @@ export interface Message {
   body: string;
   read: boolean;
   createdAt: string;
+  attachmentUrl?: string;
+  attachmentType?: string;
 }
 
 export interface Conversation {
@@ -345,7 +362,7 @@ export interface Conversation {
 
 // ─── Messages ────────────────────────────────────────────────────────────────
 
-export async function sendMessage(data: { receiverId: string; subject?: string; body: string }): Promise<Message> {
+export async function sendMessage(data: { receiverId: string; subject?: string; body: string; attachmentUrl?: string; attachmentType?: string }): Promise<Message> {
   const result = await apiPost("/api/messages", data);
   return result.message || result;
 }
@@ -367,6 +384,15 @@ export async function markAllMessagesRead(otherUserId: string): Promise<void> {
 export async function getUnreadMessageCount(): Promise<number> {
   const result = await apiGet("/api/messages?count=true");
   return result.success ? result.count : 0;
+}
+
+export async function uploadMessageAttachment(file: File, type: "image" | "audio"): Promise<string> {
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("type", type);
+  const result = await apiPostForm("/api/messages/upload", formData);
+  if (!result.success) throw new Error(result.error || "Upload failed");
+  return result.url;
 }
 
 export async function getAgents(): Promise<UserRecord[]> {
@@ -528,7 +554,7 @@ export function getOccupancyRate(_propertyId: string): number {
 export interface Rating {
   id: string;
   user_id: string;
-  target_type: "property" | "unit";
+  target_type: "property" | "unit" | "support";
   target_id: string;
   rating: number;
   comment?: string;
@@ -584,9 +610,12 @@ export interface Complaint {
   updated_at: string;
   tenant_name?: string;
   tenant_email?: string;
+  response_text?: string;
+  response_by?: string;
+  response_at?: string;
 }
 
-export async function createComplaint(data: { tenantId: string; targetType: "property" | "unit"; targetId: string; subject: string; message: string; priority?: string }): Promise<Complaint> {
+export async function createComplaint(data: { tenantId: string; targetType: "property" | "unit" | "support"; targetId: string; subject: string; message: string; priority?: string }): Promise<Complaint> {
   const result = await apiPost("/api/data/complaints", data);
   return result.complaint;
 }
@@ -597,8 +626,8 @@ export async function getComplaints(tenantId?: string): Promise<Complaint[]> {
   return result.success ? result.complaints : [];
 }
 
-export async function updateComplaintStatus(id: string, status: string, assignedTo?: string): Promise<Complaint | null> {
-  const result = await apiPatch("/api/data/complaints", { id, status, assignedTo });
+export async function updateComplaintStatus(id: string, status: string, assignedTo?: string, responseText?: string, responseBy?: string): Promise<Complaint | null> {
+  const result = await apiPatch("/api/data/complaints", { id, status, assignedTo, responseText, responseBy });
   return result.complaint || null;
 }
 
@@ -622,6 +651,13 @@ export async function getAuditLogs(limit = 40): Promise<AuditLog[]> {
 
 export async function resetAgentPassword(userId: string, newPassword: string, currentPassword: string): Promise<void> {
   const result = await apiPost("/api/auth/reset-password", { userId, newPassword, currentPassword });
+  if (!result.success) {
+    throw new Error(result.error || "Failed to reset password");
+  }
+}
+
+export async function adminResetUserPassword(userId: string, newPassword: string): Promise<void> {
+  const result = await apiPost("/api/auth/reset-password", { userId, newPassword });
   if (!result.success) {
     throw new Error(result.error || "Failed to reset password");
   }
@@ -654,4 +690,34 @@ export async function getAgentStats(userId: string): Promise<{ properties: numbe
     tenants: tenants.filter((t) => t.createdBy === userId).length,
     payments: payments.filter((p) => p.createdBy === userId || p.verifiedBy === userId).length,
   };
+}
+
+export interface ChatInquiry {
+  id: string;
+  text: string;
+  propertyId?: string;
+  senderName: string;
+  senderEmail: string;
+  senderPhone?: string;
+  status: string;
+  createdAt: string;
+  replyText?: string;
+  repliedAt?: string;
+  agentName?: string;
+}
+
+export async function getInquiries(): Promise<ChatInquiry[]> {
+  const result = await apiGet("/api/chat/inquiries");
+  return result.success ? result.inquiries : [];
+}
+
+export async function getUnreadInquiryCount(): Promise<number> {
+  const result = await apiGet("/api/chat/inquiries");
+  if (!result.success) return 0;
+  return (result.inquiries || []).filter((inq: any) => inq.status === "new").length;
+}
+
+export async function updateInquiryStatus(id: string, status: string, replyText?: string): Promise<void> {
+  const result = await apiPatch(`/api/chat/inquiries`, { id, status, replyText });
+  if (!result.success) throw new Error(result.error || "Failed to update inquiry");
 }

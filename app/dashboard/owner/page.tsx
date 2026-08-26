@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import {
   LayoutDashboard, Home, ClipboardCheck, Clock,
   CreditCard, FileText, BarChart3, FileSpreadsheet, RefreshCw,
-  CheckCircle2, MessageSquare, Send as SendIcon, UserPlus,
+  CheckCircle2, Send as SendIcon, UserPlus, User,
   Eye, Download, Printer, ChevronRight, X, Loader2, Plus, Camera, Users, Trash2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -25,20 +25,22 @@ import OwnerAgentsPage from "./agents/agents-client";
 import { cn, formatCurrency, formatDate, getInitials } from "@/lib/utils";
 import { toast } from "sonner";
 import MessagingModal from "@/components/messaging-modal";
+import ProfilePanel from "@/components/profile-panel";
 
-type Step = "overview" | "properties" | "units" | "assignments" | "agents" | "contracts" | "occupancy" | "payments" | "receivables" | "reports";
+type Step = "overview" | "properties" | "units" | "assignments" | "agents" | "contracts" | "occupancy" | "payments" | "receivables" | "reports" | "profile";
 
 const flowSteps: { key: Step; label: string; icon: React.ElementType }[] = [
   { key: "overview", label: "Overview", icon: LayoutDashboard },
   { key: "properties", label: "Properties", icon: Home },
   { key: "units", label: "Rental Units", icon: ClipboardCheck },
-  { key: "assignments", label: "Tenant Assignments", icon: FileText },
+  { key: "assignments", label: "Pending Approvals", icon: FileText },
   { key: "agents", label: "Agents", icon: Users },
   { key: "contracts", label: "Rental Contracts", icon: FileText },
   { key: "occupancy", label: "Occupancy", icon: Home },
   { key: "payments", label: "Payments", icon: CreditCard },
   { key: "receivables", label: "Receivables", icon: CreditCard },
   { key: "reports", label: "Receipts & Reports", icon: BarChart3 },
+  { key: "profile", label: "My Profile", icon: User },
 ];
 
 export default function OwnerDashboard() {
@@ -147,6 +149,7 @@ export default function OwnerDashboard() {
       if (updated) {
         setTenants(tenants.map(t => t.id === tenantId ? { ...t, assignmentStatus: "confirmed" } : t));
         toast.success("Assignment confirmed! Tenant can now access the system.");
+        window.dispatchEvent(new Event("owner-data-changed"));
         setReviewAssignment(null);
       }
     } catch {
@@ -226,6 +229,7 @@ export default function OwnerDashboard() {
         toast.success("Assignment returned to agent with reason");
         setReviewAssignment(null);
         setReturnReason("");
+        window.dispatchEvent(new Event("owner-data-changed"));
       }
     } catch {
       toast.error("Failed to return assignment");
@@ -356,28 +360,8 @@ export default function OwnerDashboard() {
   const pendingPayments = payments.filter((p) => p.status === "pending" || p.status === "partial");
   const overduePayments = payments.filter((p) => p.status === "overdue");
 
-  const currentStepIdx = flowSteps.findIndex((s) => s.key === activeTab);
-
   return (
     <div className="w-full px-4 sm:px-6 lg:px-8">
-            {/* Flow Progress */}
-            <div className="mb-8">
-              <div className="flex items-center gap-1.5 text-sm font-medium text-text-secondary mb-3">
-                {flowSteps.map((s, i) => (
-                  <div key={s.key} className="flex items-center gap-1.5">
-                    <div className={cn("h-5 w-5 rounded-full flex items-center justify-center text-xs", i <= currentStepIdx ? "bg-primary-600 text-white" : "bg-surface-secondary text-text-tertiary border border-border")}>
-                      {i <= currentStepIdx ? "✓" : String(i + 1)}
-                    </div>
-                    <span className="hidden sm:inline">{s.label}</span>
-                    {i < flowSteps.length - 1 && <span className="text-text-tertiary mx-1">›</span>}
-                  </div>
-                ))}
-              </div>
-              <div className="h-1.5 rounded-full bg-primary-600/20 overflow-hidden">
-                <div className="h-full rounded-full bg-primary-600 transition-all duration-500" style={{ width: `${(currentStepIdx / (flowSteps.length - 1)) * 100}%` }} />
-              </div>
-            </div>
-
             {/* OVERVIEW */}
             {activeTab === "overview" && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
@@ -387,20 +371,16 @@ export default function OwnerDashboard() {
                       <h1 className="text-4xl font-bold text-foreground">Owner Dashboard</h1>
                       <p className="text-lg text-text-secondary mt-1">Welcome back, {user?.name?.split(" ")[0] || "Owner"}</p>
                     </div>
-                    <Button size="sm" variant="outline" onClick={loadData} disabled={isRefreshing}>
-                      <RefreshCw className={`h-4 w-4 mr-1.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-                      Refresh
-                    </Button>
                   </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                   {[
-                    { label: "Total Properties", value: properties.length, icon: Home, color: "from-primary-500 to-primary-600" },
-                    { label: "Available Units", value: availableUnits.length, icon: Home, color: "from-secondary-500 to-secondary-600" },
-                    { label: "Occupied Units", value: occupiedUnits.length, icon: Home, color: "from-green-500 to-green-600" },
-                    { label: "Pending Assignments", value: pendingAssignments.length, icon: Clock, color: "from-amber-500 to-amber-600" },
+                    { label: "Total Properties", value: properties.length, icon: Home, color: "from-primary-500 to-primary-600", tab: "properties" as const },
+                    { label: "Available Units", value: availableUnits.length, icon: Home, color: "from-secondary-500 to-secondary-600", tab: "units" as const },
+                    { label: "Occupied Units", value: occupiedUnits.length, icon: Home, color: "from-green-500 to-green-600", tab: "occupancy" as const },
+                    { label: "Pending Assignments", value: pendingAssignments.length, icon: Clock, color: "from-amber-500 to-amber-600", tab: "assignments" as const },
                   ].map((stat, i) => (
-                    <Card key={i} className="hover:shadow-lg transition-shadow">
+                    <Card key={i} onClick={() => { setActiveTab(stat.tab); window.location.hash = stat.tab; }} className="hover:shadow-lg transition-all duration-300 cursor-pointer hover:scale-105 active:scale-95">
                       <CardContent className="min-h-[180px] p-8">
                         <div className="flex items-center justify-between mb-4">
                           <span className="text-lg font-medium text-text-secondary">{stat.label}</span>
@@ -446,8 +426,8 @@ export default function OwnerDashboard() {
                   </Card>
                   <Card className="min-h-[340px]">
                     <CardHeader>
-                      <CardTitle className="text-3xl font-bold">Pending Tenant Assignments</CardTitle>
-                      <CardDescription>Latest assignments awaiting your review</CardDescription>
+                       <CardTitle className="text-3xl font-bold">Pending Approvals</CardTitle>
+                       <CardDescription>Latest assignments awaiting your review</CardDescription>
                     </CardHeader>
                     <CardContent className="p-8">
                       <div className="space-y-3">
@@ -525,7 +505,7 @@ export default function OwnerDashboard() {
                             ) : (
                               propertyUnits.map((unit) => (
                                 <div key={unit.id} className="flex items-center justify-between p-3 rounded-lg bg-surface-secondary">
-                                  <span className="text-sm font-medium">Unit {unit.unitNumber}</span>
+                                   <span className="text-sm font-medium">Unit Number: {unit.unitNumber}</span>
                                   <Badge variant={unit.status === "vacant" ? "success" : unit.status === "occupied" ? "outline" : "warning"} className="text-xs capitalize">{unit.status}</Badge>
                                 </div>
                                ))
@@ -563,7 +543,7 @@ export default function OwnerDashboard() {
                         <CardContent className="p-6">
                            <div className="flex items-start justify-between mb-4">
                              <div>
-                               <h3 className="text-lg font-semibold text-foreground">Unit {unit.unitNumber}</h3>
+                                <h3 className="text-lg font-semibold text-foreground">Unit Number {unit.unitNumber}</h3>
                                <p className="text-sm text-text-secondary mt-1">{property?.name || "Unknown Property"}</p>
                                <p className="text-sm text-text-tertiary">{property?.location || ""}</p>
                              </div>
@@ -619,7 +599,7 @@ export default function OwnerDashboard() {
             {activeTab === "assignments" && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
                 <div>
-                  <h1 className="text-3xl font-bold text-foreground">Tenant Assignments</h1>
+                  <h1 className="text-3xl font-bold text-foreground">Pending Approvals</h1>
                   <p className="text-base text-text-secondary mt-1">Review and manage tenant assignments from agents</p>
                 </div>
                 <Card>
@@ -810,6 +790,10 @@ export default function OwnerDashboard() {
                             <div className="text-right">
                                <p className="text-base font-semibold text-foreground">{formatCurrency(payment.amountPaid || 0)}</p>
                               <Badge variant={payment.status === "paid" ? "success" : payment.status === "pending" ? "warning" : payment.status === "overdue" ? "destructive" : "outline"} className="text-sm font-semibold capitalize">{payment.status}</Badge>
+                              <div className="mt-2 flex justify-end gap-2">
+                                {payment.receiptUrl && <Button size="sm" variant="outline" onClick={() => setViewingReceipt(payment)}>View Receipt</Button>}
+                                {payment.status === "pending" && <Button size="sm" onClick={async () => { const updated = await verifyPayment(payment, user?.id || "", "paid"); if (updated) { setPayments((current) => current.map((item) => item.id === payment.id ? updated : item)); toast.success("Payment confirmed"); } }}>Confirm</Button>}
+                              </div>
                             </div>
                           </div>
                         ))
@@ -884,21 +868,9 @@ export default function OwnerDashboard() {
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
                 <div>
                   <h1 className="text-3xl font-bold text-foreground">Receipts & Reports</h1>
-                  <p className="text-base text-text-secondary mt-1">View payment receipts and generate reports</p>
+                  <p className="text-base text-text-secondary mt-1">Review rental income and property performance reports</p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                  <Card className="hover:shadow-lg transition-shadow cursor-pointer">
-                    <CardContent className="p-6">
-                      <div className="flex items-center gap-3 mb-3">
-                        <div className="h-10 w-10 rounded-lg bg-gradient-to-br from-primary-500 to-primary-600 text-white flex items-center justify-center">
-                          <FileText className="h-5 w-5" />
-                        </div>
-                        <h3 className="text-lg font-semibold text-foreground">Payment Receipts</h3>
-                      </div>
-                      <p className="text-sm text-text-secondary mb-4">View and download payment receipts</p>
-                       <Button variant="outline" className="w-full" onClick={() => setViewingReceipt(payments.find(p => p.receiptUrl) || payments[0] || null)}>View Receipts</Button>
-                    </CardContent>
-                  </Card>
                   <Card className="hover:shadow-lg transition-shadow cursor-pointer">
                     <CardContent className="p-6">
                       <div className="flex items-center gap-3 mb-3">
@@ -933,13 +905,14 @@ export default function OwnerDashboard() {
                 isOpen={isMessagingOpen}
                 onClose={() => { setIsMessagingOpen(false); setSelectedConversation(null); }}
                 otherUser={{
-                  id: selectedConversation.userId,
+                  id: selectedConversation.otherUser?.id || "",
                   name: selectedConversation.otherUser?.name || "Unknown",
                   email: selectedConversation.otherUser?.email || "",
                   role: selectedConversation.otherUser?.role || "tenant",
                   avatarUrl: selectedConversation.otherUser?.avatarUrl,
                   allowMessages: true,
                 }}
+                properties={[]}
               />
             )}
 
@@ -1115,44 +1088,47 @@ export default function OwnerDashboard() {
               </div>
             )}
 
-            {/* Review Assignment Modal */}
-            {reviewAssignment && (
-              <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-                <div className="absolute inset-0 bg-black/50" onClick={() => { setReviewAssignment(null); setReturnReason(""); }} />
-                <div className="relative w-full max-w-lg rounded-2xl border border-border bg-white shadow-2xl">
-                  <div className="p-6 border-b border-border">
-                    <h3 className="text-lg font-semibold text-foreground">Review Tenant Assignment</h3>
-                    <p className="text-sm text-text-secondary">Review the details before confirming</p>
-                  </div>
-                  <div className="p-6 space-y-4">
-                    <div className="flex items-center gap-3">
-                      <Avatar src={reviewAssignment.avatarUrl} fallback={getInitials(reviewAssignment.name)} />
-                      <div>
-                        <p className="font-medium text-foreground">{reviewAssignment.name}</p>
-                        <p className="text-sm text-text-secondary">{reviewAssignment.email}</p>
-                      </div>
-                    </div>
-                    <div className="p-4 rounded-xl border border-border space-y-2">
-                      <p className="text-sm"><span className="font-medium">Property:</span> {reviewAssignment.propertyName}</p>
-                      <p className="text-sm"><span className="font-medium">Unit:</span> {reviewAssignment.unitNumber}</p>
-                      <p className="text-sm"><span className="font-medium">Rental Rate:</span> {formatCurrency(reviewAssignment.rentAmount || 0)}/mo</p>
-                      <p className="text-sm"><span className="font-medium">Status:</span> {reviewAssignment.assignmentStatus}</p>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium mb-1.5">Reason for returning (if applicable)</label>
-                      <textarea value={returnReason} onChange={(e) => setReturnReason(e.target.value)} className="w-full h-20 px-3 py-2 rounded-xl border border-border bg-surface-secondary text-sm resize-none" placeholder="Enter reason if returning to agent..." />
-                    </div>
-                  </div>
-                  <div className="p-6 border-t border-border flex gap-3">
-                    <Button variant="outline" onClick={() => { setReviewAssignment(null); setReturnReason(""); }} className="flex-1">Cancel</Button>
-                    <Button variant="outline" onClick={handleReturnAssignment} className="flex-1 text-red-600 hover:text-red-700">Return to Agent</Button>
-                    <Button onClick={() => handleConfirmAssignment(reviewAssignment.id)} className="flex-1 bg-green-600 hover:bg-green-700 text-white">Confirm Assignment</Button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Receipt Viewer Modal */}
+             {/* Review Assignment Modal */}
+             {reviewAssignment && (
+               <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+                 <div className="absolute inset-0 bg-black/50" onClick={() => { setReviewAssignment(null); setReturnReason(""); }} />
+                 <div className="relative w-full max-w-lg rounded-2xl border border-border bg-white shadow-2xl">
+                   <div className="p-6 border-b border-border flex items-center justify-between">
+                     <div>
+                       <h3 className="text-lg font-semibold text-foreground">Review Tenant Assignment</h3>
+                       <p className="text-sm text-text-secondary">Review the details before confirming</p>
+                     </div>
+                     <button onClick={() => { setReviewAssignment(null); setReturnReason(""); }} className="h-8 w-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-foreground hover:bg-surface-secondary transition-colors">
+                       <X className="h-4 w-4" />
+                     </button>
+                   </div>
+                   <div className="p-6 space-y-4">
+                     <div className="flex items-center gap-3">
+                       <Avatar src={reviewAssignment.avatarUrl} fallback={getInitials(reviewAssignment.name)} />
+                       <div>
+                         <p className="font-medium text-foreground">{reviewAssignment.name}</p>
+                         <p className="text-sm text-text-secondary">{reviewAssignment.email}</p>
+                       </div>
+                     </div>
+                     <div className="p-4 rounded-xl border border-border space-y-2">
+                       <p className="text-sm"><span className="font-medium">Property:</span> {reviewAssignment.propertyName}</p>
+                       <p className="text-sm"><span className="font-medium">Unit:</span> {reviewAssignment.unitNumber}</p>
+                       <p className="text-sm"><span className="font-medium">Rental Rate:</span> {formatCurrency(reviewAssignment.rentAmount || 0)}/mo</p>
+                       <p className="text-sm"><span className="font-medium">Status:</span> {reviewAssignment.assignmentStatus}</p>
+                     </div>
+                     <div>
+                       <label className="block text-sm font-medium mb-1.5">Reason for returning (if applicable)</label>
+                       <textarea value={returnReason} onChange={(e) => setReturnReason(e.target.value)} className="w-full h-20 px-3 py-2 rounded-xl border border-border bg-surface-secondary text-sm resize-none" placeholder="Enter reason if returning to agent..." />
+                     </div>
+                   </div>
+                   <div className="p-6 border-t border-border flex gap-3">
+                     <Button variant="outline" onClick={() => { setReviewAssignment(null); setReturnReason(""); }} className="flex-1">Cancel</Button>
+                     <Button variant="outline" onClick={handleReturnAssignment} className="flex-1 text-red-600 hover:text-red-700">Return to Agent</Button>
+                     <Button onClick={() => handleConfirmAssignment(reviewAssignment.id)} className="flex-1 bg-green-600 hover:bg-green-700 text-white">Confirm Assignment</Button>
+                   </div>
+                 </div>
+               </div>
+             )}
             {viewingReceipt && (
               <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
                 <div className="absolute inset-0 bg-black/50" onClick={() => setViewingReceipt(null)} />
@@ -1280,6 +1256,12 @@ export default function OwnerDashboard() {
                           <p className="text-2xl font-bold text-foreground">{formatCurrency(properties.reduce((sum, p) => sum + (p.monthlyRevenue || 0), 0))}</p>
                         </CardContent>
                       </Card>
+                      <Card>
+                        <CardContent className="p-6">
+                          <p className="text-sm text-text-secondary mb-1">Overdue Payments</p>
+                          <p className="text-2xl font-bold text-red-600">{payments.filter(p => p.status === "overdue").length}</p>
+                        </CardContent>
+                      </Card>
                     </div>
                     <div>
                       <h4 className="text-base font-semibold text-foreground mb-3">Payment History</h4>
@@ -1372,99 +1354,7 @@ export default function OwnerDashboard() {
                   </div>
                 </div>
               </div>
-            )}
-            {/* Review Assignment Modal */}
-            {reviewAssignment && (
-              <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-                <div className="absolute inset-0 bg-black/50" onClick={() => setReviewAssignment(null)} />
-                <div className="relative w-full max-w-2xl rounded-2xl border border-border bg-white shadow-2xl max-h-[90vh] overflow-y-auto">
-                  <div className="p-6 border-b border-border flex items-center justify-between">
-                    <div>
-                      <h3 className="text-lg font-semibold text-foreground">Tenant Profile</h3>
-                      <p className="text-sm text-text-secondary">Review tenant details before confirming assignment</p>
-                    </div>
-                    <button onClick={() => setReviewAssignment(null)} className="h-8 w-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-foreground hover:bg-surface-secondary transition-colors">
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                  <div className="p-6 space-y-6">
-                    <div className="flex items-center gap-4">
-                      <Avatar src={reviewAssignment.avatarUrl} fallback={getInitials(reviewAssignment.name)} size="xl" />
-                      <div>
-                        <p className="text-xl font-semibold text-foreground">{reviewAssignment.name}</p>
-                        <p className="text-sm text-text-secondary">{reviewAssignment.email}</p>
-                        {reviewAssignment.phone && <p className="text-sm text-text-secondary">{reviewAssignment.phone}</p>}
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-xs font-medium text-text-secondary mb-1">Full Name</label>
-                        <p className="text-sm font-medium text-foreground">{reviewAssignment.name || "Not set"}</p>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-text-secondary mb-1">Email</label>
-                        <p className="text-sm font-medium text-foreground">{reviewAssignment.email || "Not set"}</p>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-text-secondary mb-1">Phone</label>
-                        <p className="text-sm font-medium text-foreground">{reviewAssignment.phone || "Not set"}</p>
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium text-text-secondary mb-1">Address</label>
-                        <p className="text-sm font-medium text-foreground">{reviewAssignment.address || "Not set"}</p>
-                      </div>
-                      {reviewAssignment.gender && (
-                        <div>
-                          <label className="block text-xs font-medium text-text-secondary mb-1">Gender</label>
-                          <p className="text-sm font-medium text-foreground">{reviewAssignment.gender}</p>
-                        </div>
-                      )}
-                      {reviewAssignment.birthdate && (
-                        <div>
-                          <label className="block text-xs font-medium text-text-secondary mb-1">Birthdate</label>
-                          <p className="text-sm font-medium text-foreground">{new Date(reviewAssignment.birthdate).toLocaleDateString()}</p>
-                        </div>
-                      )}
-                      {reviewAssignment.country && (
-                        <div>
-                          <label className="block text-xs font-medium text-text-secondary mb-1">Country</label>
-                          <p className="text-sm font-medium text-foreground">{reviewAssignment.country}</p>
-                        </div>
-                      )}
-                      {reviewAssignment.languages && (
-                        <div className="sm:col-span-2">
-                          <label className="block text-xs font-medium text-text-secondary mb-1">Languages Spoken</label>
-                          <p className="text-sm font-medium text-foreground">{reviewAssignment.languages}</p>
-                        </div>
-                      )}
-                      {reviewAssignment.hobbies && (
-                        <div className="sm:col-span-2">
-                          <label className="block text-xs font-medium text-text-secondary mb-1">Hobbies & Interests</label>
-                          <p className="text-sm font-medium text-foreground">{reviewAssignment.hobbies}</p>
-                        </div>
-                      )}
-                      {reviewAssignment.aboutMe && (
-                        <div className="sm:col-span-2">
-                          <label className="block text-xs font-medium text-text-secondary mb-1">About Me</label>
-                          <p className="text-sm font-medium text-foreground">{reviewAssignment.aboutMe}</p>
-                        </div>
-                      )}
-                      {reviewAssignment.experience && (
-                        <div>
-                          <label className="block text-xs font-medium text-text-secondary mb-1">Experience</label>
-                          <p className="text-sm font-medium text-foreground">{reviewAssignment.experience}</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                  <div className="p-6 border-t border-border flex items-center justify-end gap-3">
-                    <Button variant="outline" onClick={() => { setReturnReason(""); setReviewAssignment(null); }}>Close</Button>
-                    <Button variant="destructive" onClick={() => { setReturnReason(""); setReviewAssignment(null); }}>Return</Button>
-                     <Button className="bg-green-600 hover:bg-green-700 text-white" onClick={() => { handleConfirmAssignment(reviewAssignment.id); }}>Confirm Assignment</Button>
-                  </div>
-                </div>
-              </div>
-            )}
+              )}
             {editingProperty && (
               <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
                 <div className="absolute inset-0 bg-black/50" onClick={() => setEditingProperty(null)} />
@@ -1621,6 +1511,11 @@ export default function OwnerDashboard() {
                 </div>
               </div>
             )}
-           </div>
+
+            {/* PROFILE */}
+            {activeTab === "profile" && (
+              <ProfilePanel />
+            )}
+          </div>
     );
   }

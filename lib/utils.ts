@@ -9,17 +9,34 @@ export function formatCurrency(amount: number): string {
   return new Intl.NumberFormat("en-PH", {
     style: "currency",
     currency: "PHP",
+    currencyDisplay: "symbol",
     minimumFractionDigits: 2,
   }).format(amount);
 }
 
-export function formatDate(date: Date | string): string {
+export function formatDate(date: Date | string | undefined | null): string {
+  if (!date) return "";
   const parsed = new Date(date);
-  if (Number.isNaN(parsed.getTime())) return "No date";
+  if (Number.isNaN(parsed.getTime())) return "";
   return new Intl.DateTimeFormat("en-PH", {
     year: "numeric",
     month: "short",
     day: "numeric",
+  }).format(parsed);
+}
+
+export function formatDateTime(date: Date | string | undefined | null): string {
+  if (!date) return "";
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return new Intl.DateTimeFormat("en-PH", {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
   }).format(parsed);
 }
 

@@ -465,6 +465,7 @@ export default function OwnerAgentsPage() {
             avatarUrl: messagingAgent.avatarUrl,
             allowMessages: true,
           }}
+          properties={[]}
         />
       )}
 

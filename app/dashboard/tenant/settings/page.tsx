@@ -420,20 +420,8 @@ export default function TenantSettingsPage() {
                         </label>
                         <p className="text-sm font-medium text-gray-900 group-hover:text-blue-600 transition-colors">{item.value}</p>
                       </motion.div>
-                    ))}
-                    <div className="sm:col-span-2">
-                      <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wider">Languages Spoken</label>
-                      <p className="text-sm font-medium text-gray-900">{user.languages || "None specified"}</p>
+                      ))}
                     </div>
-                    <div className="sm:col-span-2">
-                      <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wider">Hobbies & Interests</label>
-                      <p className="text-sm font-medium text-gray-900">{user.hobbies || "None specified"}</p>
-                    </div>
-                    <div className="sm:col-span-2">
-                      <label className="block text-xs font-medium text-gray-500 mb-1.5 uppercase tracking-wider">About Me</label>
-                      <p className="text-sm font-medium text-gray-900">{user.aboutMe || "Share something about yourself in the Edit Profile tab!"}</p>
-                    </div>
-                  </div>
                 </CardContent>
               </Card>
             </motion.div>
@@ -596,24 +584,6 @@ export default function TenantSettingsPage() {
                           />
                         </motion.div>
                       ))}
-                      <div className="sm:col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Languages Spoken</label>
-                        <Input value={languages} onChange={(e) => setLanguages(e.target.value)} placeholder="e.g. English, Filipino, Cebuano" className="h-11 rounded-xl border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-all" />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1.5">Hobbies & Interests</label>
-                        <Input value={hobbies} onChange={(e) => setHobbies(e.target.value)} placeholder="e.g. Basketball, Coding, Travel" className="h-11 rounded-xl border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 transition-all" />
-                      </div>
-                      <div className="sm:col-span-2">
-                        <label className="block text-sm font-medium text-gray-700 mb-1.5">About Me</label>
-                        <textarea
-                          value={aboutMe}
-                          onChange={(e) => setAboutMe(e.target.value)}
-                          placeholder="Tell us a bit about yourself..."
-                          className="w-full rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/10 transition-all"
-                          rows={4}
-                        />
-                      </div>
                     </div>
                     <div className="flex gap-3 pt-4 border-t border-gray-100">
                       <Button type="submit" className="flex-1 h-11 bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/25" disabled={isSaving}>
