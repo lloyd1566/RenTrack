@@ -3,7 +3,11 @@ import { NextRequest, NextResponse } from "next/server";
 
 const SESSION_COOKIE_NAME = "renttrack_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 8;
-const SESSION_SECRET = process.env.SESSION_SECRET || "renttrack-dev-session-secret-insecure";
+const SESSION_SECRET = process.env.SESSION_SECRET as string;
+
+if (!SESSION_SECRET) {
+  throw new Error("SESSION_SECRET environment variable is required");
+}
 
 function base64UrlEncode(value: string) {
   return Buffer.from(value, "utf8").toString("base64url");

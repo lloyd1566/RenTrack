@@ -106,8 +106,12 @@ export function withSecurityHeaders(response: NextResponse): NextResponse {
     "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none';"
   );
   response.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
-  response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
-  response.headers.set("Pragma", "no-cache");
-  response.headers.set("Expires", "0");
+  // Preserve an explicit cache policy (for example, public listing images)
+  // while keeping the secure no-store default for other API responses.
+  if (!response.headers.has("Cache-Control")) {
+    response.headers.set("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+  }
+  if (!response.headers.has("Pragma")) response.headers.set("Pragma", "no-cache");
+  if (!response.headers.has("Expires")) response.headers.set("Expires", "0");
   return response;
 }

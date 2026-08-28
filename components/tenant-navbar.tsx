@@ -5,10 +5,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { X, ChevronDown, Loader2, Bell } from "lucide-react";
+import { X, ChevronDown, Loader2, Bell, Home, CreditCard, FileText, Building2, LifeBuoy, Info, Newspaper } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
-import { getNotifications, getUnreadMessageCount, Notification } from "@/lib/data";
+import { getNotifications, getUnreadMessageCount, markAllNotificationsRead, Notification } from "@/lib/data";
 import { Button } from "@/components/ui/button";
 
 export default function TenantNavbar() {
@@ -17,6 +17,8 @@ export default function TenantNavbar() {
   const [loading, setLoading] = useState(true);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [openGroup, setOpenGroup] = useState<string | null>(null);
+  const [mobileGroup, setMobileGroup] = useState<string | null>(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
@@ -37,10 +39,59 @@ export default function TenantNavbar() {
   }, []);
 
   useEffect(() => {
-    if (user) {
-      getNotifications(user.id).then(setNotifications).catch(() => setNotifications([]));
-      getUnreadMessageCount().then(setUnreadMessageCount).catch(() => setUnreadMessageCount(0));
+    const closeMenus = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpenGroup(null);
+        setMobileGroup(null);
+        setShowNotifications(false);
+        setShowUserMenu(false);
+      }
+    };
+    window.addEventListener("keydown", closeMenus);
+    return () => window.removeEventListener("keydown", closeMenus);
+  }, []);
+
+  useEffect(() => {
+    const closeOnOutsideClick = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest("[data-tenant-navbar]")) {
+        setOpenGroup(null);
+        setMobileGroup(null);
+        setShowNotifications(false);
+        setShowUserMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    return () => document.removeEventListener("mousedown", closeOnOutsideClick);
+  }, []);
+
+  useEffect(() => {
+    if (!user) {
+      setNotifications([]);
+      setUnreadMessageCount(0);
+      return;
     }
+
+    let mounted = true;
+    const refreshCounts = () => {
+      getNotifications(user.id)
+        .then((next) => { if (mounted) setNotifications(next); })
+        .catch(() => { if (mounted) setNotifications([]); });
+      getUnreadMessageCount()
+        .then((count) => { if (mounted) setUnreadMessageCount(count); })
+        .catch(() => { if (mounted) setUnreadMessageCount(0); });
+    };
+
+    refreshCounts();
+    const interval = window.setInterval(refreshCounts, 30_000);
+    window.addEventListener("focus", refreshCounts);
+    window.addEventListener("renttrack-notifications-updated", refreshCounts);
+    return () => {
+      mounted = false;
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshCounts);
+      window.removeEventListener("renttrack-notifications-updated", refreshCounts);
+    };
   }, [user]);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -53,19 +104,50 @@ export default function TenantNavbar() {
     router.push("/");
   };
 
-  const navItems = [
-    { label: "Home", href: "/dashboard/tenant" },
-    { label: "Properties", href: "/dashboard/tenant/properties-page" },
-    { label: "Units", href: "/dashboard/tenant/units" },
-    { label: "Payments", href: "/dashboard/tenant/payments" },
-    { label: "Documents", href: "/dashboard/tenant/history" },
-    { label: "Support", href: "/dashboard/tenant/contact" },
-    { label: "About", href: "/dashboard/tenant/about" },
-    { label: "News", href: "/dashboard/tenant/news" },
-  ];
+  const primaryNavItems = [
+    { label: "Home", href: "/dashboard/tenant", icon: Home },
+  ] as const;
+
+  const groupedNavItems = [
+    {
+      label: "Rental",
+      items: [
+        { label: "Properties", href: "/dashboard/tenant/properties-page", icon: Building2 },
+        { label: "Units", href: "/dashboard/tenant/units", icon: Building2 },
+      ],
+    },
+    {
+      label: "Payments",
+      items: [
+        { label: "Payments", href: "/dashboard/tenant/payments", icon: CreditCard },
+        { label: "Documents", href: "/dashboard/tenant/history", icon: FileText },
+      ],
+    },
+    {
+      label: "More",
+      items: [
+        { label: "Support", href: "/dashboard/tenant/contact", icon: LifeBuoy },
+        { label: "About", href: "/dashboard/tenant/about", icon: Info },
+        { label: "News", href: "/dashboard/tenant/news", icon: Newspaper },
+      ],
+    },
+  ] as const;
+
+  const isActive = (href: string) => pathname === href || (href !== "/dashboard/tenant" && pathname.startsWith(`${href}/`));
+  const isGroupActive = (items: readonly { href: string }[]) => items.some((item) => isActive(item.href));
+  const toggleNotifications = () => {
+    const nextOpen = !showNotifications;
+    setShowNotifications(nextOpen);
+    setShowUserMenu(false);
+    if (nextOpen && user && unreadCount > 0) {
+      setNotifications((current) => current.map((notification) => ({ ...notification, read: true })));
+      void markAllNotificationsRead(user.id);
+    }
+  };
 
   return (
     <nav
+      data-tenant-navbar
       className={cn(
         "fixed top-0 left-0 right-0 z-50 transition-all duration-500",
         scrolled ? "bg-white/90 dark:bg-gray-900/90 backdrop-blur-xl shadow-sm border-b border-gray-200 dark:border-gray-800" : "bg-white/80 dark:bg-gray-900/80 backdrop-blur-md shadow-sm border-b border-gray-200/50 dark:border-gray-800/50"
@@ -111,13 +193,14 @@ export default function TenantNavbar() {
               </motion.div>
             ) : (
               <>
-                {navItems.map((item, index) => {
-                  const isActive = pathname === item.href;
+                {primaryNavItems.map((item, index) => {
+                  const active = isActive(item.href);
+                  const Icon = item.icon;
                   return (
                     <Link
                       key={item.href}
                       href={item.href}
-                      className="relative"
+                      onClick={() => { setOpenGroup(null); setShowNotifications(false); }}
                     >
                       <motion.div
                         initial={{ opacity: 0, y: -10 }}
@@ -126,29 +209,85 @@ export default function TenantNavbar() {
                         whileHover={{ y: -2 }}
                         whileTap={{ scale: 0.95 }}
                         className={cn(
-                          "flex items-center rounded-lg px-3 py-2 text-xs font-medium transition-all duration-200 whitespace-nowrap relative",
-                          isActive
-                            ? "text-blue-600"
+                          "relative flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium transition-all duration-200 whitespace-nowrap",
+                          active
+                            ? "bg-blue-50 text-blue-600 dark:bg-blue-900/30"
                             : "text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white"
                         )}
                       >
-                        {isActive && (
-                          <motion.div
-                            layoutId="activeNav"
-                            className="absolute inset-0 bg-blue-50 dark:bg-blue-900/30 rounded-lg shadow-sm"
-                            transition={{ type: "spring", stiffness: 350, damping: 30 }}
-                          />
-                        )}
-                        <span className="relative z-10">{item.label}</span>
+                        <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                        <span>{item.label}</span>
                       </motion.div>
                     </Link>
+                  );
+                })}
+                {groupedNavItems.map((group, groupIndex) => {
+                  const active = isGroupActive(group.items);
+                  const expanded = openGroup === group.label;
+                  return (
+                    <div key={group.label} className="relative">
+                      <motion.button
+                        type="button"
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: (primaryNavItems.length + groupIndex) * 0.05, duration: 0.3, ease: [0.21, 0.47, 0.32, 0.98] }}
+                        whileHover={{ y: -2 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => { setOpenGroup(expanded ? null : group.label); setShowNotifications(false); setShowUserMenu(false); }}
+                        aria-haspopup="menu"
+                        aria-expanded={expanded}
+                        className={cn(
+                          "flex items-center gap-1 rounded-lg px-3 py-2 text-xs font-medium transition-all duration-200 whitespace-nowrap",
+                          active || expanded
+                            ? "bg-blue-50 text-blue-600 dark:bg-blue-900/30"
+                            : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 hover:text-gray-900 dark:hover:bg-gray-800 dark:hover:text-white"
+                        )}
+                      >
+                        {group.label}
+                        <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", expanded && "rotate-180")} aria-hidden="true" />
+                      </motion.button>
+                      <AnimatePresence>
+                        {expanded && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 6, scale: 0.97 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: 6, scale: 0.97 }}
+                            transition={{ duration: 0.16 }}
+                            role="menu"
+                            className="absolute left-0 top-full z-50 mt-2 min-w-48 overflow-hidden rounded-xl border border-gray-200 bg-white p-1.5 shadow-xl dark:border-gray-700 dark:bg-gray-800"
+                          >
+                            {group.items.map((item) => {
+                              const itemActive = isActive(item.href);
+                              const Icon = item.icon;
+                              return (
+                                <Link
+                                  key={item.href}
+                                  href={item.href}
+                                  role="menuitem"
+                                  onClick={() => { setOpenGroup(null); setShowNotifications(false); }}
+                                  className={cn(
+                                    "flex items-center gap-2 rounded-lg px-3 py-2.5 text-xs font-medium transition-colors",
+                                    itemActive
+                                      ? "bg-blue-50 text-blue-600 dark:bg-blue-900/30"
+                                      : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-700/60 dark:hover:text-white"
+                                  )}
+                                >
+                                  <Icon className="h-4 w-4" aria-hidden="true" />
+                                  {item.label}
+                                </Link>
+                              );
+                            })}
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
                   );
                 })}
                 <motion.button
                   whileHover={{ scale: 1.08 }}
                   whileTap={{ scale: 0.95 }}
-                  onClick={() => setShowNotifications(!showNotifications)}
-                  aria-label="Notifications"
+                  onClick={toggleNotifications}
+                  aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
                   className="relative rounded-xl p-2 text-gray-500 hover:bg-gray-50 hover:text-blue-600 dark:text-gray-300 dark:hover:bg-gray-800"
                 >
                   <Bell className="h-4 w-4" />
@@ -183,14 +322,20 @@ export default function TenantNavbar() {
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                       onClick={() => setShowUserMenu(!showUserMenu)}
-                      className="flex items-center gap-2 p-1.5 pr-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors relative"
+                      aria-label={`Profile${unreadMessageCount > 0 ? `, ${unreadMessageCount} unread messages` : ""}`}
+                      className="relative flex items-center gap-2 rounded-xl p-1.5 pr-3 transition-colors hover:bg-gray-50 dark:hover:bg-gray-800"
                     >
                       <motion.div
                         whileHover={{ rotate: 10 }}
                         transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                        className="h-8 w-8 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center"
+                        className="relative flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/40"
                       >
                         <span className="text-sm font-medium text-blue-600 dark:text-blue-400">{user.name?.charAt(0)?.toUpperCase() || "T"}</span>
+                        {unreadMessageCount > 0 && (
+                          <span title={`${unreadMessageCount} unread messages`} className="absolute -bottom-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full border-2 border-white bg-blue-600 px-0.5 text-[8px] font-bold text-white dark:border-gray-900">
+                            {unreadMessageCount > 9 ? "9+" : unreadMessageCount}
+                          </span>
+                        )}
                       </motion.div>
                       <motion.span
                         className="hidden lg:block text-sm font-medium text-gray-700 dark:text-gray-200"
@@ -279,8 +424,8 @@ export default function TenantNavbar() {
                   <motion.button
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.9 }}
-                    onClick={() => setShowNotifications(!showNotifications)}
-                    aria-label="Notifications"
+                    onClick={() => { toggleNotifications(); setMobileOpen(true); }}
+                    aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
                     className="p-2 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 relative"
                   >
                     <Bell className="h-5 w-5 text-gray-600 dark:text-gray-300" />
@@ -301,11 +446,17 @@ export default function TenantNavbar() {
                   <motion.button
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.9 }}
-                    onClick={() => setShowUserMenu(!showUserMenu)}
-                    className="p-1.5 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 relative"
+                    onClick={() => { setShowUserMenu(!showUserMenu); setShowNotifications(false); }}
+                    aria-label={`Profile${unreadMessageCount > 0 ? `, ${unreadMessageCount} unread messages` : ""}`}
+                    className="relative rounded-xl p-1.5 hover:bg-gray-50 dark:hover:bg-gray-800"
                   >
-                    <div className="h-8 w-8 rounded-full bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center">
+                    <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/40">
                       <span className="text-sm font-medium text-blue-600 dark:text-blue-400">{user.name?.charAt(0)?.toUpperCase() || "T"}</span>
+                      {unreadMessageCount > 0 && (
+                        <span title={`${unreadMessageCount} unread messages`} className="absolute -bottom-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full border-2 border-white bg-blue-600 px-0.5 text-[8px] font-bold text-white dark:border-gray-900">
+                          {unreadMessageCount > 9 ? "9+" : unreadMessageCount}
+                        </span>
+                      )}
                     </div>
                   </motion.button>
                 </>
@@ -380,27 +531,93 @@ export default function TenantNavbar() {
                   </div>
                 ) : (
                   <>
-                    {navItems.map((item, index) => (
-                      <Link
-                        key={item.href}
-                        href={item.href}
-                        onClick={() => { setMobileOpen(false); setShowUserMenu(false); }}
-                      >
-                        <motion.div
-                          initial={{ opacity: 0, x: -20 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: index * 0.05 }}
-                          className={cn(
-                            "flex items-center rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-                            pathname === item.href
-                              ? "text-blue-600 bg-blue-50 dark:bg-blue-900/30"
-                              : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
-                          )}
+                    {primaryNavItems.map((item, index) => {
+                      const active = isActive(item.href);
+                      const Icon = item.icon;
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          onClick={() => { setMobileOpen(false); setShowUserMenu(false); setMobileGroup(null); }}
                         >
-                          {item.label}
-                        </motion.div>
-                      </Link>
-                    ))}
+                          <motion.div
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: index * 0.05 }}
+                            className={cn(
+                              "flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
+                              active
+                                ? "bg-blue-50 text-blue-600 dark:bg-blue-900/30"
+                                : "text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800"
+                            )}
+                          >
+                            <Icon className="h-4 w-4" aria-hidden="true" />
+                            {item.label}
+                          </motion.div>
+                        </Link>
+                      );
+                    })}
+                    <div className="my-2 border-t border-gray-100 dark:border-gray-800" />
+                    {groupedNavItems.map((group, index) => {
+                      const expanded = mobileGroup === group.label;
+                      const active = isGroupActive(group.items);
+                      return (
+                        <div key={group.label}>
+                          <motion.button
+                            type="button"
+                            initial={{ opacity: 0, x: -20 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: (primaryNavItems.length + index) * 0.05 }}
+                            onClick={() => setMobileGroup(expanded ? null : group.label)}
+                            aria-haspopup="menu"
+                            aria-expanded={expanded}
+                            className={cn(
+                              "flex w-full items-center justify-between rounded-lg px-3 py-2.5 text-sm font-semibold transition-colors",
+                              active || expanded
+                                ? "bg-blue-50 text-blue-600 dark:bg-blue-900/30"
+                                : "text-gray-700 hover:bg-gray-50 dark:text-gray-200 dark:hover:bg-gray-800"
+                            )}
+                          >
+                            <span>{group.label}</span>
+                            <ChevronDown className={cn("h-4 w-4 transition-transform", expanded && "rotate-180")} aria-hidden="true" />
+                          </motion.button>
+                          <AnimatePresence initial={false}>
+                            {expanded && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: "auto", opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                className="overflow-hidden pl-3"
+                                role="menu"
+                              >
+                                {group.items.map((item) => {
+                                  const itemActive = isActive(item.href);
+                                  const Icon = item.icon;
+                                  return (
+                                    <Link
+                                      key={item.href}
+                                      href={item.href}
+                                      role="menuitem"
+                                      onClick={() => { setMobileOpen(false); setShowUserMenu(false); setMobileGroup(null); }}
+                                    >
+                                      <div className={cn(
+                                        "flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm transition-colors",
+                                        itemActive
+                                          ? "text-blue-600"
+                                          : "text-gray-600 hover:bg-gray-50 hover:text-gray-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-white"
+                                      )}>
+                                        <Icon className="h-4 w-4" aria-hidden="true" />
+                                        <span>{item.label}</span>
+                                      </div>
+                                    </Link>
+                                  );
+                                })}
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      );
+                    })}
                   </>
                 )}
               </div>

@@ -5,7 +5,7 @@ import { motion } from "framer-motion";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileText, Eye, X } from "lucide-react";
+import { FileText, Eye, Download, X } from "lucide-react";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { getPayments, Payment } from "@/lib/data";
@@ -61,7 +61,7 @@ export default function TenantHistoryPage() {
                 <div className="text-center py-16">
                   <FileText className="h-12 w-12 text-gray-300 mx-auto mb-4" />
                   <p className="text-gray-600 font-medium text-lg">No payments yet</p>
-                  <p className="text-gray-500 text-sm mt-1">Upload your first receipt to get started</p>
+                  <p className="text-gray-500 text-sm mt-1">Your automatic payment receipts will appear here</p>
                 </div>
               ) : (
                 <div className="overflow-x-auto">
@@ -95,9 +95,14 @@ export default function TenantHistoryPage() {
                           <td className="py-4 px-4 text-right">
                             <div className="flex items-center justify-end gap-2">
                               {payment.receiptUrl && (
-                                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setViewingReceipt(payment.receiptUrl!)}>
-                                  <Eye className="h-4 w-4" />
-                                </Button>
+                                <>
+                                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setViewingReceipt(payment.receiptUrl!)} aria-label="View receipt">
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                  <a href={payment.receiptUrl} download={`renttrack-receipt-${payment.id}.svg`} aria-label="Download receipt" className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-blue-600">
+                                    <Download className="h-4 w-4" />
+                                  </a>
+                                </>
                               )}
                             </div>
                           </td>

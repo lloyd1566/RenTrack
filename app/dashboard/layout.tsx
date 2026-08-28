@@ -173,11 +173,11 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             <div className={cn("flex items-center h-16 px-4 border-b border-border", sidebarOpen ? "justify-between" : "justify-center")}>
               {sidebarOpen ? (
                 <Link href="/" className="flex items-center gap-2">
-                  <img src="/images/landing/logo.png" alt="RentTrack" className="h-8 w-8 rounded-lg object-contain" />
+                  <img src="/images/landing/logo.png" alt="RentTrack" className="h-8 w-8 rounded-full object-contain" />
                   <span className="font-bold text-foreground">Rent<span className="text-primary-500">Track</span></span>
                 </Link>
               ) : (
-                <img src="/images/landing/logo.png" alt="RT" className="h-8 w-8 rounded-lg object-contain" />
+                <img src="/images/landing/logo.png" alt="RT" className="h-8 w-8 rounded-full object-contain" />
               )}
               <button onClick={() => setMobileSidebarOpen(false)} className="lg:hidden p-1 rounded-lg hover:bg-surface-secondary">
                 <X className="h-4 w-4" />

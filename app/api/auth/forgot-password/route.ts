@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminSupabase } from "@/lib/db";
 import { sendEmail, getSiteUrl } from "@/lib/mail";
-import bcrypt from "bcryptjs";
 import { logAudit } from "@/lib/db";
+import { randomBytes } from "crypto";
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,12 +21,11 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (error || !user) {
-      // Don't reveal whether email exists
       return NextResponse.json({ success: true, message: "If an account exists with this email, you will receive a password reset link." });
     }
 
-    const resetToken = Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString(); // 1 hour
+    const resetToken = randomBytes(32).toString("hex");
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
 
     const { error: updateError } = await adminClient
       .from("users")

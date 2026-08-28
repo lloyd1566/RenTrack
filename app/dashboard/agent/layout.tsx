@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
@@ -13,7 +13,7 @@ import {
   CreditCard, FileText, Send, LogOut, ChevronRight, Menu, X,
   Loader2, ChevronDown, ChevronLeft, Bell, KeyRound, Mail, User,
 } from "lucide-react";
-import { getNotifications, getUnreadMessageCount, getUnreadInquiryCount, Notification } from "@/lib/data";
+import { getNotifications, getUnreadMessageCount, getUnreadInquiryCount, markNotificationRead, markAllNotificationsRead, Notification } from "@/lib/data";
 import { getProperties, Property } from "@/lib/data";
 import MessagingPanel from "@/components/messaging-panel";
 import MessagingModal from "@/components/messaging-modal";
@@ -87,13 +87,36 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
     }
   }, [activeTab]);
 
-  useEffect(() => {
-    if (user) {
-      getNotifications(user.id).then(setNotifications).catch(() => setNotifications([]));
-      getUnreadMessageCount().then(setUnreadMessageCount).catch(() => setUnreadMessageCount(0));
-      getUnreadInquiryCount().then(setUnreadInquiryCount).catch(() => setUnreadInquiryCount(0));
+  const refreshCounts = useCallback(async () => {
+    if (!user) {
+      setNotifications([]);
+      setUnreadMessageCount(0);
+      setUnreadInquiryCount(0);
+      return;
     }
+
+    const [nextNotifications, nextMessages, nextInquiries] = await Promise.all([
+      getNotifications(user.id).catch(() => []),
+      getUnreadMessageCount().catch(() => 0),
+      getUnreadInquiryCount().catch(() => 0),
+    ]);
+    setNotifications(nextNotifications);
+    setUnreadMessageCount(nextMessages);
+    setUnreadInquiryCount(nextInquiries);
   }, [user]);
+
+  useEffect(() => {
+    refreshCounts();
+    const interval = window.setInterval(refreshCounts, 30000);
+    const handleUpdated = () => refreshCounts();
+    window.addEventListener("renttrack-notifications-updated", handleUpdated);
+    window.addEventListener("focus", handleUpdated);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("renttrack-notifications-updated", handleUpdated);
+      window.removeEventListener("focus", handleUpdated);
+    };
+  }, [refreshCounts]);
 
   const handleLogout = async () => {
     setLogoutLoading(true);
@@ -151,7 +174,7 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
         <div className={cn("hidden lg:flex flex-col border-r border-border bg-surface transition-all self-start", sidebarOpen ? "w-56" : "w-16")}>
           <div className="p-4 border-b border-border">
             <Link href="/dashboard/agent" className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg overflow-hidden">
+              <div className="h-8 w-8 rounded-full overflow-hidden">
                 <img src="/images/landing/logo.png" alt="RentTrack" className="h-full w-full object-contain" />
               </div>
               {sidebarOpen && <span className="font-bold text-foreground text-sm">Agent Panel</span>}
@@ -216,7 +239,7 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
               >
                 <div className="p-4 border-b border-border flex items-center justify-between">
                   <Link href="/dashboard/agent" className="flex items-center gap-2">
-                    <div className="h-8 w-8 rounded-lg overflow-hidden">
+                    <div className="h-8 w-8 rounded-full overflow-hidden">
                       <img src="/images/landing/logo.png" alt="RentTrack" className="h-full w-full object-contain" />
                     </div>
                     <span className="font-bold text-foreground text-sm">Agent Panel</span>
@@ -247,6 +270,16 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
                       >
                         <Icon className={cn("h-4 w-4 shrink-0", isActive ? "text-primary-600" : "text-text-tertiary")} />
                         <span className="truncate">{item.label}</span>
+                        {item.tab === "messages" && unreadMessageCount > 0 && (
+                          <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                            {unreadMessageCount}
+                          </span>
+                        )}
+                        {item.tab === "inquiries" && unreadInquiryCount > 0 && (
+                          <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                            {unreadInquiryCount}
+                          </span>
+                        )}
                       </button>
                     );
                   })}
@@ -312,8 +345,21 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
                       exit={{ opacity: 0, y: 10, scale: 0.95 }}
                       className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl border border-border bg-surface shadow-dropdown overflow-hidden"
                     >
-                      <div className="p-4 border-b border-border">
+                      <div className="p-4 border-b border-border flex items-center justify-between gap-3">
                         <h3 className="font-semibold text-foreground">Notifications</h3>
+                        {unreadCount > 0 && (
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              await markAllNotificationsRead(user.id);
+                              setNotifications((current) => current.map((notification) => ({ ...notification, read: true })));
+                              window.dispatchEvent(new Event("renttrack-notifications-updated"));
+                            }}
+                            className="text-xs text-primary-600 hover:text-primary-700"
+                          >
+                            Mark all read
+                          </button>
+                        )}
                       </div>
                       <div className="max-h-80 overflow-y-auto">
                         {notifications.length === 0 ? (
@@ -322,8 +368,17 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
                           notifications.slice(0, 10).map((n) => (
                             <button
                               key={n.id}
-                              onClick={() => setShowNotifications(false)}
-                              className="w-full text-left p-4 border-b border-border last:border-0 hover:bg-surface-secondary transition-colors"
+                              onClick={async () => {
+                                if (!n.read) {
+                                  await markNotificationRead(n.id);
+                                  setNotifications((current) => current.map((notification) => notification.id === n.id ? { ...notification, read: true } : notification));
+                                }
+                                setShowNotifications(false);
+                              }}
+                              className={cn(
+                                "w-full text-left p-4 border-b border-border last:border-0 hover:bg-surface-secondary transition-colors",
+                                !n.read && "bg-primary-50/50"
+                              )}
                             >
                               <p className="text-sm font-medium text-foreground">{n.title}</p>
                               <p className="text-xs text-text-secondary mt-0.5 line-clamp-2">{n.message}</p>

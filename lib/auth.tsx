@@ -42,8 +42,6 @@ interface AuthContextType {
   isAuthenticated: boolean;
   refreshUser: () => Promise<void>;
   setUser: (user: Omit<User, "password"> | null) => void;
-  getUsers: () => Promise<(Omit<User, "password"> & { _password: string })[]>;
-  getUserByEmail: (email: string) => Promise<(Omit<User, "password"> & { _password: string }) | undefined>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -187,21 +185,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [setUser]);
 
-  const getUsers = useCallback(async () => {
-    try {
-      const res = await fetch("/api/auth/users", { credentials: "include" });
-      const result = await res.json();
-      return result.success ? result.users : [];
-    } catch {
-      return [];
-    }
-  }, []);
-
-  const getUserByEmail = useCallback(async (email: string) => {
-    const users = await getUsers();
-    return users.find((u: { email: string }) => u.email.toLowerCase() === email.toLowerCase());
-  }, [getUsers]);
-
   return (
     <AuthContext.Provider
       value={{
@@ -214,8 +197,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isAuthenticated: !!user,
         refreshUser,
         setUser,
-        getUsers,
-        getUserByEmail,
       }}
     >
       {children}

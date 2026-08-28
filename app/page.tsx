@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import Link from "next/link";
 import { Bell, Shield, MapPin, Home, Search, Menu, ChevronRight, Star, Phone, Mail, KeyRound, CreditCard, BarChart3, Building2, Users, X } from "lucide-react";
@@ -37,6 +37,7 @@ const landingBanners = [
 ];
 
 const fallbackBannerImage = "/images/favicon/landingpage.png";
+const CHAT_DRAFT_KEY = "renttrack_chat_draft";
 
 const destinations = [
   { name: "Cebu", region: "Central Visayas", image: "/images/favicon/Cebu.webp" },
@@ -81,6 +82,10 @@ export default function LandingPage() {
   const [chatSending, setChatSending] = useState(false);
   const [chatStarting, setChatStarting] = useState(false);
   const [chatSelectedAgent, setChatSelectedAgent] = useState<any | null>(null);
+  const chatInquiryIdsRef = useRef<string[]>([]);
+  const chatReplyIdsRef = useRef<Set<string>>(new Set());
+  const chatInputRef = useRef<HTMLInputElement>(null);
+  const chatDraftLoadedRef = useRef(false);
   const [agents, setAgents] = useState<any[]>([]);
   const [selectedAgent, setSelectedAgent] = useState<any | null>(null);
   const [showAgentDetails, setShowAgentDetails] = useState(false);
@@ -174,6 +179,66 @@ export default function LandingPage() {
     })();
   }, [chatOpen]);
 
+  useEffect(() => {
+    if (chatOpen) {
+      // Focus the message box after the panel is mounted so the launcher is
+      // immediately usable with a keyboard or screen reader.
+      requestAnimationFrame(() => chatInputRef.current?.focus());
+    }
+  }, [chatOpen]);
+
+  // Visitor replies are saved on the inquiry record. Poll only the inquiries
+  // created in this browser so an agent response appears in the open chat.
+  useEffect(() => {
+    if (!chatOpen) return;
+    const loadReplies = async () => {
+      if (chatInquiryIdsRef.current.length === 0) return;
+      try {
+        const ids = chatInquiryIdsRef.current.join(",");
+        const res = await fetch(`/api/chat/messages?ids=${encodeURIComponent(ids)}`, { cache: "no-store" });
+        const data = await res.json();
+        if (!data.success) return;
+        const replies = (data.messages || []).filter((message: any) => message.replyText && !chatReplyIdsRef.current.has(message.id));
+        if (replies.length === 0) return;
+        replies.forEach((message: any) => chatReplyIdsRef.current.add(message.id));
+        setChatMessages((previous) => [
+          ...previous,
+          ...replies.map((message: any) => ({ sender: "agent", text: message.replyText, createdAt: message.repliedAt || new Date().toISOString() })),
+        ]);
+      } catch {
+        // A failed background poll should not interrupt composing a message.
+      }
+    };
+    loadReplies();
+    const interval = window.setInterval(loadReplies, 10000);
+    return () => window.clearInterval(interval);
+  }, [chatOpen]);
+
+  useEffect(() => {
+    try {
+      const draft = window.sessionStorage.getItem(CHAT_DRAFT_KEY);
+      if (draft) setChatInput(draft);
+    } catch {
+      // Storage can be unavailable in private browsing.
+    } finally {
+      chatDraftLoadedRef.current = true;
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!chatDraftLoadedRef.current) return;
+    try {
+      if (chatInput) {
+        window.sessionStorage.setItem(CHAT_DRAFT_KEY, chatInput);
+      } else {
+        window.sessionStorage.removeItem(CHAT_DRAFT_KEY);
+      }
+    } catch {
+      // Storage can be unavailable in private browsing; the in-memory draft
+      // still works normally in that case.
+    }
+  }, [chatInput]);
+
   const displayUnits = units.slice(0, 6);
   const displayProperties = properties.slice(0, 6);
 
@@ -185,7 +250,7 @@ export default function LandingPage() {
           <div className="relative flex h-16 items-center justify-between">
             <Link href="/" className="flex items-center gap-2">
               <div className="relative h-8 w-8">
-                  <img src="/images/landing/logo.png" alt="RentTrack" className="w-full h-full object-contain" />
+                   <img src="/images/landing/logo.png" alt="RentTrack" className="w-full h-full object-contain rounded-full" />
               </div>
               <span className={`text-lg font-bold ${scrolled ? "text-gray-900" : "text-white"}`}>Rent<span className="text-blue-600">Track</span></span>
             </Link>
@@ -200,9 +265,9 @@ export default function LandingPage() {
 
             <div className="hidden md:flex items-center gap-3">
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                <a href="/login?mode=signin" className={`h-9 px-4 text-sm font-medium inline-flex items-center justify-center rounded-lg transition-all duration-200 hover:scale-105 ${scrolled ? "text-gray-600 hover:text-gray-900" : "text-white/90 hover:text-white"}`}>
-                Sign In
-              </a>
+                <Link href="/login?mode=signin" className={`inline-flex h-9 px-5 text-sm font-semibold items-center justify-center rounded-lg border transition-all duration-200 hover:shadow-md ${scrolled ? "border-gray-300 text-gray-700 bg-white hover:bg-gray-50" : "border-white/30 text-white bg-white/10 hover:bg-white/20"}`}>
+                  Sign In
+                </Link>
               </motion.div>
             </div>
 
@@ -507,7 +572,17 @@ export default function LandingPage() {
                       whileHover={{ scale: 1.05 }}
                       transition={{ duration: 0.5, ease: "easeOut" }}
                     >
-                      <img src={img} alt={property.name} className="w-full h-full object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                      <img
+                        src={img}
+                        alt={property.name}
+                        className="w-full h-full object-cover"
+                        loading="lazy"
+                        onError={(e) => {
+                          const target = e.currentTarget;
+                          target.onerror = null;
+                          target.src = unitImages[i % unitImages.length];
+                        }}
+                      />
                     </motion.div>
                     <div className="absolute top-3 right-3">
                     <motion.span
@@ -573,7 +648,17 @@ export default function LandingPage() {
                                  whileHover={{ scale: 1.05 }}
                                  transition={{ duration: 0.5, ease: "easeOut" }}
                                >
-                                 <img src={img} alt={`${unitNumber} photo`} className="w-full h-full object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                                 <img
+                                   src={img}
+                                   alt={`${unitNumber} photo`}
+                                   className="w-full h-full object-cover"
+                                   loading="lazy"
+                                   onError={(e) => {
+                                     const target = e.currentTarget;
+                                     target.onerror = null;
+                                     target.src = unitImages[i % unitImages.length];
+                                   }}
+                                 />
                                </motion.div>
                                <div className="absolute top-3 right-3">
                                <motion.span
@@ -922,7 +1007,7 @@ export default function LandingPage() {
             <div className="md:col-span-2">
               <Link href="/" className="flex items-center gap-2 mb-4">
                 <div className="relative h-9 w-9">
-                <img src="/images/landing/logo.png" alt="RentTrack" className="w-full h-full object-contain" />
+                <img src="/images/landing/logo.png" alt="RentTrack" className="w-full h-full object-contain rounded-full" />
                 </div>
                 <span className="text-lg font-bold text-gray-900">Rent<span className="text-blue-600">Track</span></span>
               </Link>
@@ -1214,9 +1299,9 @@ export default function LandingPage() {
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
-              {chatMessages.length === 0 && !chatUser.name && (
+              {chatMessages.length === 0 && (
                 <div className="space-y-3 mt-4">
-                  <p className="text-xs text-gray-500 text-center">Start a conversation and an agent will reply to you by email.</p>
+                  <p className="text-xs text-gray-500 text-center">Enter your details and choose an agent before sending your message.</p>
                   <select
                     value={chatSelectedAgent?.id || ""}
                     onChange={(e) => {
@@ -1291,6 +1376,9 @@ export default function LandingPage() {
                 });
                 const data = await res.json();
                 if (data.success) {
+                  if (data.inquiryId && !chatInquiryIdsRef.current.includes(data.inquiryId)) {
+                    chatInquiryIdsRef.current.push(data.inquiryId);
+                  }
                   setChatMessages((prev) => [...prev, { sender: "agent", text: data.message || "Thanks for reaching out! An agent will reply by email.", createdAt: new Date().toISOString() }]);
                 } else {
                   setChatMessages((prev) => [...prev, { sender: "agent", text: "Thanks for reaching out! An agent will reply by email.", createdAt: new Date().toISOString() }]);
@@ -1303,10 +1391,12 @@ export default function LandingPage() {
             }} className="p-3 border-t border-gray-200 bg-white">
               <div className="flex gap-2">
                 <input
+                  ref={chatInputRef}
                   type="text"
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
                   placeholder="Type a message..."
+                  aria-label="Chat message"
                   className="flex-1 h-9 px-3 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
                 />
                 <button type="submit" disabled={chatSending || !chatInput.trim()} className="h-9 px-3 rounded-lg bg-blue-600 text-white text-xs font-medium disabled:opacity-50 hover:bg-blue-700 transition-colors">
@@ -1318,6 +1408,8 @@ export default function LandingPage() {
         )}
         <button
           onClick={() => setChatOpen((prev) => !prev)}
+          type="button"
+          aria-label={chatOpen ? "Close chat" : "Open chat"}
           className="h-12 w-12 rounded-full bg-blue-600 text-white shadow-lg shadow-blue-600/30 flex items-center justify-center hover:scale-110 transition-transform"
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">

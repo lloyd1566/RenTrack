@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Upload, CheckCircle2, AlertCircle, Eye, Download, X, Clock, Home, FileText, Calendar, Building2, User, CreditCard, TrendingUp, Shield, Bell, Mail, PhilippinePeso } from "lucide-react";
+import { CheckCircle2, AlertCircle, Eye, Download, X, Clock, Home, FileText, Calendar, Building2, User, CreditCard, TrendingUp, Shield, Bell, Mail, PhilippinePeso, ReceiptText } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -10,7 +10,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn, formatCurrency, formatDate, getInitials } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
-import { getPayments, addPayment, addNotification, notifyAdmins, getTenants, getConversations, getMessages, markAllMessagesRead, Message, Payment, TenantRecord } from "@/lib/data";
+import { getPayments, addPayment, getTenants, getConversations, getMessages, markAllMessagesRead, Message, Payment, TenantRecord } from "@/lib/data";
 import { toast } from "sonner";
 import MessagingModal from "@/components/messaging-modal";
 
@@ -23,7 +23,6 @@ export default function TenantPaymentsPage() {
   const [tenant, setTenant] = useState<TenantRecord | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [showReceiptForm, setShowReceiptForm] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [paymentAmount, setPaymentAmount] = useState("");
   const [viewingReceipt, setViewingReceipt] = useState<string | null>(null);
   const [paymentType, setPaymentType] = useState<"regular" | "advance">("regular");
@@ -34,6 +33,7 @@ export default function TenantPaymentsPage() {
   const [accountHolder, setAccountHolder] = useState("");
   const [cardLast4, setCardLast4] = useState("");
   const [cardExpiry, setCardExpiry] = useState("");
+  const [paymentPin, setPaymentPin] = useState("");
   const [activeTab, setActiveTab] = useState("overview");
   const [conversations, setConversations] = useState<any[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<any>(null);
@@ -70,7 +70,6 @@ export default function TenantPaymentsPage() {
   };
 
   const handleUpload = async () => {
-    if (!selectedFile) { toast.error("Please select a receipt image to upload"); return; }
     if (!paymentAmount || isNaN(Number(paymentAmount)) || Number(paymentAmount) <= 0) {
       toast.error("Please enter a valid payment amount"); return;
     }
@@ -83,26 +82,15 @@ export default function TenantPaymentsPage() {
     if ((paymentMethod === "bank_transfer" || paymentMethod === "other") && (!bankName.trim() || !accountNumber.trim() || !accountHolder.trim())) {
       toast.error("Please fill in all bank/account details"); return;
     }
-    setIsUploading(true);
     if (!user) return;
+    setIsUploading(true);
     try {
-      const uploadData = new FormData();
-      uploadData.append("file", selectedFile);
-      uploadData.append("type", "receipt");
-      const uploadResponse = await fetch("/api/auth/upload", { method: "POST", credentials: "include", body: uploadData });
-      const uploadResult = await uploadResponse.json();
-      if (!uploadResponse.ok || !uploadResult.success) throw new Error(uploadResult.error || "Receipt upload failed");
-
       const dueDate = new Date(); dueDate.setDate(5); if (dueDate < new Date()) dueDate.setMonth(dueDate.getMonth() + 1);
       const methodNote = paymentMethod === "other" ? otherMethodName.trim() : undefined;
-      const payment = await addPayment({ tenantId: user.id, tenantName: user.name, unitId: tenant?.unitId || "", propertyName: tenant?.propertyName || "", amountPaid: Number(paymentAmount), amountDue: rentAmount, balance: Math.max(0, rentAmount - Number(paymentAmount)), paymentDate: new Date().toISOString().split("T")[0], dueDate: dueDate.toISOString().split("T")[0], status: "pending", paymentMethod, paymentMethodNote: methodNote, bankName: bankName || undefined, accountNumber: accountNumber || undefined, accountHolder: accountHolder || undefined, cardLast4: cardLast4 || undefined, cardExpiry: cardExpiry || undefined, notes: "Receipt uploaded", receiptUrl: uploadResult.url, createdBy: user.id });
-      await Promise.all([
-        addNotification({ userId: user.id, title: "Payment Receipt Uploaded", message: `Your payment of ${formatCurrency(Number(paymentAmount))} has been submitted for verification`, type: "payment", read: false }),
-        notifyAdmins({ title: "New Payment Receipt Uploaded", message: `${user.name} uploaded a payment receipt of ${formatCurrency(Number(paymentAmount))} for verification`, type: "payment", read: false }),
-      ]);
+      const payment = await addPayment({ tenantId: user.id, tenantName: user.name, unitId: tenant?.unitId || "", propertyName: tenant?.propertyName || "", amountPaid: Number(paymentAmount), amountDue: rentAmount, balance: Math.max(0, rentAmount - Number(paymentAmount)), paymentDate: new Date().toISOString().split("T")[0], dueDate: dueDate.toISOString().split("T")[0], status: "pending", paymentMethod, paymentMethodNote: methodNote, bankName: bankName || undefined, accountNumber: accountNumber || undefined, accountHolder: accountHolder || undefined, cardLast4: cardLast4 || undefined, cardExpiry: cardExpiry || undefined, notes: `${paymentType === "advance" ? "Advance" : "Regular"} payment — receipt generated automatically`, receiptUrl: undefined, createdBy: user.id }, paymentPin ? { paymentPin } : undefined);
       setPayments((current) => [payment, ...current]);
       setViewingReceipt(payment.receiptUrl || null);
-      setShowReceiptForm(false); setSelectedFile(null); setPaymentAmount(""); setPaymentType("regular"); setPaymentMethod("gcash"); setOtherMethodName(""); setBankName(""); setAccountNumber(""); setAccountHolder(""); setCardLast4(""); setCardExpiry("");
+      setShowReceiptForm(false); setPaymentAmount(""); setPaymentType("regular"); setPaymentMethod("gcash"); setOtherMethodName(""); setBankName(""); setAccountNumber(""); setAccountHolder(""); setCardLast4(""); setCardExpiry(""); setPaymentPin("");
       toast.success("Payment submitted. Your receipt is ready to download.");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Failed to submit payment");
@@ -245,10 +233,10 @@ export default function TenantPaymentsPage() {
                   <Card className="border border-border">
                     <CardHeader>
                       <CardTitle className="flex items-center gap-2">
-                        <Upload className="h-5 w-5 text-primary-500" />
+                        <ReceiptText className="h-5 w-5 text-primary-500" />
                         Make a Payment
                       </CardTitle>
-                      <CardDescription>Upload a payment receipt or record an advance payment</CardDescription>
+                      <CardDescription>Pay securely and receive an automatic receipt for verification</CardDescription>
                     </CardHeader>
                     <CardContent>
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -256,7 +244,7 @@ export default function TenantPaymentsPage() {
                           <Button onClick={() => { setActiveTab("payments"); setPaymentType("regular"); setShowReceiptForm(true); }} className="w-full h-32 flex flex-col gap-2 bg-gradient-to-br from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white">
                             <CreditCard className="h-8 w-8" />
                             <span className="font-medium">Regular Payment</span>
-                            <span className="text-xs opacity-80">Upload receipt for verification</span>
+                            <span className="text-xs opacity-80">Receipt generated automatically</span>
                           </Button>
                         </motion.div>
                         <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
@@ -283,13 +271,13 @@ export default function TenantPaymentsPage() {
                   >
                     <div className="p-6 bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20">
                       <h3 className="text-lg font-semibold flex items-center gap-2">
-                        <Upload className="h-5 w-5 text-primary-500" />
-                        {paymentType === "advance" ? "Record Advance Payment" : "Upload Payment Receipt"}
+                        <ReceiptText className="h-5 w-5 text-primary-500" />
+                        {paymentType === "advance" ? "Record Advance Payment" : "Make Regular Payment"}
                       </h3>
                       <p className="text-xs text-text-secondary mt-1">
                         {paymentType === "advance"
                           ? "Record an advance payment to be credited to your account"
-                          : "Submit proof of payment for verification"}
+                          : "Submit your payment details; a receipt is generated automatically for verification"}
                       </p>
                     </div>
                     <div className="p-6 space-y-4">
@@ -441,21 +429,31 @@ export default function TenantPaymentsPage() {
                       className="w-full h-12 px-4 rounded-xl border border-border bg-surface text-lg"
                     />
                   </div>
-                  <div className="border-2 border-dashed border-border rounded-2xl p-8 text-center cursor-pointer hover:border-primary-300 transition-colors" onClick={() => document.getElementById("receipt-upload")?.click()}>
-                    <Upload className="h-10 w-10 mx-auto mb-4 text-text-tertiary" />
-                    <p className="font-medium">{selectedFile ? selectedFile.name : "Click to upload receipt"}</p>
-                    <p className="text-xs text-text-tertiary mt-1">Supports images and PDF files</p>
-                    <input id="receipt-upload" type="file" accept="image/*,.pdf" className="hidden" onChange={(e) => e.target.files && setSelectedFile(e.target.files[0])} />
+                  <div>
+                    <label className="block text-sm font-medium mb-1.5">Payment PIN</label>
+                    <input
+                      type="password"
+                      placeholder="Enter your payment PIN"
+                      value={paymentPin}
+                      onChange={(e) => setPaymentPin(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      maxLength={6}
+                      className="w-full h-12 px-4 rounded-xl border border-border bg-surface text-base"
+                    />
+                    <p className="text-xs text-text-tertiary mt-1">Enter the PIN you set in your account settings</p>
+                  </div>
+                  <div className="flex items-start gap-3 rounded-2xl border border-blue-100 bg-blue-50/70 p-4 text-sm text-blue-900">
+                    <ReceiptText className="mt-0.5 h-5 w-5 shrink-0 text-blue-600" />
+                    <div><p className="font-semibold">Automatic receipt included</p><p className="mt-1 text-xs text-blue-700">After you submit, RentTrack creates a downloadable receipt and sends it to the owner/agent for confirmation.</p></div>
                   </div>
                   <div className="flex gap-3">
                     <Button onClick={handleUpload} disabled={isUploading} className="flex-1">
                       {isUploading ? (
-                        <><div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />Uploading...</>
+                        <><div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />Processing payment...</>
                       ) : (
-                        <>{paymentType === "advance" ? "Record Advance" : "Submit Receipt"}</>
+                        <>{paymentType === "advance" ? "Record Advance" : "Submit Payment"}</>
                       )}
                     </Button>
-                     <Button variant="outline" onClick={() => {setShowReceiptForm(false); setSelectedFile(null); setPaymentAmount(""); setPaymentType("regular"); setPaymentMethod("gcash"); setOtherMethodName(""); setBankName(""); setAccountNumber(""); setAccountHolder(""); setCardLast4(""); setCardExpiry(""); }}>Cancel</Button>
+                     <Button variant="outline" onClick={() => {setShowReceiptForm(false); setPaymentAmount(""); setPaymentType("regular"); setPaymentMethod("gcash"); setOtherMethodName(""); setBankName(""); setAccountNumber(""); setAccountHolder(""); setCardLast4(""); setCardExpiry(""); setPaymentPin(""); }}>Cancel</Button>
                   </div>
                 </div>
               </motion.div>
@@ -612,14 +610,14 @@ export default function TenantPaymentsPage() {
                 <div className="rounded-2xl bg-white p-8 text-center shadow-2xl">
                   <FileText className="mx-auto mb-3 h-12 w-12 text-blue-600" />
                   <p className="mb-4 text-sm text-gray-600">Your receipt is a PDF document.</p>
-                  <a href={viewingReceipt} download className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                  <a href={viewingReceipt} download="renttrack-payment-receipt.svg" className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
                     <Download className="h-4 w-4" /> Download Receipt
                   </a>
                 </div>
               ) : (
                 <div>
                   <img src={viewingReceipt} alt="Receipt" className="w-full h-auto rounded-2xl shadow-2xl" />
-                  <a href={viewingReceipt} download className="mt-3 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                  <a href={viewingReceipt} download="renttrack-payment-receipt.svg" className="mt-3 inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
                     <Download className="h-4 w-4" /> Download Receipt
                   </a>
                 </div>

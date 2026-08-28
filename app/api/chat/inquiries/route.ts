@@ -24,7 +24,7 @@ export async function GET(request: NextRequest) {
         senderName: row.sender_name,
         senderEmail: row.sender_email,
         senderPhone: row.sender_phone,
-        status: row.status,
+        status: row.status || "new",
         createdAt: row.created_at,
         replyText: row.reply_text,
         repliedAt: row.replied_at,
@@ -77,8 +77,16 @@ export async function PATCH(request: NextRequest) {
         .eq("id", id);
 
       if (error) throw error;
-      if (updates.reply_text && inquiry?.sender_email && isSmtpConfigured()) {
-        await sendSystemEmail({ to: inquiry.sender_email, subject: `Reply to your RentTrack inquiry`, html: `<p>Hi ${inquiry.sender_name || "there"},</p><p>${updates.reply_text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p><p>Reply from ${auth.user.name}.</p>` });
+      const shouldSendEmail = typeof replyText === "string" && replyText.trim() && !!inquiry?.sender_email;
+      console.log("[Inquiry] PATCH update prepared:", { id, status, hasReplyText: !!replyText, shouldSendEmail, senderEmail: inquiry?.sender_email, smtpConfigured: isSmtpConfigured() });
+      if (shouldSendEmail && isSmtpConfigured()) {
+        try {
+          await sendSystemEmail({ to: inquiry!.sender_email, subject: `Reply to your RentTrack inquiry`, html: `<p>Hi ${inquiry!.sender_name || "there"},</p><p>${(replyText || "").replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p><p>Reply from ${auth.user.name}.</p>` });
+        } catch (mailErr) {
+          console.error("[Inquiry] Failed to send reply email:", mailErr);
+        }
+      } else if (shouldSendEmail && !isSmtpConfigured()) {
+        console.warn("[Inquiry] Skipping reply email because SMTP is not configured.");
       }
     } catch (err: any) {
       if (err?.message?.includes("schema cache") || err?.code === "PGRST205") {

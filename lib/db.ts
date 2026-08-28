@@ -195,7 +195,13 @@ export async function initDatabase() {
     payment_date DATE,
     due_date DATE,
     status TEXT DEFAULT 'pending' CHECK (status IN ('paid', 'pending', 'overdue', 'partial')),
-    payment_method TEXT CHECK (payment_method IN ('cash', 'bank_transfer', 'gcash', 'other')),
+    payment_method TEXT CHECK (payment_method IN ('cash', 'bank_transfer', 'gcash', 'credit_card', 'other')),
+    payment_method_note TEXT,
+    bank_name TEXT,
+    account_number TEXT,
+    account_holder TEXT,
+    card_last4 TEXT,
+    card_expiry TEXT,
     receipt_url TEXT,
     notes TEXT,
     verified_by TEXT REFERENCES users(id),
@@ -293,9 +299,29 @@ export async function initDatabase() {
     sender_name TEXT,
     sender_email TEXT,
     sender_phone TEXT,
+    agent_id TEXT,
+    agent_name TEXT,
+    reply_text TEXT,
+    replied_at TIMESTAMPTZ,
     status TEXT DEFAULT 'new' CHECK (status IN ('new', 'read', 'replied')),
     created_at TIMESTAMPTZ DEFAULT NOW()
   )`);
+
+  statements.push(`ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_payment_method_check`);
+  statements.push(`ALTER TABLE payments ADD CONSTRAINT payments_payment_method_check CHECK (payment_method IN ('cash', 'bank_transfer', 'gcash', 'credit_card', 'other'))`);
+  statements.push(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS payment_method_note TEXT`);
+  statements.push(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS bank_name TEXT`);
+  statements.push(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS account_number TEXT`);
+  statements.push(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS account_holder TEXT`);
+  statements.push(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS card_last4 TEXT`);
+  statements.push(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS card_expiry TEXT`);
+
+  // Keep existing installations compatible with the landing-page chat reply flow.
+  statements.push(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS agent_id TEXT`);
+  statements.push(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS agent_name TEXT`);
+  statements.push(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS reply_text TEXT`);
+  statements.push(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS replied_at TIMESTAMPTZ`);
+  statements.push(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'new' CHECK (status IN ('new', 'read', 'replied'))`);
 
   for (const sqlText of statements) {
     try {
@@ -343,7 +369,8 @@ export async function findUserById(id: string) {
 }
 
 export async function setUserPaymentPin(userId: string, paymentPin: string) {
-  const { error } = await getAdminSupabase().from("users").update({ payment_pin_hash: hashSecret(paymentPin), payment_pin_set_at: new Date().toISOString() }).eq("id", userId);
+  const hashedPin = await bcrypt.hash(paymentPin.trim(), 10);
+  const { error } = await getAdminSupabase().from("users").update({ payment_pin_hash: hashedPin, payment_pin_set_at: new Date().toISOString() }).eq("id", userId);
   if (error) throw error;
 }
 
@@ -352,7 +379,7 @@ export async function verifyUserPaymentPin(userId: string, paymentPin: string) {
   if (error || !data) return false;
   const storedHash = data.payment_pin_hash as string | null | undefined;
   if (!storedHash) return false;
-  return storedHash === hashSecret(paymentPin);
+  return bcrypt.compare(paymentPin.trim(), storedHash);
 }
 
 export async function createPaymentVerificationCode(userId: string, code: string, purpose = "payment", ttlMinutes = 10) {
@@ -423,8 +450,9 @@ export async function verifyEmailToken(token: string) {
 
 export async function createLoginOtp(userId: string, ttlMinutes = 10) {
   const otp = String(Math.floor(100000 + Math.random() * 900000));
+  const otpHash = await bcrypt.hash(otp, 10);
   const expiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000).toISOString();
-  const { error } = await getAdminSupabase().from("users").update({ login_otp: otp, login_otp_expires_at: expiresAt }).eq("id", userId);
+  const { error } = await getAdminSupabase().from("users").update({ login_otp: otpHash, login_otp_expires_at: expiresAt }).eq("id", userId);
   if (error) throw error;
   return otp;
 }
@@ -432,7 +460,10 @@ export async function createLoginOtp(userId: string, ttlMinutes = 10) {
 export async function verifyLoginOtp(userId: string, otp: string) {
   const { data, error } = await getAdminSupabase().from("users").select("login_otp, login_otp_expires_at").eq("id", userId).single();
   if (error || !data) return { success: false, error: "User not found" };
-  if (data.login_otp !== otp) return { success: false, error: "Invalid verification code" };
+  const storedHash = data.login_otp as string | null | undefined;
+  if (!storedHash) return { success: false, error: "No verification code found" };
+  const match = await bcrypt.compare(otp, storedHash);
+  if (!match) return { success: false, error: "Invalid verification code" };
   if (new Date(data.login_otp_expires_at) < new Date()) {
     return { success: false, error: "Verification code has expired" };
   }
@@ -457,8 +488,8 @@ export async function logAudit(userId: string, action: string, details?: Record<
 
 export async function findOrCreateAdmin() {
   const name = "System Administrator";
-  const email = "admin@renttrack.com";
-  const password = "Adminrentrack";
+  const email = process.env.ADMIN_EMAIL || "admin@renttrack.com";
+  const password = process.env.ADMIN_PASSWORD || `Admin${Date.now().toString(36)}`;
   const role = "admin";
   const phone = "+63 900 000 0000";
 
@@ -467,22 +498,17 @@ export async function findOrCreateAdmin() {
   const admin = existing as any;
 
   if (admin) {
-    const passwordMatches = await bcrypt.compare(password, admin.password);
-    if (admin.role !== role || !passwordMatches) {
-      const hashedDefault = await bcrypt.hash(password, 10);
-      const { error } = await adminClient
-        .from("users")
-        .update({ password: hashedDefault, role, phone, email_verified: true, verification_token: null, verification_expires_at: null })
-        .eq("id", admin.id);
+    if (admin.role !== role) {
+      const { error } = await adminClient.from("users").update({ role, phone, email_verified: true, verification_token: null, verification_expires_at: null }).eq("id", admin.id);
       if (error) throw new Error(`Failed to update admin: ${error.message}`);
-      console.log("🔁 Built-in admin account updated to correct credentials");
+      console.log("Admin role corrected for:", email);
     } else {
       const { error } = await adminClient.from("users").update({ email_verified: true, verification_token: null, verification_expires_at: null }).eq("id", admin.id);
       if (error) throw new Error(`Failed to update admin: ${error.message}`);
-      await logAudit(admin.id, "admin_login", { email: admin.email }, "system", "system");
-      console.log("ℹ️ Built-in admin account already exists:", admin.email);
     }
-    return { id: admin.id, email: admin.email, name: admin.name, password };
+    await logAudit(admin.id, "admin_ready", { email }, "system", "system");
+    console.log("Admin account ready:", email);
+    return { id: admin.id, email, name: admin.name };
   }
 
   const id = `usr_admin_${Date.now()}`;
@@ -500,9 +526,9 @@ export async function findOrCreateAdmin() {
     created_at: new Date().toISOString(),
   });
   if (error) throw new Error(`Failed to create admin: ${error.message}`);
-  console.log("✅ Default admin account created: admin@renttrack.com / Adminrentrack");
-  await logAudit(id, "admin_created", { email: "admin@renttrack.com", role: "admin" }, "system", "system");
-  return { id, email, password };
+  console.log("Admin account created:", email);
+  await logAudit(id, "admin_created", { email, role: "admin" }, "system", "system");
+  return { id, email, name };
 }
 
 export async function getAllUsers() {
@@ -538,7 +564,12 @@ export async function createProperty(data: any, userId: string) {
 }
 
 export async function deleteProperty(id: string) {
-  const { error } = await getAdminSupabase().from("properties").delete().eq("id", id);
+  const adminClient = getAdminSupabase();
+  const { error: chatError } = await adminClient.from("chat_messages").delete().eq("property_id", id);
+  if (chatError) {
+    console.error("Failed to clear chat messages before property deletion:", chatError);
+  }
+  const { error } = await adminClient.from("properties").delete().eq("id", id);
   if (error) throw error;
 }
 
@@ -588,7 +619,12 @@ export async function syncTenantUnit(tenantId: string, unitId: string | null, as
 }
 
 export async function deleteUnit(id: string) {
-  const { error } = await getAdminSupabase().from("units").delete().eq("id", id);
+  const adminClient = getAdminSupabase();
+  const { error: tenantError } = await adminClient.from("tenants").update({ unit_id: null, unit_number: null }).eq("unit_id", id);
+  if (tenantError) {
+    console.error("Failed to clear tenant references before unit deletion:", tenantError);
+  }
+  const { error } = await adminClient.from("units").delete().eq("id", id);
   if (error) throw error;
 }
 
@@ -678,7 +714,7 @@ export async function getPaymentsForUser(userId: string, role?: string) {
 }
 
 export async function createPayment(data: any, userId: string) {
-  const id = `pay_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+  const id = data.id || `pay_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   const { error } = await getAdminSupabase().from("payments").insert({
     id,
     tenant_id: data.tenantId || null,
@@ -692,13 +728,19 @@ export async function createPayment(data: any, userId: string) {
     due_date: data.dueDate || null,
     status: data.status || "pending",
     payment_method: data.paymentMethod || "other",
+    payment_method_note: data.paymentMethodNote || null,
+    bank_name: data.bankName || null,
+    account_number: data.accountNumber || null,
+    account_holder: data.accountHolder || null,
+    card_last4: data.cardLast4 || null,
+    card_expiry: data.cardExpiry || null,
     receipt_url: data.receiptUrl || null,
     notes: data.notes || null,
     created_by: userId,
     created_at: new Date().toISOString(),
   });
   if (error) throw error;
-  return { id, ...data, createdAt: new Date().toISOString() };
+  return { ...data, id, createdAt: new Date().toISOString() };
 }
 
 export async function updatePayment(id: string, data: any) {
@@ -1038,8 +1080,8 @@ export async function backupDatabase() {
 
 export async function findOrCreateOwner() {
   const name = "Property Owner";
-  const email = "renttrackowner@gmail.com";
-  const password = "RentrackOwner";
+  const email = process.env.OWNER_EMAIL || "renttrackowner@gmail.com";
+  const password = process.env.OWNER_PASSWORD || `Owner${Date.now().toString(36)}`;
   const role = "owner";
   const phone = "+63 900 000 0001";
 
@@ -1048,16 +1090,14 @@ export async function findOrCreateOwner() {
   const owner = existing as any;
 
   if (owner) {
-    const passwordMatches = await bcrypt.compare(password, owner.password);
-    if (owner.role !== role || !passwordMatches) {
-      const hashedDefault = await bcrypt.hash(password, 10);
-      const { error } = await adminClient.from("users").update({ password: hashedDefault, role, phone, email_verified: true }).eq("id", owner.id);
+    if (owner.role !== role) {
+      const { error } = await adminClient.from("users").update({ role, phone, email_verified: true }).eq("id", owner.id);
       if (error) throw new Error(`Failed to update owner: ${error.message}`);
-      console.log("Built-in owner account updated to correct credentials");
+      console.log("Owner role corrected for:", email);
     } else {
-      console.log("Built-in owner account already exists:", owner.email);
+      console.log("Owner account already exists:", email);
     }
-    return { id: owner.id, email: owner.email, name: owner.name, password };
+    return { id: owner.id, email, name: owner.name };
   }
 
   const id = `usr_owner_${Date.now()}`;
@@ -1067,8 +1107,8 @@ export async function findOrCreateOwner() {
     verification_token: null, verification_expires_at: null, created_at: new Date().toISOString(),
   });
   if (error) throw new Error(`Failed to create owner: ${error.message}`);
-  console.log("Default owner account created: renttrackowner@gmail.com / RentrackOwner");
-  return { id, email, password };
+  console.log("Owner account created:", email);
+  return { id, email, name };
 }
 
 export async function deleteUser(id: string) {

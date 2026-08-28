@@ -14,13 +14,14 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
+import Link from "next/link";
 
 const FormCard = ({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) => (
   <div className="w-full max-w-md px-2">
-      <div className="mb-4 text-center">
-      <div className="inline-flex items-center justify-center h-10 w-10 rounded-xl bg-gradient-to-br from-primary-600 to-secondary-600 flex items-center justify-center shadow-lg shadow-primary-600/25">
-        <img src="/images/landing/logo.png" alt="RentTrack" className="h-6 w-6 object-contain" />
-      </div>
+      <div className="mb-6 text-center">
+      <Link href="/" className="inline-block hover:scale-105 transition-transform">
+        <img src="/images/landing/logo.png" alt="RentTrack" className="h-16 w-16 rounded-full object-contain" />
+      </Link>
     </div>
 
     <motion.div

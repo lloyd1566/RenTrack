@@ -186,9 +186,9 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
   }
 
   return (
-    <div className="min-h-screen bg-surface-secondary flex-1">
+    <div className="min-h-screen bg-gradient-to-br from-gray-50 to-slate-100 flex-1">
       {/* Mobile header */}
-      <div className="lg:hidden flex items-center justify-between p-4 border-b border-border bg-surface sticky top-0 z-10">
+      <div className="lg:hidden flex items-center justify-between p-4 border-b border-slate-700 bg-white/90 backdrop-blur-md sticky top-0 z-10">
         <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 rounded-lg hover:bg-surface-secondary">
           <Menu className="h-5 w-5" />
         </button>
@@ -211,9 +211,9 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
                   exit={{ opacity: 0, y: 10, scale: 0.95 }}
                   transition={{ duration: 0.15 }}
                   onClick={(e) => e.stopPropagation()}
-                  className="absolute right-0 mt-2 w-72 rounded-xl border border-border bg-surface shadow-dropdown overflow-hidden z-[70]"
+                  className="absolute right-0 mt-2 w-72 rounded-xl border border-slate-700 bg-surface shadow-dropdown overflow-hidden z-[70]"
                 >
-                  <div className="p-3 border-b border-border">
+                  <div className="p-3 border-b border-slate-700">
                     <h3 className="font-semibold text-foreground text-sm">Notifications</h3>
                   </div>
                   <div className="max-h-60 overflow-y-auto">
@@ -224,7 +224,7 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
                         <button
                           key={n.id}
                           onClick={() => handleNotificationClick(n.id)}
-                          className="w-full text-left p-3 border-b border-border last:border-0 hover:bg-surface-secondary transition-colors"
+                          className="w-full text-left p-3 border-b border-slate-700 last:border-0 hover:bg-surface-secondary transition-colors"
                         >
                           <p className="text-sm font-medium text-foreground">{n.title}</p>
                           <p className="text-xs text-text-secondary mt-0.5 line-clamp-2">{n.message}</p>
@@ -244,16 +244,16 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
 
       <div className="flex h-screen w-full">
         {/* Sidebar */}
-        <div className={cn("hidden lg:flex flex-col border-r border-border bg-white text-gray-900 transition-all self-start", sidebarOpen ? "w-56" : "w-16")}>
+        <div className={cn("hidden lg:flex flex-col border-r border-border bg-white text-gray-900 transition-all h-full", sidebarOpen ? "w-56" : "w-16")}>
           <div className="p-4 border-b border-border">
             <Link href="/dashboard/owner" className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg overflow-hidden">
+              <div className="h-8 w-8 rounded-full overflow-hidden">
                 <img src="/images/landing/logo.png" alt="RentTrack" className="h-full w-full object-contain" />
               </div>
               {sidebarOpen && <span className="font-bold text-foreground text-sm">Owner Panel</span>}
             </Link>
           </div>
-          <nav className="overflow-y-auto p-3 space-y-0.5">
+          <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.tab;
@@ -278,11 +278,6 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
                 >
                   <Icon className={cn("h-4 w-4 shrink-0", isActive ? "text-blue-600" : "text-gray-400")} />
                   {sidebarOpen && <span className="truncate">{item.label}</span>}
-                  {item.tab === "messages" && unreadMessageCount > 0 && (
-                    <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
-                      {unreadMessageCount}
-                    </span>
-                  )}
                   {item.tab === "assignments" && pendingAssignmentsCount > 0 && (
                     <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white">
                       {pendingAssignmentsCount}
@@ -292,7 +287,16 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
                 </button>
               );
             })}
-            </nav>
+          </nav>
+          <div className="mt-auto p-3">
+            <button
+              onClick={() => setShowLogoutModal(true)}
+              className="w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+            >
+              <LogOut className="h-4 w-4 shrink-0" />
+              {sidebarOpen && <span className="truncate">Logout</span>}
+            </button>
+          </div>
           </div>
 
         {/* Mobile sidebar */}
@@ -311,10 +315,10 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
                 animate={{ x: 0 }}
                 exit={{ x: -300 }}
                 transition={{ duration: 0.2 }}
-                className="w-64 h-full bg-surface border-r border-border flex flex-col"
+                className="w-64 h-full bg-surface border-r border-slate-700 flex flex-col"
                 onClick={(e) => e.stopPropagation()}
               >
-                <div className="p-4 border-b border-border flex items-center justify-between">
+                <div className="p-4 border-b border-slate-700 flex items-center justify-between">
                   <Link href="/dashboard/owner" className="flex items-center gap-2">
                     <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-primary-600 to-secondary-600 flex items-center justify-center">
                       <LayoutDashboard className="h-4 w-4 text-white" />
@@ -325,7 +329,7 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
                     <X className="h-4 w-4" />
                   </button>
                 </div>
-                <nav className="overflow-y-auto p-3 space-y-0.5">
+          <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
                   {navItems.map((item) => {
                     const Icon = item.icon;
                     const isActive = activeTab === item.tab;
@@ -367,10 +371,10 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
 
         {/* Desktop header */}
         <div className="hidden lg:flex flex-1 flex-col min-w-0">
-          <header className="sticky top-0 z-30 h-16 bg-surface/80 backdrop-blur-xl border-b border-border flex items-center justify-between px-6">
+          <header className="sticky top-0 z-30 h-16 bg-surface/80 backdrop-blur-xl border-b border-slate-700 flex items-center justify-between px-6">
             <div className="flex items-center gap-3">
               <Link href="/" className="flex items-center gap-2">
-                <img src="/images/landing/logo.png" alt="RentTrack" className="h-8 w-8 rounded-lg object-contain" />
+                <img src="/images/landing/logo.png" alt="RentTrack" className="h-8 w-8 rounded-full object-contain" />
                 <span className="font-bold text-foreground hidden sm:block">Rent<span className="text-primary-500">Track</span></span>
               </Link>
               <button
@@ -411,9 +415,9 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
                       exit={{ opacity: 0, y: 10, scale: 0.95 }}
                       transition={{ duration: 0.15 }}
                       onClick={(e) => e.stopPropagation()}
-                      className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl border border-border bg-surface shadow-dropdown overflow-hidden z-[70]"
+                      className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl border border-slate-700 bg-surface shadow-dropdown overflow-hidden z-[70]"
                     >
-                      <div className="p-4 border-b border-border">
+                      <div className="p-4 border-b border-slate-700">
                         <h3 className="font-semibold text-foreground">Notifications</h3>
                       </div>
                       <div className="max-h-80 overflow-y-auto">
@@ -424,7 +428,7 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
                             <button
                               key={n.id}
                               onClick={() => handleNotificationClick(n.id)}
-                              className="w-full text-left p-4 border-b border-border last:border-0 hover:bg-surface-secondary transition-colors"
+                              className="w-full text-left p-4 border-b border-slate-700 last:border-0 hover:bg-surface-secondary transition-colors"
                             >
                               <p className="text-sm font-medium text-foreground">{n.title}</p>
                               <p className="text-xs text-text-secondary mt-0.5 line-clamp-2">{n.message}</p>
@@ -452,35 +456,25 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 10, scale: 0.95 }}
                       transition={{ duration: 0.15 }}
-                      className="absolute right-0 mt-2 w-56 rounded-2xl border border-border bg-surface shadow-dropdown overflow-hidden"
+                      className="absolute right-0 mt-2 w-56 rounded-2xl border border-slate-700 bg-surface shadow-dropdown overflow-hidden"
                     >
-                       <div className="p-3 border-b border-border">
+                       <div className="p-3 border-b border-slate-700">
                          <p className="text-sm font-semibold text-foreground truncate">{user.name}</p>
                          <p className="text-xs text-text-secondary truncate">{user.email}</p>
                        </div>
                        <div className="p-2 space-y-0.5">
-                         <button
-                           onClick={() => {
-                             setShowUserMenu(false);
-                             setActiveTab("profile");
-                             window.location.hash = "profile";
-                           }}
-                           className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-text-secondary hover:bg-surface-secondary hover:text-foreground transition-colors"
-                         >
-                           <User className="h-4 w-4" />
-                           My Profile
-                         </button>
-                         <button
-                           onClick={() => {
-                             setShowUserMenu(false);
-                             setShowLogoutModal(true);
-                           }}
-                           className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
-                         >
-                           <LogOut className="h-4 w-4" />
-                           Logout
-                         </button>
-                        </div>
+                          <button
+                            onClick={() => {
+                              setShowUserMenu(false);
+                              setActiveTab("profile");
+                              window.location.hash = "profile";
+                            }}
+                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-text-secondary hover:bg-surface-secondary hover:text-foreground transition-colors"
+                          >
+                            <User className="h-4 w-4" />
+                            My Profile
+                          </button>
+                         </div>
                      </motion.div>
                   )}
                 </AnimatePresence>
@@ -518,7 +512,7 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
                 <h3 className="text-xl font-semibold text-gray-900 mb-2">{logoutLoading ? "Logging out..." : "Log Out"}</h3>
                 <p className="text-sm text-gray-500 mb-6">{logoutLoading ? "Please wait while we securely log you out." : "Are you sure you want to log out of your account?"}</p>
                 <div className="flex w-full gap-3">
-                  <button onClick={() => setShowLogoutModal(false)} disabled={logoutLoading} className="flex-1 px-4 py-2 rounded-xl border border-border hover:bg-surface-secondary transition-colors disabled:opacity-50">Cancel</button>
+                  <button onClick={() => setShowLogoutModal(false)} disabled={logoutLoading} className="flex-1 px-4 py-2 rounded-xl border border-slate-700 hover:bg-surface-secondary transition-colors disabled:opacity-50">Cancel</button>
                   <button onClick={handleLogout} disabled={logoutLoading} className="flex-1 px-4 py-2 rounded-xl bg-red-600 text-white hover:bg-red-700 transition-colors disabled:opacity-50">{logoutLoading ? "Logging out..." : "Log Out"}</button>
                 </div>
               </div>
@@ -529,8 +523,8 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
         {showCreateTenant && createPortal(
           <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/50" onClick={() => setShowCreateTenant(false)} />
-            <div className="relative flex max-h-[88vh] w-full max-w-sm flex-col rounded-md border border-border bg-white shadow-2xl">
-              <div className="flex items-center justify-between border-b border-border p-4">
+            <div className="relative flex max-h-[88vh] w-full max-w-sm flex-col rounded-md border border-slate-700 bg-white shadow-2xl">
+              <div className="flex items-center justify-between border-b border-slate-700 p-4">
                 <div><h3 className="text-base font-semibold text-foreground">Create Tenant</h3><p className="text-xs text-text-secondary">Add tenant, rental, and account information</p></div>
                 <button onClick={() => setShowCreateTenant(false)} className="h-8 w-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-foreground hover:bg-surface-secondary transition-colors">
                   <X className="h-4 w-4" />
@@ -551,8 +545,8 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
                   <Input value={newTenant.phone} onChange={(e) => setNewTenant({ ...newTenant, phone: e.target.value })} placeholder="+63 XXX XXX XXXX" />
                 </div>
                 <div><label className="block text-sm font-medium text-foreground mb-1.5">Address</label><Input value={newTenant.address} onChange={(e) => setNewTenant({ ...newTenant, address: e.target.value })} placeholder="Tenant address" /></div>
-                <div className="space-y-2 border-t border-border pt-3"><h4 className="text-sm font-semibold text-blue-600">Rental Information</h4><Input value={newTenant.propertyName} onChange={(e) => setNewTenant({ ...newTenant, propertyName: e.target.value })} placeholder="Property name" required /><Input value={newTenant.unitNumber} onChange={(e) => setNewTenant({ ...newTenant, unitNumber: e.target.value })} placeholder="Rental unit / room" required /><Input type="number" value={newTenant.rentAmount} onChange={(e) => setNewTenant({ ...newTenant, rentAmount: e.target.value })} placeholder="Monthly rent" /><div className="grid grid-cols-2 gap-2"><Input type="date" value={newTenant.contractStart} onChange={(e) => setNewTenant({ ...newTenant, contractStart: e.target.value })} /><Input type="date" value={newTenant.contractEnd} onChange={(e) => setNewTenant({ ...newTenant, contractEnd: e.target.value })} /></div></div>
-                <div className="border-t border-border pt-3"><h4 className="text-sm font-semibold text-blue-600">Account Information</h4>
+                <div className="space-y-2 border-t border-slate-700 pt-3"><h4 className="text-sm font-semibold text-blue-600">Rental Information</h4><Input value={newTenant.propertyName} onChange={(e) => setNewTenant({ ...newTenant, propertyName: e.target.value })} placeholder="Property name" required /><Input value={newTenant.unitNumber} onChange={(e) => setNewTenant({ ...newTenant, unitNumber: e.target.value })} placeholder="Rental unit / room" required /><Input type="number" value={newTenant.rentAmount} onChange={(e) => setNewTenant({ ...newTenant, rentAmount: e.target.value })} placeholder="Monthly rent" /><div className="grid grid-cols-2 gap-2"><Input type="date" value={newTenant.contractStart} onChange={(e) => setNewTenant({ ...newTenant, contractStart: e.target.value })} /><Input type="date" value={newTenant.contractEnd} onChange={(e) => setNewTenant({ ...newTenant, contractEnd: e.target.value })} /></div></div>
+                <div className="border-t border-slate-700 pt-3"><h4 className="text-sm font-semibold text-blue-600">Account Information</h4>
                 <div>
                   <label className="block text-sm font-medium text-foreground mb-1.5">Password *</label>
                   <Input type="password" value={newTenant.password} onChange={(e) => setNewTenant({ ...newTenant, password: e.target.value })} placeholder="Min. 8 characters" required />

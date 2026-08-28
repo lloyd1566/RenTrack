@@ -11,7 +11,6 @@ import {
   FlaskConical,
   HeartPulse,
   LayoutDashboard,
-  LogOut,
   ScrollText,
   ShieldCheck,
   SlidersHorizontal,
@@ -27,7 +26,6 @@ type AdminNavbarProps = {
   notifications: Notification[];
   onMarkRead: (id: string) => void;
   onMarkAllRead: () => void;
-  onLogout: () => void;
 };
 
 const adminLinks = [
@@ -46,7 +44,6 @@ export function AdminNavbar({
   notifications,
   onMarkRead,
   onMarkAllRead,
-  onLogout,
 }: AdminNavbarProps) {
   const searchParams = useSearchParams();
   const reduceMotion = useReducedMotion();
@@ -188,12 +185,6 @@ export function AdminNavbar({
                     <p className="truncate text-sm font-semibold text-white">{user.name}</p>
                     <p className="truncate text-[11px] text-slate-400">{user.email}</p>
                   </div>
-                  <motion.div whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }}>
-                    <button type="button" onClick={onLogout} className="mt-1 flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-xs font-medium text-rose-300 transition-colors hover:bg-rose-500/10 hover:text-rose-200">
-                      <LogOut className="h-3.5 w-3.5" />
-                      Secure logout
-                    </button>
-                  </motion.div>
                 </motion.div>
               )}
             </AnimatePresence>

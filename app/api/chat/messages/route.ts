@@ -38,8 +38,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Failed to save message" }, { status: 500 });
     }
 
-    let agentEmails: string[] = [];
-    let agentIds: string[] = [];
+    const agentEmails: string[] = [];
+    const agentIds: string[] = [];
 
     if (agentId) {
       const { data: selectedAgent } = await getAdminSupabase().from("users").select("id, email").eq("id", agentId).single();
@@ -96,19 +96,22 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ success: true, message: "Message received. An agent will reply by email." });
+    return NextResponse.json({ success: true, inquiryId: id, message: "Message received. An agent will reply by email." });
   } catch (err) {
     console.error("Chat API error:", err);
     return NextResponse.json({ success: false, error: "Failed to send message" }, { status: 500 });
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     await initDatabase();
-    const { data, error } = await getAdminSupabase().from("chat_messages").select("*").order("created_at", { ascending: true });
+    const ids = request.nextUrl.searchParams.get("ids")?.split(",").map((id) => id.trim()).filter(Boolean) || [];
+    let query = getAdminSupabase().from("chat_messages").select("*").order("created_at", { ascending: true });
+    if (ids.length > 0) query = query.in("id", ids);
+    const { data, error } = await query;
     if (error) throw error;
-    return NextResponse.json({ success: true, messages: (data || []).map((row: any) => ({ id: row.id, text: row.text, propertyId: row.property_id, senderName: row.sender_name, senderEmail: row.sender_email, senderPhone: row.sender_phone, status: row.status, createdAt: row.created_at })) });
+    return NextResponse.json({ success: true, messages: (data || []).map((row: any) => ({ id: row.id, text: row.text, propertyId: row.property_id, senderName: row.sender_name, senderEmail: row.sender_email, senderPhone: row.sender_phone, agentId: row.agent_id, agentName: row.agent_name, status: row.status, replyText: row.reply_text, repliedAt: row.replied_at, createdAt: row.created_at })) });
   } catch (err) {
     console.error("Chat GET error:", err);
     return NextResponse.json({ success: false, error: "Failed to load messages" }, { status: 500 });

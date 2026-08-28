@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
 import {
   LayoutDashboard, Home, UserPlus, ClipboardCheck, Clock,
   CreditCard, FileText, Send,
   CheckCircle2, MessageSquare, Send as SendIcon, Loader2, Mail, User,
-  Search, Plus, X,
+  Search, Plus, X, Download,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -54,6 +54,11 @@ export default function AgentDashboard() {
   const [replyingInquiry, setReplyingInquiry] = useState<string | null>(null);
   const [inquiryReply, setInquiryReply] = useState("");
   const [replying, setReplying] = useState(false);
+  const [viewingThread, setViewingThread] = useState<ChatInquiry | null>(null);
+  const [threadMessages, setThreadMessages] = useState<ChatInquiry[]>([]);
+  const [threadReply, setThreadReply] = useState("");
+  const [threadSending, setThreadSending] = useState(false);
+  const threadEndRef = useRef<HTMLDivElement>(null);
 
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
   const [selectedTenant, setSelectedTenant] = useState<TenantRecord | null>(null);
@@ -68,7 +73,7 @@ export default function AgentDashboard() {
   const [resubmittingId, setResubmittingId] = useState<string | null>(null);
 
   const loadData = useCallback(async () => {
-    if (!user) return;
+    if (!user) return [];
     setIsRefreshing(true);
     try {
       const [props, unitsData, tenantsData, paymentsData, convs, inquiriesData] = await Promise.all([
@@ -85,16 +90,81 @@ export default function AgentDashboard() {
       setPayments(paymentsData);
       setConversations(convs);
       setInquiries(inquiriesData);
+      return inquiriesData;
     } catch (err) {
       console.error("Agent dashboard load error:", err);
+      return [];
     } finally {
       setIsRefreshing(false);
     }
   }, [user]);
 
+  const openThread = async (inquiry: ChatInquiry) => {
+    const inquiriesData = await loadData();
+    const thread = (inquiriesData || [])
+      .filter((item) => item.senderEmail && inquiry.senderEmail && item.senderEmail.toLowerCase().trim() === inquiry.senderEmail.toLowerCase().trim())
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+    setThreadMessages(thread);
+    setViewingThread(inquiry);
+    setThreadReply("");
+  };
+
+  const closeThread = () => {
+    setViewingThread(null);
+    setThreadMessages([]);
+    setThreadReply("");
+  };
+
+  const sendThreadReply = async () => {
+    if (!viewingThread || !threadReply.trim()) return;
+    setThreadSending(true);
+    try {
+      await updateInquiryStatus(viewingThread.id, "replied", threadReply.trim());
+      const reply = threadReply.trim();
+      setThreadMessages((prev) => {
+        const targetEmail = viewingThread.senderEmail;
+        const refreshed = prev.filter((item) => item.senderEmail && targetEmail && item.senderEmail.toLowerCase().trim() === targetEmail.toLowerCase().trim());
+        return refreshed.map((item) => item.id === viewingThread.id ? { ...item, status: "replied", replyText: reply, repliedAt: new Date().toISOString(), agentName: user?.name } : item);
+      });
+      setInquiries((prev) => prev.map((item) => item.id === viewingThread.id ? { ...item, status: "replied", replyText: reply, repliedAt: new Date().toISOString(), agentName: user?.name } : item));
+      setThreadReply("");
+      toast.success("Reply sent");
+    } catch {
+      toast.error("Failed to send reply");
+    } finally {
+      setThreadSending(false);
+    }
+  };
+
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    if (!viewingThread) return;
+    let cancelled = false;
+    const refreshThread = async () => {
+      try {
+        const result = await getInquiries();
+        if (cancelled) return;
+        const thread = result.filter((item) => item.senderEmail && viewingThread.senderEmail && item.senderEmail.toLowerCase().trim() === viewingThread.senderEmail.toLowerCase().trim()).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        setThreadMessages(thread);
+        setInquiries(result);
+      } catch {
+        // ignore background poll errors
+      }
+    };
+    refreshThread();
+    const interval = window.setInterval(refreshThread, 5000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [viewingThread]);
+
+  useEffect(() => {
+    threadEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [threadMessages]);
 
   useEffect(() => {
     const readHash = () => {
@@ -195,8 +265,8 @@ export default function AgentDashboard() {
   const handleForwardToOwner = async (payment: Payment) => {
     try {
       await notifyAdmins({
-        title: "Payment Receipt Pending Review",
-        message: `${payment.tenantName} uploaded a payment receipt of ${formatCurrency(payment.amountPaid)} for property "${payment.propertyName}". Please review and confirm.`,
+        title: "Payment Pending Owner Review",
+        message: `${payment.tenantName} submitted a payment of ${formatCurrency(payment.amountPaid)} for property "${payment.propertyName}". Please review the automatic receipt and confirm.`,
         type: "payment",
         read: false,
       });
@@ -301,6 +371,11 @@ export default function AgentDashboard() {
                             <div className="text-right">
                               <p className="text-xl font-semibold text-foreground">{formatCurrency(payment.amountPaid)}</p>
                               {getStatusBadge(payment.status)}
+                              {payment.receiptUrl && (
+                                <a href={payment.receiptUrl} download={`renttrack-receipt-${payment.id}.svg`} className="inline-flex h-8 items-center gap-1 rounded-lg border border-border px-2 text-xs text-text-secondary hover:bg-surface-secondary hover:text-primary-600" onClick={(event) => event.stopPropagation()}>
+                                  <Download className="h-3.5 w-3.5" />Receipt
+                                </a>
+                              )}
                             </div>
                           </div>
                         ))}
@@ -767,6 +842,11 @@ export default function AgentDashboard() {
                                 <p className="text-sm text-text-secondary">of {formatCurrency(payment.amountDue)}</p>
                               </div>
                               {getStatusBadge(payment.status)}
+                              {payment.receiptUrl && (
+                                <a href={payment.receiptUrl} download={`renttrack-receipt-${payment.id}.svg`} className="inline-flex h-8 items-center gap-1 rounded-lg border border-border px-2 text-xs text-text-secondary hover:bg-surface-secondary hover:text-primary-600">
+                                  <Download className="h-3.5 w-3.5" />Receipt
+                                </a>
+                              )}
                             </div>
                             {payment.status === "pending" && (
                               <Button size="sm" variant="outline" className="h-8 text-xs border-blue-200 text-blue-600 hover:bg-blue-50"
@@ -847,32 +927,58 @@ export default function AgentDashboard() {
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
                 <div>
                   <h1 className="text-3xl font-bold text-foreground">Messages</h1>
-                  <p className="text-base text-text-secondary mt-1">Communicate with owners and tenants</p>
+                  <p className="text-base text-text-secondary mt-1">Communicate with owners, tenants, and landing-page visitors</p>
                 </div>
                 <Card>
                   <CardContent className="p-6">
                     <div className="space-y-3">
-                      {conversations.length === 0 ? (
+                      {conversations.length === 0 && inquiries.length === 0 ? (
                         <div className="text-center py-12">
                           <p className="text-text-secondary font-medium">No messages yet</p>
                           <p className="text-xs text-text-tertiary mt-1">Start a conversation with an owner or tenant</p>
                         </div>
                       ) : (
-                        conversations.map((conv) => (
-                          <div key={conv.userId} onClick={() => { setSelectedConversation(conv); setIsMessagingOpen(true); }} className="flex items-center justify-between p-4 rounded-xl border border-border hover:bg-surface-secondary transition-colors cursor-pointer">
-                            <div className="flex items-center gap-3">
-                               <Avatar src={conv.otherUser?.avatarUrl} fallback={conv.otherUser?.name ? getInitials(conv.otherUser.name) : "?"} />
-                              <div>
-                                <p className="font-medium text-foreground">{conv.otherUser?.name || "Unknown"}</p>
-                                <p className="text-xs text-text-secondary truncate max-w-[200px]">{conv.lastMessage.subject && `${conv.lastMessage.subject} - `}{conv.lastMessage.body}</p>
+                        <>
+                          {conversations.map((conv) => (
+                            <div key={conv.userId} onClick={() => { setSelectedConversation(conv); setIsMessagingOpen(true); }} className="flex items-center justify-between p-4 rounded-xl border border-border hover:bg-surface-secondary transition-colors cursor-pointer">
+                              <div className="flex items-center gap-3">
+                                 <Avatar src={conv.otherUser?.avatarUrl} fallback={conv.otherUser?.name ? getInitials(conv.otherUser.name) : "?"} />
+                                <div>
+                                  <p className="font-medium text-foreground">{conv.otherUser?.name || "Unknown"}</p>
+                                  <p className="text-xs text-text-secondary truncate max-w-[200px]">{conv.lastMessage.subject && `${conv.lastMessage.subject} - `}{conv.lastMessage.body}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10px] text-text-tertiary">{new Date(conv.lastMessage.createdAt).toLocaleDateString()}</span>
+                                {conv.unreadCount > 0 && <Badge variant="default" className="bg-blue-600 text-white text-[10px]">{conv.unreadCount}</Badge>}
                               </div>
                             </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-[10px] text-text-tertiary">{new Date(conv.lastMessage.createdAt).toLocaleDateString()}</span>
-                              {conv.unreadCount > 0 && <Badge variant="default" className="bg-blue-600 text-white text-[10px]">{conv.unreadCount}</Badge>}
+                          ))}
+                          {inquiries.map((inq) => (
+                            <div key={`inquiry-${inq.id}`} className="p-4 rounded-xl border border-blue-200 bg-blue-50/40">
+                              <div className="flex items-start justify-between gap-4">
+                                <div className="min-w-0">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <Mail className="h-4 w-4 text-blue-600" />
+                                    <p className="font-medium text-foreground">{inq.senderName}</p>
+                                    <Badge variant="outline" className="text-[10px]">Landing inquiry</Badge>
+                                  </div>
+                                  <p className="text-xs text-text-secondary">{inq.senderEmail}</p>
+                                  <p className="mt-2 text-sm text-foreground whitespace-pre-wrap">{inq.text}</p>
+                                  {inq.replyText ? (
+                                    <div className="mt-3 rounded-lg bg-white border border-blue-100 p-3">
+                                      <p className="text-xs font-semibold text-blue-700">Your reply{inq.agentName ? ` • ${inq.agentName}` : ""}</p>
+                                      <p className="mt-1 text-sm text-gray-700 whitespace-pre-wrap">{inq.replyText}</p>
+                                    </div>
+                                  ) : (
+                                    <p className="mt-2 text-xs text-text-tertiary">Awaiting reply</p>
+                                  )}
+                                </div>
+                                <Button size="sm" variant="outline" onClick={() => { setReplyingInquiry(inq.id); setInquiryReply(inq.replyText || ""); }}>Reply</Button>
+                              </div>
                             </div>
-                          </div>
-                        ))
+                          ))}
+                        </>
                       )}
                     </div>
                   </CardContent>
@@ -912,13 +1018,13 @@ export default function AgentDashboard() {
                               </div>
                               <div className="flex flex-col gap-2">
                                 <Button size="sm" variant="outline" onClick={() => { setReplyingInquiry(inq.id); setInquiryReply(""); }}>Reply</Button>
+                                <Button size="sm" variant="ghost" onClick={() => openThread(inq)}>View Conversation</Button>
                                 {inq.status === "new" && (
-                                  <Button size="sm" onClick={async () => { await updateInquiryStatus(inq.id, "read"); setInquiries(prev => prev.map(i => i.id === inq.id ? { ...i, status: "read" } : i)); }}>Mark Read</Button>
+                                  <Button size="sm" onClick={async () => { try { await updateInquiryStatus(inq.id, "read"); setInquiries(prev => prev.map(i => i.id === inq.id ? { ...i, status: "read" } : i)); } catch (e) { toast.error("Failed to mark as read"); } }}>Mark Read</Button>
                                 )}
-                                <Button size="sm" variant="outline" onClick={async () => { await updateInquiryStatus(inq.id, "replied"); setInquiries(prev => prev.map(i => i.id === inq.id ? { ...i, status: "replied" } : i)); }}>Mark Replied</Button>
+                                <Button size="sm" variant="outline" onClick={async () => { try { await updateInquiryStatus(inq.id, "replied"); setInquiries(prev => prev.map(i => i.id === inq.id ? { ...i, status: "replied" } : i)); } catch (e) { toast.error("Failed to mark as replied"); } }}>Mark Replied</Button>
                               </div>
                             </div>
-                            {replyingInquiry === inq.id && <form className="mt-4 border-t border-border pt-4" onSubmit={async (event) => { event.preventDefault(); if (!inquiryReply.trim()) return; setReplying(true); try { await updateInquiryStatus(inq.id, "replied", inquiryReply); setInquiries((current) => current.map((item) => item.id === inq.id ? { ...item, status: "replied", replyText: inquiryReply, agentName: user?.name } : item)); setReplyingInquiry(null); setInquiryReply(""); toast.success("Reply sent"); } catch { toast.error("Failed to send reply"); } finally { setReplying(false); } }}><textarea value={inquiryReply} onChange={(event) => setInquiryReply(event.target.value)} placeholder="Write your reply..." rows={3} className="w-full rounded-lg border border-border bg-surface p-3 text-sm" /><Button type="submit" disabled={replying || !inquiryReply.trim()} className="mt-2">{replying ? "Sending..." : "Send Reply"}</Button></form>}
                           </div>
                         ))
                       )}
@@ -927,6 +1033,105 @@ export default function AgentDashboard() {
                 </Card>
               </motion.div>
             )}
+
+        {/* Landing inquiry reply modal */}
+        {replyingInquiry && (() => {
+          const inquiry = inquiries.find((item) => item.id === replyingInquiry);
+          if (!inquiry) return null;
+          return (
+            <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" aria-labelledby="inquiry-reply-title" onMouseDown={(event) => { if (event.target === event.currentTarget && !replying) setReplyingInquiry(null); }}>
+              <div className="w-full max-w-lg rounded-2xl bg-surface shadow-2xl border border-border" onMouseDown={(event) => event.stopPropagation()}>
+                <div className="flex items-center justify-between border-b border-border px-6 py-4">
+                  <div>
+                    <h2 id="inquiry-reply-title" className="text-lg font-semibold text-foreground">Reply to {inquiry.senderName}</h2>
+                    <p className="text-xs text-text-secondary mt-1">{inquiry.senderEmail}</p>
+                  </div>
+                  <button type="button" aria-label="Close reply dialog" onClick={() => { if (!replying) setReplyingInquiry(null); }} className="rounded-lg p-2 text-text-secondary hover:bg-surface-secondary hover:text-foreground">
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+                <div className="space-y-4 px-6 py-5">
+                  <div className="rounded-lg bg-surface-secondary p-3">
+                    <p className="text-xs font-medium text-text-secondary mb-1">Visitor message</p>
+                    <p className="text-sm text-foreground whitespace-pre-wrap">{inquiry.text}</p>
+                  </div>
+                  <form onSubmit={async (event) => {
+                    event.preventDefault();
+                    const reply = inquiryReply.trim();
+                    if (!reply) return;
+                    setReplying(true);
+                    try {
+                      await updateInquiryStatus(inquiry.id, "replied", reply);
+                      setInquiries((current) => current.map((item) => item.id === inquiry.id ? { ...item, status: "replied", replyText: reply, repliedAt: new Date().toISOString(), agentName: user?.name } : item));
+                      setReplyingInquiry(null);
+                      setInquiryReply("");
+                      toast.success("Reply sent");
+                    } catch {
+                      toast.error("Failed to send reply");
+                    } finally {
+                      setReplying(false);
+                    }
+                  }}>
+                    <textarea autoFocus value={inquiryReply} onChange={(event) => setInquiryReply(event.target.value)} placeholder="Write your reply..." rows={5} className="w-full resize-none rounded-lg border border-border bg-surface p-3 text-sm text-foreground placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-blue-500/30" />
+                    <div className="mt-4 flex justify-end gap-2">
+                      <Button type="button" variant="outline" onClick={() => setReplyingInquiry(null)} disabled={replying}>Cancel</Button>
+                      <Button type="submit" disabled={replying || !inquiryReply.trim()}>{replying ? "Sending..." : "Send Reply"}</Button>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
+
+        {viewingThread && (
+          <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/50 p-4" role="dialog" aria-modal="true" onMouseDown={(event) => { if (event.target === event.currentTarget) closeThread(); }}>
+            <div className="w-full max-w-2xl max-h-[85vh] flex flex-col rounded-2xl bg-surface shadow-2xl border border-border" onMouseDown={(event) => event.stopPropagation()}>
+              <div className="flex items-center justify-between border-b border-border px-6 py-4">
+                <div>
+                  <h2 className="text-lg font-semibold text-foreground">Conversation with {viewingThread.senderName}</h2>
+                  <p className="text-xs text-text-secondary mt-1">{viewingThread.senderEmail}{viewingThread.senderPhone ? ` • ${viewingThread.senderPhone}` : ""}</p>
+                </div>
+                <button type="button" onClick={closeThread} className="rounded-lg p-2 text-text-secondary hover:bg-surface-secondary hover:text-foreground">
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+              <div className="flex-1 overflow-y-auto p-6 space-y-4">
+                {threadMessages.length === 0 ? (
+                  <p className="text-sm text-text-secondary text-center py-8">No messages in this conversation.</p>
+                ) : (
+                  threadMessages.map((msg) => (
+                    <div key={msg.id} className={`flex ${msg.replyText ? "justify-end" : "justify-start"}`}>
+                      <div className={`max-w-[75%] rounded-2xl px-4 py-3 ${msg.replyText ? "bg-blue-600 text-white" : "bg-surface-secondary text-foreground"}`}>
+                        <p className="text-sm whitespace-pre-wrap">{msg.replyText || msg.text}</p>
+                        <p className={`text-[10px] mt-1 ${msg.replyText ? "text-blue-100" : "text-text-tertiary"}`}>{new Date(msg.repliedAt || msg.createdAt).toLocaleString()}</p>
+                        {msg.replyText && <p className="text-[10px] text-blue-100 mt-0.5">You • {msg.agentName || user?.name}</p>}
+                      </div>
+                    </div>
+                  ))
+                )}
+                <div ref={threadEndRef} />
+              </div>
+              <div className="border-t border-border p-4">
+                <form onSubmit={async (event) => {
+                  event.preventDefault();
+                  await sendThreadReply();
+                }}>
+                  <div className="flex gap-2">
+                    <textarea
+                      value={threadReply}
+                      onChange={(event) => setThreadReply(event.target.value)}
+                      placeholder="Write your reply..."
+                      rows={2}
+                      className="flex-1 resize-none rounded-lg border border-border bg-surface p-3 text-sm text-foreground placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                    />
+                    <Button type="submit" disabled={threadSending || !threadReply.trim()}>{threadSending ? "Sending..." : "Send"}</Button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Messaging Modal */}
         {selectedConversation && (

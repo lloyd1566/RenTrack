@@ -150,7 +150,7 @@ export default function AdminSidebar() {
       >
         {/* Logo */}
         <Link href="/dashboard/admin" className="flex h-14 shrink-0 items-center gap-2 border-b border-white/[0.08] px-3">
-          <span className="h-8 w-8 shrink-0 overflow-hidden rounded-lg">
+          <span className="h-8 w-8 shrink-0 overflow-hidden rounded-full">
             <img src="/images/landing/logo.png" alt="RentTrack" className="h-full w-full object-contain" />
           </span>
           <div>

@@ -25,6 +25,15 @@ const item = {
   show: { opacity: 1, y: 0, scale: 1 },
 };
 
+const propertyImages = [
+  "/images/landing/feature-property.jpg",
+  "/images/landing/feature-tenant.jpg",
+  "/images/landing/feature-payment.jpg",
+  "/images/landing/feature-dashboard.jpg",
+  "/images/landing/feature-notifications.jpg",
+  "/images/landing/feature-security.jpg",
+];
+
 export default function TenantPropertiesPage() {
   const { user } = useAuth();
   const [properties, setProperties] = useState<Property[]>([]);
@@ -108,16 +117,19 @@ export default function TenantPropertiesPage() {
               >
                 <Card className="overflow-hidden border border-border hover:shadow-xl transition-all duration-300 h-full group">
                   <div className="relative h-48 bg-gradient-to-br from-blue-50 to-indigo-50 dark:from-blue-900/20 dark:to-indigo-900/20 flex items-center justify-center overflow-hidden">
-                    {property.imageUrl ? (
-                      <img src={property.imageUrl} alt={property.name} className="w-full h-full object-cover" />
-                    ) : (
-                      <motion.div
-                        animate={{ y: [0, -8, 0] }}
-                        transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: idx * 0.3 }}
-                      >
-                        <Building2 className="h-16 w-16 text-blue-500" />
-                      </motion.div>
-                    )}
+                     {(() => {
+                       const imgSrc = property.imageUrl || propertyImages[idx % propertyImages.length];
+                       return imgSrc ? (
+                         <img src={imgSrc} alt={property.name} className="w-full h-full object-cover" />
+                       ) : (
+                         <motion.div
+                           animate={{ y: [0, -8, 0] }}
+                           transition={{ duration: 3, repeat: Infinity, ease: "easeInOut", delay: idx * 0.3 }}
+                         >
+                           <Building2 className="h-16 w-16 text-blue-500" />
+                         </motion.div>
+                       );
+                     })()}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
                     <div className="absolute top-3 right-3">
                       <Badge variant={property.status === "active" ? "success" : "secondary"} className="text-[10px]">

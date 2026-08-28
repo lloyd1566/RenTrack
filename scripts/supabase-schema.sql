@@ -208,6 +208,7 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 
 ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS reply_text TEXT;
 ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS replied_at TIMESTAMPTZ;
+ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'new' CHECK (status IN ('new', 'read', 'replied'));
 
 CREATE TABLE IF NOT EXISTS messages (
   id TEXT PRIMARY KEY,

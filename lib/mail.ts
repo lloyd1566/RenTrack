@@ -74,6 +74,19 @@ export async function sendEmail({ to, subject, text, html, bcc }: { to: string; 
 }
 
 export async function sendSystemEmail({ to, subject, text, html, bcc }: { to: string; subject: string; text?: string; html?: string; bcc?: string }) {
-  return sendEmail({ to, subject, text, html, bcc });
+  const configured = isSmtpConfigured();
+  console.log("[Mail] SMTP configured:", configured, { to, subject, from: process.env.SMTP_USER });
+  if (!configured) {
+    console.warn("[Mail] Skipping email because SMTP is not configured.");
+    return false;
+  }
+  try {
+    const result = await sendEmail({ to, subject, text, html, bcc });
+    console.log("[Mail] Email sent successfully:", { to, subject });
+    return result;
+  } catch (err) {
+    console.error("[Mail] Failed to send email:", err);
+    return false;
+  }
 }
 

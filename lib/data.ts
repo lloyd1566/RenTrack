@@ -720,4 +720,7 @@ export async function getUnreadInquiryCount(): Promise<number> {
 export async function updateInquiryStatus(id: string, status: string, replyText?: string): Promise<void> {
   const result = await apiPatch(`/api/chat/inquiries`, { id, status, replyText });
   if (!result.success) throw new Error(result.error || "Failed to update inquiry");
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event("renttrack-notifications-updated"));
+  }
 }
