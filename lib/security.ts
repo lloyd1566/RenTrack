@@ -3,10 +3,13 @@ import { NextRequest, NextResponse } from "next/server";
 
 const SESSION_COOKIE_NAME = "renttrack_session";
 const SESSION_TTL_SECONDS = 60 * 60 * 8;
-const SESSION_SECRET = process.env.SESSION_SECRET as string;
 
-if (!SESSION_SECRET) {
-  throw new Error("SESSION_SECRET environment variable is required");
+function requireSessionSecret(): string {
+  const value = process.env.SESSION_SECRET;
+  if (!value) {
+    throw new Error("SESSION_SECRET environment variable is required");
+  }
+  return value;
 }
 
 function base64UrlEncode(value: string) {
@@ -18,7 +21,8 @@ function base64UrlDecode(value: string) {
 }
 
 function sign(value: string) {
-  return createHmac("sha256", SESSION_SECRET).update(value).digest("base64url");
+  const secret = requireSessionSecret();
+  return createHmac("sha256", secret).update(value).digest("base64url");
 }
 
 export function hashSecret(value: string) {
