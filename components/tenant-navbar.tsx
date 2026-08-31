@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { getNotifications, getUnreadMessageCount, markAllNotificationsRead, Notification } from "@/lib/data";
 import { Button } from "@/components/ui/button";
+import { Avatar } from "@/components/ui/avatar";
 
 export default function TenantNavbar() {
   const [scrolled, setScrolled] = useState(false);
@@ -328,9 +329,9 @@ export default function TenantNavbar() {
                       <motion.div
                         whileHover={{ rotate: 10 }}
                         transition={{ type: "spring", stiffness: 400, damping: 25 }}
-                        className="relative flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/40"
+                        className="relative flex h-8 w-8 items-center justify-center rounded-full"
                       >
-                        <span className="text-sm font-medium text-blue-600 dark:text-blue-400">{user.name?.charAt(0)?.toUpperCase() || "T"}</span>
+                        <Avatar src={user.avatarUrl} fallback={user.name?.charAt(0)?.toUpperCase() || "T"} size="sm" />
                         {unreadMessageCount > 0 && (
                           <span title={`${unreadMessageCount} unread messages`} className="absolute -bottom-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full border-2 border-white bg-blue-600 px-0.5 text-[8px] font-bold text-white dark:border-gray-900">
                             {unreadMessageCount > 9 ? "9+" : unreadMessageCount}
@@ -443,22 +444,20 @@ export default function TenantNavbar() {
                       )}
                     </AnimatePresence>
                   </motion.button>
-                  <motion.button
-                    whileHover={{ scale: 1.1 }}
-                    whileTap={{ scale: 0.9 }}
-                    onClick={() => { setShowUserMenu(!showUserMenu); setShowNotifications(false); }}
-                    aria-label={`Profile${unreadMessageCount > 0 ? `, ${unreadMessageCount} unread messages` : ""}`}
-                    className="relative rounded-xl p-1.5 hover:bg-gray-50 dark:hover:bg-gray-800"
-                  >
-                    <div className="relative flex h-8 w-8 items-center justify-center rounded-full bg-blue-100 dark:bg-blue-900/40">
-                      <span className="text-sm font-medium text-blue-600 dark:text-blue-400">{user.name?.charAt(0)?.toUpperCase() || "T"}</span>
+                    <motion.button
+                      whileHover={{ scale: 1.1 }}
+                      whileTap={{ scale: 0.9 }}
+                      onClick={() => { setShowUserMenu(!showUserMenu); setShowNotifications(false); }}
+                      aria-label={`Profile${unreadMessageCount > 0 ? `, ${unreadMessageCount} unread messages` : ""}`}
+                      className="relative rounded-xl p-1.5 hover:bg-gray-50 dark:hover:bg-gray-800"
+                    >
+                      <Avatar src={user.avatarUrl} fallback={user.name?.charAt(0)?.toUpperCase() || "T"} size="sm" />
                       {unreadMessageCount > 0 && (
                         <span title={`${unreadMessageCount} unread messages`} className="absolute -bottom-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full border-2 border-white bg-blue-600 px-0.5 text-[8px] font-bold text-white dark:border-gray-900">
                           {unreadMessageCount > 9 ? "9+" : unreadMessageCount}
                         </span>
                       )}
-                    </div>
-                  </motion.button>
+                    </motion.button>
                 </>
               )}
               <motion.button

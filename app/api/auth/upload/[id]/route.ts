@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getUpload } from "@/lib/db";
-import { getSessionUserId } from "@/lib/security";
+import { getSessionUserId, getCurrentUser } from "@/lib/security";
 import { withSecurityHeaders, withCorsHeaders } from "@/lib/security-headers";
 import { logAudit } from "@/lib/db";
 
@@ -20,18 +20,18 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       return withSecurityHeaders(withCorsHeaders(request, response));
     }
 
-    // Property and unit photos are displayed on public listing pages. Other
-    // upload types (avatars, IDs, and receipts) must remain owner-only.
     const isPublicListingImage = upload.type === "property" || upload.type === "unit";
+    const currentUser = await getCurrentUser(request);
     const userId = getSessionUserId(request);
-    if (!isPublicListingImage && !userId) {
+    if (!isPublicListingImage && !currentUser) {
       const response = NextResponse.json({ success: false, error: "Not authenticated" }, { status: 401 });
       return withSecurityHeaders(withCorsHeaders(request, response));
     }
 
-    if (!isPublicListingImage && upload.user_id !== userId) {
+    const canAccess = isPublicListingImage || upload.user_id === userId || ["admin", "owner", "agent"].includes(currentUser?.role || "");
+    if (!canAccess) {
       const response = NextResponse.json({ success: false, error: "Access denied" }, { status: 403 });
-      await logAudit(userId!, "upload_access_denied", { uploadId: resolvedParams.id }, getIp(request), request.headers.get("user-agent") || "unknown");
+      await logAudit(userId || "unknown", "upload_access_denied", { uploadId: resolvedParams.id }, getIp(request), request.headers.get("user-agent") || "unknown");
       return withSecurityHeaders(withCorsHeaders(request, response));
     }
 

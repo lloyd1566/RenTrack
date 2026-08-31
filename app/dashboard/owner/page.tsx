@@ -1,12 +1,13 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, Home, ClipboardCheck, Clock,
   CreditCard, FileText, BarChart3, FileSpreadsheet, RefreshCw,
   CheckCircle2, Send as SendIcon, UserPlus, User,
   Eye, Download, Printer, ChevronRight, X, Loader2, Plus, Camera, Users, Trash2,
+  Shield, ShieldOff,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,7 +19,7 @@ import {
   getProperties, getUnits, getTenants, getPayments,
   addTenant, updateTenantAssignment, verifyPayment, addProperty, addUnit,
   deleteProperty, deleteUnit, updateProperty, updateUnit,
-  getConversations, sendMessage, notifyAdmins,
+  getConversations, sendMessage, notifyAdmins, updateTenantStatus,
   Property, Unit, TenantRecord, Payment, Conversation,
 } from "@/lib/data";
 import OwnerAgentsPage from "./agents/agents-client";
@@ -26,8 +27,9 @@ import { cn, formatCurrency, formatDate, getInitials } from "@/lib/utils";
 import { toast } from "sonner";
 import MessagingModal from "@/components/messaging-modal";
 import ProfilePanel from "@/components/profile-panel";
+import CreateTenantModal from "@/components/create-tenant-modal";
 
-type Step = "overview" | "properties" | "units" | "assignments" | "agents" | "contracts" | "occupancy" | "payments" | "receivables" | "reports" | "profile";
+type Step = "overview" | "properties" | "units" | "assignments" | "agents" | "create-tenant" | "contracts" | "occupancy" | "payments" | "receivables" | "reports" | "profile";
 
 const flowSteps: { key: Step; label: string; icon: React.ElementType }[] = [
   { key: "overview", label: "Overview", icon: LayoutDashboard },
@@ -35,6 +37,7 @@ const flowSteps: { key: Step; label: string; icon: React.ElementType }[] = [
   { key: "units", label: "Rental Units", icon: ClipboardCheck },
   { key: "assignments", label: "Pending Approvals", icon: FileText },
   { key: "agents", label: "Agents", icon: Users },
+  { key: "create-tenant", label: "Create Tenant", icon: UserPlus },
   { key: "contracts", label: "Rental Contracts", icon: FileText },
   { key: "occupancy", label: "Occupancy", icon: Home },
   { key: "payments", label: "Payments", icon: CreditCard },
@@ -72,6 +75,9 @@ export default function OwnerDashboard() {
   const [editUnitForm, setEditUnitForm] = useState({ unitNumber: "", floor: "", status: "vacant" as "vacant" | "occupied" | "maintenance", rentAmount: 0, imageUrl: "" });
   const [isUploadingEditPropertyImage, setIsUploadingEditPropertyImage] = useState(false);
   const [isUploadingEditUnitImage, setIsUploadingEditUnitImage] = useState(false);
+  const [createTenantSubmitting, setCreateTenantSubmitting] = useState(false);
+  const [showCreateTenantModal, setShowCreateTenantModal] = useState(false);
+  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
 
   const loadData = useCallback(async () => {
     setIsRefreshing(true);
@@ -140,6 +146,57 @@ export default function OwnerDashboard() {
       toast.error("Failed to create property");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleCreateTenant = async (formData: {
+    name: string;
+    email: string;
+    phone: string;
+    address: string;
+    propertyName: string;
+    unitNumber: string;
+    rentAmount: string;
+    contractStart: string;
+    contractEnd: string;
+    password: string;
+  }) => {
+    if (!formData.name || !formData.email || !formData.password || !formData.propertyName || !formData.unitNumber) {
+      toast.error("Name, email, password, property, and unit are required");
+      return;
+    }
+    setCreateTenantSubmitting(true);
+    try {
+      const res = await fetch("/api/auth/signup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: formData.name, email: formData.email, phone: formData.phone, address: formData.address, password: formData.password, role: "tenant" }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        await fetch("/api/data/tenants", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ name: formData.name, email: formData.email, phone: formData.phone, address: formData.address, propertyName: formData.propertyName, unitNumber: formData.unitNumber, rentAmount: Number(formData.rentAmount) || 0, contractStart: formData.contractStart || undefined, contractEnd: formData.contractEnd || undefined, assignmentStatus: "confirmed" }) });
+        toast.success("Tenant account created successfully!");
+        setShowCreateTenantModal(false);
+      } else {
+        toast.error(data.error || "Failed to create tenant account");
+      }
+    } catch {
+      toast.error("Failed to create tenant account");
+    } finally {
+      setCreateTenantSubmitting(false);
+    }
+  };
+
+  const handleBlockTenant = async (tenantId: string, currentStatus: string) => {
+    const newStatus = currentStatus === "active" ? "inactive" : "active";
+    try {
+      const updated = await updateTenantStatus(tenantId, newStatus);
+      if (updated) {
+        setTenants(tenants.map(t => t.id === tenantId ? { ...t, status: newStatus } : t));
+        toast.success(newStatus === "inactive" ? "Tenant account blocked" : "Tenant account unblocked");
+      }
+    } catch {
+      toast.error("Failed to update tenant status");
     }
   };
 
@@ -357,7 +414,7 @@ export default function OwnerDashboard() {
   const occupiedUnits = units.filter((u) => u.status === "occupied");
   const pendingAssignments = tenants.filter((t) => t.assignmentStatus === "pending" && t.unitId);
   const activeTenants = tenants.filter((t) => t.status === "active");
-  const pendingPayments = payments.filter((p) => p.status === "pending" || p.status === "partial");
+  const pendingPayments = payments.filter((p) => p.status === "pending");
   const overduePayments = payments.filter((p) => p.status === "overdue");
 
   return (
@@ -373,14 +430,15 @@ export default function OwnerDashboard() {
                     </div>
                   </div>
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5 gap-5">
                   {[
                     { label: "Total Properties", value: properties.length, icon: Home, color: "from-primary-500 to-primary-600", tab: "properties" as const },
                     { label: "Available Units", value: availableUnits.length, icon: Home, color: "from-secondary-500 to-secondary-600", tab: "units" as const },
                     { label: "Occupied Units", value: occupiedUnits.length, icon: Home, color: "from-green-500 to-green-600", tab: "occupancy" as const },
-                    { label: "Pending Assignments", value: pendingAssignments.length, icon: Clock, color: "from-amber-500 to-amber-600", tab: "assignments" as const },
+                    { label: "Pending Approvals", value: pendingAssignments.length, icon: Clock, color: "from-amber-500 to-amber-600", tab: "assignments" as const },
+                    { label: "Pending Payments", value: pendingPayments.length, icon: CreditCard, color: "from-red-500 to-red-600", tab: "payments" as const },
                   ].map((stat, i) => (
-                    <Card key={i} onClick={() => { setActiveTab(stat.tab); window.location.hash = stat.tab; }} className="hover:shadow-lg transition-all duration-300 cursor-pointer hover:scale-105 active:scale-95">
+                    <Card key={i} onClick={() => { setActiveTab(stat.tab); window.location.hash = stat.tab; }} className="relative hover:shadow-lg transition-all duration-300 cursor-pointer hover:scale-105 active:scale-95">
                       <CardContent className="min-h-[180px] p-8">
                         <div className="flex items-center justify-between mb-4">
                           <span className="text-lg font-medium text-text-secondary">{stat.label}</span>
@@ -388,7 +446,23 @@ export default function OwnerDashboard() {
                             <stat.icon className="h-5 w-5" />
                           </div>
                         </div>
-                        <p className="text-5xl font-bold text-foreground">{stat.value}</p>
+                        <div className="flex items-center gap-3">
+                          <p className="text-5xl font-bold text-foreground">{stat.value}</p>
+                          <AnimatePresence mode="popLayout">
+                            {(stat.tab === "assignments" && pendingAssignments.length > 0) || (stat.tab === "payments" && pendingPayments.length > 0) ? (
+                              <motion.span
+                                key={`${stat.tab}-badge`}
+                                initial={{ scale: 0, x: -8 }}
+                                animate={{ scale: 1, x: 0 }}
+                                exit={{ scale: 0, x: -8 }}
+                                transition={{ type: "spring", stiffness: 500, damping: 15 }}
+                                className="flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-lg"
+                              >
+                                {(stat.tab === "assignments" ? pendingAssignments.length : pendingPayments.length)}
+                              </motion.span>
+                            ) : null}
+                          </AnimatePresence>
+                        </div>
                       </CardContent>
                     </Card>
                   ))}
@@ -642,6 +716,74 @@ export default function OwnerDashboard() {
               <OwnerAgentsPage />
             )}
 
+            {/* CREATE TENANT */}
+            {activeTab === "create-tenant" && (
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+                <div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h1 className="text-3xl font-bold text-foreground">Tenants</h1>
+                      <p className="text-base text-text-secondary mt-1">Manage tenants you have created</p>
+                    </div>
+                    <Button onClick={() => setShowCreateTenantModal(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
+                      <UserPlus className="h-4 w-4 mr-2" /> Create Tenant
+                    </Button>
+                  </div>
+                </div>
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg">My Tenants</CardTitle>
+                    <CardDescription>Tenants you have created</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      {tenants.filter(t => t.createdBy === user?.id).length === 0 ? (
+                        <div className="text-center py-12">
+                          <Users className="h-12 w-12 text-text-tertiary mx-auto mb-3" />
+                          <p className="text-text-secondary font-medium">No tenants yet</p>
+                           <p className="text-xs text-text-tertiary mt-1">Click &quot;Create Tenant&quot; to register a new tenant</p>
+                        </div>
+                      ) : (
+                        tenants.filter(t => t.createdBy === user?.id).map((tenant) => (
+                          <div key={tenant.id} className="flex items-center justify-between p-4 rounded-xl border border-border hover:bg-surface-secondary transition-colors">
+                            <div className="flex items-center gap-3">
+                              <Avatar src={tenant.avatarUrl} fallback={getInitials(tenant.name)} size="sm" />
+                              <div>
+                                <p className="font-medium text-foreground">{tenant.name}</p>
+                                <p className="text-xs text-text-secondary">{tenant.email}</p>
+                                {tenant.phone && <p className="text-xs text-text-tertiary">{tenant.phone}</p>}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant={tenant.status === "active" ? "default" : "destructive"} className="text-xs capitalize">{tenant.status === "active" ? "Active" : "Blocked"}</Badge>
+                              <Button size="sm" variant={tenant.status === "active" ? "destructive" : "outline"} className={tenant.status !== "active" ? "text-green-600 border-green-200 hover:bg-green-50" : ""} onClick={() => handleBlockTenant(tenant.id, tenant.status)}>
+                                {tenant.status === "active" ? <><ShieldOff className="h-3.5 w-3.5 mr-1" />Block</> : <><Shield className="h-3.5 w-3.5 mr-1" />Unblock</>}
+                              </Button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+
+            {showCreateTenantModal && (
+              <CreateTenantModal
+                isOpen={showCreateTenantModal}
+                onClose={() => setShowCreateTenantModal(false)}
+                onSubmit={async (formData) => {
+                  await handleCreateTenant({
+                    ...formData,
+                    preventDefault: () => {},
+                    currentTarget: null as any,
+                  } as any);
+                }}
+                submitting={createTenantSubmitting}
+              />
+            )}
+
             {/* RENTAL CONTRACTS */}
             {activeTab === "contracts" && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
@@ -716,25 +858,54 @@ export default function OwnerDashboard() {
                     <CardDescription>Unit status breakdown</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="space-y-3">
-                      {properties.map((property) => {
-                        const propertyUnits = units.filter((u) => u.propertyId === property.id);
-                        const vacant = propertyUnits.filter((u) => u.status === "vacant");
-                        const occupied = propertyUnits.filter((u) => u.status === "occupied");
-                        return (
-                          <div key={property.id} className="flex items-center justify-between p-4 rounded-xl border border-border hover:bg-surface-secondary transition-colors">
-                            <div>
-                              <p className="text-base font-medium text-foreground">{property.name}</p>
-                              <p className="text-sm text-text-secondary">{property.location}</p>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      <div className="space-y-3">
+                        {properties.map((property) => {
+                          const propertyUnits = units.filter((u) => u.propertyId === property.id);
+                          const vacant = propertyUnits.filter((u) => u.status === "vacant");
+                          const occupied = propertyUnits.filter((u) => u.status === "occupied");
+                          return (
+                            <div key={property.id} onClick={() => setSelectedProperty(property)} className={`flex items-center justify-between p-4 rounded-xl border cursor-pointer transition-colors ${selectedProperty?.id === property.id ? "border-blue-500 bg-blue-50" : "border-border hover:bg-surface-secondary"}`}>
+                              <div>
+                                <p className="text-base font-medium text-foreground">{property.name}</p>
+                                <p className="text-sm text-text-secondary">{property.location}</p>
+                              </div>
+                              <div className="flex items-center gap-4 text-sm">
+                                <span className="text-green-600 font-medium">{vacant.length} available</span>
+                                <span className="text-blue-600 font-medium">{occupied.length} occupied</span>
+                              </div>
                             </div>
-                            <div className="flex items-center gap-4 text-sm">
-                              <span className="text-green-600 font-medium">{vacant.length} available</span>
-                              <span className="text-blue-600 font-medium">{occupied.length} occupied</span>
-                            </div>
+                          );
+                        })}
+                        {properties.length === 0 && <p className="text-center py-8 text-text-secondary">No properties yet</p>}
+                      </div>
+                      {selectedProperty ? (
+                        <div className="border border-border rounded-xl p-4">
+                          <h4 className="text-base font-semibold text-foreground mb-3">{selectedProperty.name} - Units</h4>
+                          <div className="space-y-2">
+                            {(() => {
+                              const propertyUnits = units.filter((u) => u.propertyId === selectedProperty.id);
+                              if (propertyUnits.length === 0) return <p className="text-sm text-text-tertiary">No units registered</p>;
+                              return propertyUnits.map((unit) => {
+                                const tenant = tenants.find((t) => t.unitId === unit.id || t.unitNumber === unit.unitNumber);
+                                return (
+                                  <div key={unit.id} className="flex items-center justify-between p-3 rounded-lg bg-surface-secondary">
+                                    <div>
+                                      <span className="text-sm font-medium">Unit {unit.unitNumber}</span>
+                                      {tenant && <span className="text-xs text-text-secondary ml-2">({tenant.name})</span>}
+                                    </div>
+                                    <Badge variant={unit.status === "vacant" ? "success" : unit.status === "occupied" ? "outline" : "warning"} className="text-xs capitalize">{unit.status}</Badge>
+                                  </div>
+                                );
+                              });
+                            })()}
                           </div>
-                        );
-                      })}
-                      {properties.length === 0 && <p className="text-center py-8 text-text-secondary">No properties yet</p>}
+                        </div>
+                      ) : (
+                        <div className="border border-dashed border-border rounded-xl flex items-center justify-center p-8">
+                          <p className="text-sm text-text-tertiary">Select a property to view its units</p>
+                        </div>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -785,19 +956,22 @@ export default function OwnerDashboard() {
                               <div>
                                 <p className="text-base font-medium text-foreground">{payment.tenantName}</p>
                                 <p className="text-sm text-text-secondary">{payment.propertyName} • {formatDate(payment.paymentDate)}</p>
+                                {payment.stayStart && payment.stayEnd && (
+                                  <p className="text-xs text-blue-600">Stay: {formatDate(payment.stayStart)} - {formatDate(payment.stayEnd)}</p>
+                                )}
                               </div>
                             </div>
                             <div className="text-right">
-                               <p className="text-base font-semibold text-foreground">{formatCurrency(payment.amountPaid || 0)}</p>
-                              <Badge variant={payment.status === "paid" ? "success" : payment.status === "pending" ? "warning" : payment.status === "overdue" ? "destructive" : "outline"} className="text-sm font-semibold capitalize">{payment.status}</Badge>
-                              <div className="mt-2 flex justify-end gap-2">
-                                {payment.receiptUrl && <Button size="sm" variant="outline" onClick={() => setViewingReceipt(payment)}>View Receipt</Button>}
-                                {payment.status === "pending" && <Button size="sm" onClick={async () => { const updated = await verifyPayment(payment, user?.id || "", "paid"); if (updated) { setPayments((current) => current.map((item) => item.id === payment.id ? updated : item)); toast.success("Payment confirmed"); } }}>Confirm</Button>}
-                              </div>
-                            </div>
-                          </div>
-                        ))
-                      )}
+                                <p className="text-base font-semibold text-foreground">{formatCurrency(payment.amountPaid || 0)}</p>
+                               <Badge variant={payment.status === "paid" ? "success" : payment.status === "pending" ? "warning" : payment.status === "overdue" ? "destructive" : "outline"} className="text-sm font-semibold capitalize">{payment.status}</Badge>
+                               <div className="mt-2 flex justify-end gap-2">
+                                 {payment.receiptUrl && <Button size="sm" variant="outline" onClick={() => setViewingReceipt(payment)}>View Receipt</Button>}
+                                 {payment.status === "pending" && <Button size="sm" onClick={async () => { const updated = await verifyPayment(payment, user?.id || "", "paid"); if (updated) { setPayments((current) => current.map((item) => item.id === payment.id ? updated : item)); toast.success("Payment confirmed"); window.dispatchEvent(new Event("payment-confirmed")); } }}>Confirm</Button>}
+                               </div>
+                             </div>
+                           </div>
+                         ))
+                       )}
                     </div>
                   </CardContent>
                 </Card>
@@ -815,13 +989,13 @@ export default function OwnerDashboard() {
                   <Card>
                     <CardContent className="min-h-[140px] p-6">
                       <p className="text-sm font-medium text-text-secondary mb-2">Total Receivables</p>
-                       <p className="text-3xl font-bold text-foreground">{formatCurrency(payments.filter((p) => p.status === "pending" || p.status === "overdue" || p.status === "partial").reduce((sum, p) => sum + (p.balance || 0), 0))}</p>
+                       <p className="text-3xl font-bold text-foreground">{formatCurrency(payments.filter((p) => p.status === "pending" || p.status === "overdue").reduce((sum, p) => sum + (p.balance || 0), 0))}</p>
                     </CardContent>
                   </Card>
                   <Card>
                     <CardContent className="min-h-[140px] p-6">
                       <p className="text-sm font-medium text-text-secondary mb-2">Outstanding</p>
-                      <p className="text-3xl font-bold text-amber-600">{payments.filter((p) => p.status === "pending" || p.status === "partial").length}</p>
+                       <p className="text-3xl font-bold text-amber-600">{payments.filter((p) => p.status === "pending").length}</p>
                     </CardContent>
                   </Card>
                   <Card>
@@ -838,10 +1012,10 @@ export default function OwnerDashboard() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-3">
-                      {payments.filter((p) => p.status === "pending" || p.status === "overdue" || p.status === "partial").length === 0 ? (
-                        <p className="text-center py-8 text-text-secondary">No outstanding receivables</p>
-                      ) : (
-                        payments.filter((p) => p.status === "pending" || p.status === "overdue" || p.status === "partial").map((payment) => (
+                       {payments.filter((p) => p.status === "pending" || p.status === "overdue").length === 0 ? (
+                         <p className="text-center py-8 text-text-secondary">No outstanding receivables</p>
+                       ) : (
+                         payments.filter((p) => p.status === "pending" || p.status === "overdue").map((payment) => (
                           <div key={payment.id} className="flex items-center justify-between p-4 rounded-xl border border-border hover:bg-surface-secondary transition-colors">
                             <div className="flex items-center gap-3">
                               <Avatar src={payment.tenantName ? (tenants.find(t => t.name === payment.tenantName)?.avatarUrl || "") : ""} fallback={getInitials(payment.tenantName)} size="sm" />
@@ -1515,6 +1689,18 @@ export default function OwnerDashboard() {
             {/* PROFILE */}
             {activeTab === "profile" && (
               <ProfilePanel />
+            )}
+
+            {/* Create Tenant Modal */}
+            {showCreateTenantModal && (
+              <CreateTenantModal
+                isOpen={showCreateTenantModal}
+                onClose={() => setShowCreateTenantModal(false)}
+                onSubmit={async (formData) => {
+                  await handleCreateTenant(formData);
+                }}
+                submitting={createTenantSubmitting}
+              />
             )}
           </div>
     );

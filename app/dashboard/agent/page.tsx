@@ -6,13 +6,15 @@ import {
   LayoutDashboard, Home, UserPlus, ClipboardCheck, Clock,
   CreditCard, FileText, Send,
   CheckCircle2, MessageSquare, Send as SendIcon, Loader2, Mail, User,
-  Search, Plus, X, Download,
+  Search, Plus, X, Download, Users, MoreHorizontal,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
+import { DropdownMenu, DropdownItem } from "@/components/ui/dropdown-menu";
+import CreateTenantModal from "@/components/create-tenant-modal";
 import { useAuth } from "@/lib/auth";
 import {
   getProperties, getUnits, getTenants, getPayments,
@@ -26,12 +28,13 @@ import { toast } from "sonner";
 import MessagingModal from "@/components/messaging-modal";
 import ProfilePanel from "@/components/profile-panel";
 
-type Step = "overview" | "properties" | "assign" | "payments" | "history" | "messages" | "verifications" | "inquiries" | "profile";
+type Step = "overview" | "properties" | "assign" | "tenants" | "payments" | "history" | "messages" | "verifications" | "inquiries" | "profile";
 
 const flowSteps: { key: Step; label: string; icon: React.ElementType }[] = [
   { key: "overview", label: "Overview", icon: LayoutDashboard },
   { key: "properties", label: "Properties", icon: Home },
   { key: "assign", label: "Assign Unit", icon: ClipboardCheck },
+  { key: "tenants", label: "Tenants", icon: Users },
   { key: "verifications", label: "Verifications", icon: CheckCircle2 },
   { key: "payments", label: "Payments", icon: CreditCard },
   { key: "history", label: "History", icon: FileText },
@@ -64,13 +67,13 @@ export default function AgentDashboard() {
   const [selectedTenant, setSelectedTenant] = useState<TenantRecord | null>(null);
   const [tenantSearch, setTenantSearch] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showRegisterTenant, setShowRegisterTenant] = useState(false);
-  const [newTenant, setNewTenant] = useState({ name: "", email: "", phone: "" });
+  const [showCreateTenantModal, setShowCreateTenantModal] = useState(false);
 
   const [assignForm, setAssignForm] = useState({ unitId: "", propertyName: "", unitNumber: "", rentAmount: 0, contractStart: "" });
   const [paymentFilter, setPaymentFilter] = useState<string>("all");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [resubmittingId, setResubmittingId] = useState<string | null>(null);
+  const [viewingReceipt, setViewingReceipt] = useState<Payment | null>(null);
 
   const loadData = useCallback(async () => {
     if (!user) return [];
@@ -141,6 +144,14 @@ export default function AgentDashboard() {
   }, [loadData]);
 
   useEffect(() => {
+    const refreshProfileData = () => {
+      loadData();
+    };
+    window.addEventListener("renttrack-profile-updated", refreshProfileData);
+    return () => window.removeEventListener("renttrack-profile-updated", refreshProfileData);
+  }, [loadData]);
+
+  useEffect(() => {
     if (!viewingThread) return;
     let cancelled = false;
     const refreshThread = async () => {
@@ -187,7 +198,7 @@ export default function AgentDashboard() {
   const vacantUnits = units.filter((u) => u.status === "vacant");
   const pendingTenants = tenants.filter((t) => t.assignmentStatus === "pending");
   const activeTenants = tenants.filter((t) => t.status === "active");
-  const pendingPayments = payments.filter((p) => p.status === "pending" || p.status === "partial");
+  const pendingPayments = payments.filter((p) => p.status === "pending");
   const overduePayments = payments.filter((p) => p.status === "overdue");
   const filteredPayments = payments.filter((p) => {
     if (paymentFilter === "all") return true;
@@ -233,9 +244,19 @@ export default function AgentDashboard() {
     }
   };
 
-  const handleRegisterTenant = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newTenant.name || !newTenant.email) {
+  const handleRegisterTenant = async (formData: {
+    name: string;
+    email: string;
+    phone: string;
+    address: string;
+    propertyName: string;
+    unitNumber: string;
+    rentAmount: string;
+    contractStart: string;
+    contractEnd: string;
+    password: string;
+  }) => {
+    if (!formData.name || !formData.email) {
       toast.error("Name and email are required");
       return;
     }
@@ -244,13 +265,12 @@ export default function AgentDashboard() {
       const res = await fetch("/api/data/tenants", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(newTenant),
+        body: JSON.stringify(formData),
       });
       const data = await res.json();
       if (data.success) {
         toast.success("Tenant registered successfully!");
-        setNewTenant({ name: "", email: "", phone: "" });
-        setShowRegisterTenant(false);
+        setShowCreateTenantModal(false);
         loadData();
       } else {
         toast.error(data.error || "Failed to register tenant");
@@ -264,9 +284,10 @@ export default function AgentDashboard() {
 
   const handleForwardToOwner = async (payment: Payment) => {
     try {
+      const stayInfo = payment.stayStart && payment.stayEnd ? `\nDesired stay: ${formatDate(payment.stayStart)} - ${formatDate(payment.stayEnd)}` : "";
       await notifyAdmins({
         title: "Payment Pending Owner Review",
-        message: `${payment.tenantName} submitted a payment of ${formatCurrency(payment.amountPaid)} for property "${payment.propertyName}". Please review the automatic receipt and confirm.`,
+        message: `${payment.tenantName} submitted a payment of ${formatCurrency(payment.amountPaid)} for property "${payment.propertyName}". Please review the automatic receipt and confirm.${stayInfo}`,
         type: "payment",
         read: false,
       });
@@ -329,7 +350,19 @@ export default function AgentDashboard() {
                             <stat.icon className="h-5 w-5" />
                           </div>
                         </div>
-                        <p className="text-5xl font-bold text-foreground">{stat.value}</p>
+                        <div className="flex items-center gap-3">
+                          <p className="text-5xl font-bold text-foreground">{stat.value}</p>
+                          {(stat.tab === "assign" && pendingTenants.length > 0) || (stat.tab === "payments" && pendingPayments.length > 0) ? (
+                            <motion.span
+                              initial={{ scale: 0, x: -8 }}
+                              animate={{ scale: 1, x: 0 }}
+                              transition={{ type: "spring", stiffness: 500, damping: 15 }}
+                              className="flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-lg"
+                            >
+                              {stat.tab === "assign" ? pendingTenants.length : pendingPayments.length}
+                            </motion.span>
+                          ) : null}
+                        </div>
                       </CardContent>
                     </Card>
                   ))}
@@ -371,11 +404,11 @@ export default function AgentDashboard() {
                             <div className="text-right">
                               <p className="text-xl font-semibold text-foreground">{formatCurrency(payment.amountPaid)}</p>
                               {getStatusBadge(payment.status)}
-                              {payment.receiptUrl && (
-                                <a href={payment.receiptUrl} download={`renttrack-receipt-${payment.id}.svg`} className="inline-flex h-8 items-center gap-1 rounded-lg border border-border px-2 text-xs text-text-secondary hover:bg-surface-secondary hover:text-primary-600" onClick={(event) => event.stopPropagation()}>
-                                  <Download className="h-3.5 w-3.5" />Receipt
-                                </a>
-                              )}
+                               {payment.receiptUrl && (
+                                 <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setViewingReceipt(payment)}>
+                                   <FileText className="h-3.5 w-3.5 mr-1" />View Receipt
+                                 </Button>
+                               )}
                             </div>
                           </div>
                         ))}
@@ -455,19 +488,21 @@ export default function AgentDashboard() {
                    <Card className="flex flex-col">
                      <CardHeader>
                        <div className="flex items-center justify-between">
-                         <div className="flex items-center gap-3">
-                           <div className="h-10 w-10 rounded-xl bg-blue-50 flex items-center justify-center">
-                             <UserPlus className="h-5 w-5 text-blue-600" />
-                           </div>
-                           <div>
-                             <CardTitle className="text-lg">Step 1: Select Tenant</CardTitle>
-                             <CardDescription>Choose a tenant without a unit assignment</CardDescription>
-                           </div>
-                         </div>
-                         <Button size="sm" onClick={() => setShowRegisterTenant(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
-                           <Plus className="h-4 w-4 mr-1" /> Register
-                         </Button>
-                       </div>
+                          <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                              <UserPlus className="h-5 w-5 text-blue-600" />
+                            </div>
+                            <div>
+                              <CardTitle className="text-lg">Step 1: Select Tenant</CardTitle>
+                              <CardDescription>Choose a tenant without a unit assignment</CardDescription>
+                            </div>
+                          </div>
+                          {["owner", "admin"].includes(user?.role || "") && (
+                            <Button size="sm" onClick={() => { setActiveTab("tenants"); window.location.hash = "tenants"; }} className="bg-blue-600 hover:bg-blue-700 text-white">
+                              <Plus className="h-4 w-4 mr-1" /> Register
+                            </Button>
+                          )}
+                        </div>
                      </CardHeader>
                      <CardContent className="flex-1 flex flex-col">
                        <div className="relative mb-4">
@@ -696,52 +731,64 @@ export default function AgentDashboard() {
                </motion.div>
              )}
 
-             {/* Register Tenant Modal */}
-             {showRegisterTenant && (
-               <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-                 <div className="absolute inset-0 bg-black/50" onClick={() => setShowRegisterTenant(false)} />
-                 <div className="relative w-full max-w-md rounded-2xl border border-border bg-white shadow-2xl">
-                   <div className="p-6 border-b border-border flex items-center justify-between">
-                     <div>
-                       <h3 className="text-lg font-semibold text-foreground">Register New Tenant</h3>
-                       <p className="text-sm text-text-secondary">Add a tenant to the system</p>
-                     </div>
-                     <button onClick={() => setShowRegisterTenant(false)} className="h-8 w-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-foreground hover:bg-surface-secondary transition-colors">
-                       <X className="h-4 w-4" />
-                     </button>
-                   </div>
-                   <form onSubmit={handleRegisterTenant} className="p-6 space-y-4">
-                     <div>
-                       <label className="block text-sm font-medium text-foreground mb-1.5">Full Name *</label>
-                       <Input value={newTenant.name} onChange={(e) => setNewTenant({ ...newTenant, name: e.target.value })} placeholder="Juan Dela Cruz" required />
-                     </div>
-                     <div>
-                       <label className="block text-sm font-medium text-foreground mb-1.5">Email *</label>
-                       <Input type="email" value={newTenant.email} onChange={(e) => setNewTenant({ ...newTenant, email: e.target.value })} placeholder="juan@example.com" required />
-                     </div>
-                     <div>
-                       <label className="block text-sm font-medium text-foreground mb-1.5">Phone</label>
-                       <Input value={newTenant.phone} onChange={(e) => setNewTenant({ ...newTenant, phone: e.target.value })} placeholder="+63 XXX XXX XXXX" />
-                     </div>
-                     <Button type="submit" disabled={isSubmitting} className="w-full">
-                       {isSubmitting ? (
-                         <span className="flex items-center gap-2">
-                           <span className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                           Registering...
-                         </span>
-                       ) : (
-                         <span className="flex items-center gap-2">
-                           <UserPlus className="h-4 w-4" />
-                           Register Tenant
-                         </span>
-                       )}
-                     </Button>
-                   </form>
-                 </div>
-               </div>
+              {/* TENANTS */}
+              {activeTab === "tenants" && (
+                <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+                  <div>
+                    <h1 className="text-3xl font-bold text-foreground">Tenants</h1>
+                    <p className="text-base text-text-secondary mt-1">Manage tenants you have registered</p>
+                  </div>
+                  {["owner", "admin"].includes(user?.role || "") && (
+                    <Button onClick={() => setShowCreateTenantModal(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
+                      <UserPlus className="h-4 w-4 mr-2" /> Create Tenant
+                    </Button>
+                  )}
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg">My Tenants</CardTitle>
+                      <CardDescription>Tenants you have created</CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        {tenants.filter(t => t.createdBy === user?.id).length === 0 ? (
+                          <div className="text-center py-12">
+                            <Users className="h-12 w-12 text-text-tertiary mx-auto mb-3" />
+                            <p className="text-text-secondary font-medium">No tenants yet</p>
+                            <p className="text-xs text-text-tertiary mt-1">Register a tenant above to get started</p>
+                          </div>
+                        ) : (
+                          tenants.filter(t => t.createdBy === user?.id).map((tenant) => (
+                            <div key={tenant.id} className="flex items-center justify-between p-4 rounded-xl border border-border hover:bg-surface-secondary transition-colors">
+                              <div className="flex items-center gap-3">
+                                <Avatar src={tenant.avatarUrl} fallback={getInitials(tenant.name)} size="sm" />
+                                <div>
+                                  <p className="font-medium text-foreground">{tenant.name}</p>
+                                  <p className="text-xs text-text-secondary">{tenant.email}</p>
+                                  {tenant.phone && <p className="text-xs text-text-tertiary">{tenant.phone}</p>}
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge variant={tenant.status === "active" ? "success" : tenant.status === "inactive" ? "outline" : "warning"} className="text-xs capitalize">{tenant.status || "pending"}</Badge>
+                                <DropdownMenu align="end" trigger={
+                                  <button className="h-8 w-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-foreground hover:bg-surface-secondary transition-colors">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </button>
+                                }>
+                                  <DropdownItem onClick={() => { setSelectedTenant(tenant); setActiveTab("assign"); }}>Assign Unit</DropdownItem>
+                                  <DropdownItem onClick={() => { setSelectedTenant(tenant); setActiveTab("verifications"); }}>View Verification</DropdownItem>
+                                  <DropdownItem onClick={() => window.location.href = `mailto:${tenant.email}`}>Send Email</DropdownItem>
+                                </DropdownMenu>
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                </motion.div>
               )}
 
-             {/* VERIFICATIONS */}
+              {/* VERIFICATIONS */}
             {activeTab === "verifications" && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
                 <div>
@@ -834,6 +881,9 @@ export default function AgentDashboard() {
                               <div>
                                 <p className="text-base font-medium text-foreground">{payment.tenantName}</p>
                                 <p className="text-sm text-text-secondary">{payment.propertyName} • {formatDate(payment.paymentDate)}</p>
+                                {payment.stayStart && payment.stayEnd && (
+                                  <p className="text-xs text-blue-600">Stay: {formatDate(payment.stayStart)} - {formatDate(payment.stayEnd)}</p>
+                                )}
                               </div>
                             </div>
                             <div className="flex items-center gap-3">
@@ -842,11 +892,11 @@ export default function AgentDashboard() {
                                 <p className="text-sm text-text-secondary">of {formatCurrency(payment.amountDue)}</p>
                               </div>
                               {getStatusBadge(payment.status)}
-                              {payment.receiptUrl && (
-                                <a href={payment.receiptUrl} download={`renttrack-receipt-${payment.id}.svg`} className="inline-flex h-8 items-center gap-1 rounded-lg border border-border px-2 text-xs text-text-secondary hover:bg-surface-secondary hover:text-primary-600">
-                                  <Download className="h-3.5 w-3.5" />Receipt
-                                </a>
-                              )}
+                               {payment.receiptUrl && (
+                                 <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setViewingReceipt(payment)}>
+                                   <FileText className="h-3.5 w-3.5 mr-1" />View Receipt
+                                 </Button>
+                               )}
                             </div>
                             {payment.status === "pending" && (
                               <Button size="sm" variant="outline" className="h-8 text-xs border-blue-200 text-blue-600 hover:bg-blue-50"
@@ -888,13 +938,14 @@ export default function AgentDashboard() {
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
-                          <tr className="border-b border-border">
-                            <th className="text-left py-3 px-4 text-sm font-medium text-text-secondary uppercase tracking-wider">Tenant</th>
-                            <th className="text-left py-3 px-4 text-sm font-medium text-text-secondary uppercase tracking-wider">Property</th>
-                            <th className="text-left py-3 px-4 text-sm font-medium text-text-secondary uppercase tracking-wider">Amount</th>
-                            <th className="text-left py-3 px-4 text-sm font-medium text-text-secondary uppercase tracking-wider">Status</th>
-                            <th className="text-left py-3 px-4 text-sm font-medium text-text-secondary uppercase tracking-wider">Date</th>
-                          </tr>
+                           <tr className="border-b border-border">
+                             <th className="text-left py-3 px-4 text-sm font-medium text-text-secondary uppercase tracking-wider">Tenant</th>
+                             <th className="text-left py-3 px-4 text-sm font-medium text-text-secondary uppercase tracking-wider">Property</th>
+                             <th className="text-left py-3 px-4 text-sm font-medium text-text-secondary uppercase tracking-wider">Amount</th>
+                             <th className="text-left py-3 px-4 text-sm font-medium text-text-secondary uppercase tracking-wider">Status</th>
+                             <th className="text-left py-3 px-4 text-sm font-medium text-text-secondary uppercase tracking-wider">Stay Dates</th>
+                             <th className="text-left py-3 px-4 text-sm font-medium text-text-secondary uppercase tracking-wider">Date</th>
+                           </tr>
                         </thead>
                         <tbody>
                           {filteredPayments.slice().reverse().map((payment) => (
@@ -908,12 +959,17 @@ export default function AgentDashboard() {
                               <td className="py-3 px-4 text-text-secondary">{payment.propertyName}</td>
                               <td className="py-3 px-4 font-medium text-foreground">{formatCurrency(payment.amountPaid)}</td>
                               <td className="py-3 px-4">{getStatusBadge(payment.status)}</td>
+                              <td className="py-3 px-4 text-text-secondary">
+                                {payment.stayStart && payment.stayEnd
+                                  ? `${formatDate(payment.stayStart)} - ${formatDate(payment.stayEnd)}`
+                                  : "-"}
+                              </td>
                               <td className="py-3 px-4 text-text-secondary">{formatDate(payment.paymentDate)}</td>
                             </tr>
                           ))}
-                          {filteredPayments.length === 0 && (
-                            <tr><td colSpan={5} className="py-8 text-center text-text-secondary">No payments found</td></tr>
-                          )}
+                            {filteredPayments.length === 0 && (
+                              <tr><td colSpan={6} className="py-8 text-center text-text-secondary">No payments found</td></tr>
+                            )}
                         </tbody>
                       </table>
                     </div>
@@ -1153,6 +1209,44 @@ export default function AgentDashboard() {
         {/* Profile Tab */}
         {activeTab === "profile" && (
           <ProfilePanel />
+        )}
+
+        {/* Receipt Modal */}
+        {viewingReceipt && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/50" onClick={() => setViewingReceipt(null)} />
+            <div className="relative w-full max-w-2xl rounded-2xl border border-border bg-white shadow-2xl max-h-[90vh] overflow-y-auto">
+              <div className="p-6 border-b border-border flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold text-foreground">Receipt</h3>
+                  <p className="text-sm text-text-secondary">{viewingReceipt.tenantName} • {formatDate(viewingReceipt.paymentDate)}</p>
+                </div>
+                <button onClick={() => setViewingReceipt(null)} className="h-8 w-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-foreground hover:bg-surface-secondary transition-colors">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              <div className="p-6">
+                {viewingReceipt.receiptUrl ? (
+                  <img src={viewingReceipt.receiptUrl} alt="Receipt" className="w-full h-auto max-h-[70vh] object-contain rounded-xl border border-border" />
+                ) : (
+                  <div className="text-center py-12 text-text-secondary">No receipt image available</div>
+                )}
+              </div>
+              <div className="p-6 border-t border-border">
+                <Button variant="outline" onClick={() => setViewingReceipt(null)} className="w-full">Close</Button>
+              </div>
+            </div>
+          </div>
+        )}
+        {showCreateTenantModal && (
+          <CreateTenantModal
+            isOpen={showCreateTenantModal}
+            onClose={() => setShowCreateTenantModal(false)}
+            onSubmit={async (formData) => {
+              await handleRegisterTenant(formData);
+            }}
+            submitting={isSubmitting}
+          />
         )}
       </div>
   );

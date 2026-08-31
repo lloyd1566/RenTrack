@@ -107,7 +107,11 @@ export interface Payment {
   accountHolder?: string;
   cardLast4?: string;
   cardExpiry?: string;
+  gcashNumber?: string;
+  gcashName?: string;
   receiptUrl?: string;
+  stayStart?: string;
+  stayEnd?: string;
   notes?: string;
   verifiedBy?: string;
   verifiedAt?: string;
@@ -250,11 +254,21 @@ export async function updateTenantVerification(tenantId: string, status: "approv
   return result.tenant || null;
 }
 
+export async function updateTenantStatus(tenantId: string, status: "active" | "inactive"): Promise<TenantRecord | null> {
+  const result = await apiPatch("/api/data/tenants", { tenantId, status });
+  return result.tenant || null;
+}
+
 // ─── Payments ──────────────────────────────────────────────────────────────
 
 export async function getPayments(_user?: any): Promise<Payment[]> {
   const result = await apiGet("/api/data/payments");
   return result.success ? result.payments : [];
+}
+
+export async function getPendingPaymentsCount(): Promise<number> {
+  const payments = await getPayments();
+  return payments.filter((p) => p.status === "pending" || p.status === "overdue").length;
 }
 
 export async function addPayment(data: Omit<Payment, "id">, security?: { paymentPin?: string; otpCode?: string }, tenantId?: string): Promise<Payment> {
@@ -278,12 +292,10 @@ export async function updatePayment(id: string, data: Partial<Payment>): Promise
 export async function verifyPayment(payment: Payment, verifiedBy: string, status: "paid" | "rejected"): Promise<Payment | null> {
   const updateData: any = { verifiedBy, verifiedAt: new Date().toISOString() };
   if (status === "paid") {
-    // Auto-deduct: recompute the tenant's bill based on the confirmed amount
     const newBalance = Math.max(0, payment.amountDue - payment.amountPaid);
-    updateData.status = newBalance <= 0 ? "paid" : "partial";
     updateData.balance = newBalance;
+    updateData.status = "paid";
   } else {
-    // Rejected: no deduction — payment stays pending
     updateData.status = "pending";
   }
   const result = await apiPatch("/api/data/payments", { id: payment.id, data: updateData });
@@ -305,8 +317,9 @@ export async function getPaymentTrends(_user?: any): Promise<MonthlyTrend[]> {
 // ─── Notifications ─────────────────────────────────────────────────────────
 
 export async function getNotifications(userId?: string): Promise<Notification[]> {
-  const url = userId ? `/api/data/notifications?userId=${userId}` : "/api/data/notifications";
-  const result = await apiGet(url);
+  const url = userId ? `/api/data/notifications?userId=${userId}&_t=${Date.now()}` : `/api/data/notifications?_t=${Date.now()}`;
+  const res = await fetch(url, { credentials: "include", cache: "no-store" });
+  const result = await res.json();
   return result.success ? result.notifications : [];
 }
 
@@ -337,7 +350,8 @@ export async function markAllNotificationsRead(userId: string): Promise<void> {
 }
 
 export async function getUnreadCount(userId: string): Promise<number> {
-  const result = await apiGet(`/api/data/notifications?userId=${userId}&count=true`);
+  const res = await fetch(`/api/data/notifications?userId=${userId}&count=true&_t=${Date.now()}`, { credentials: "include", cache: "no-store" });
+  const result = await res.json();
   return result.success ? result.count : 0;
 }
 
@@ -553,14 +567,14 @@ export function getOccupancyRate(_propertyId: string): number {
 
 export interface Rating {
   id: string;
-  user_id: string;
-  target_type: "property" | "unit" | "support";
-  target_id: string;
+  userId: string;
+  targetType: "property" | "unit" | "support";
+  targetId: string;
   rating: number;
   comment?: string;
-  created_at: string;
-  user_name?: string;
-  user_email?: string;
+  createdAt: string;
+  userName?: string;
+  userEmail?: string;
 }
 
 export interface RatingSummary {
@@ -597,22 +611,25 @@ export async function getAllRatings(): Promise<Rating[]> {
 
 export interface Complaint {
   id: string;
-  tenant_id: string;
-  target_type: "property" | "unit";
-  target_id: string;
+  tenantId: string;
+  targetType: "property" | "unit" | "support";
+  targetId: string;
   subject: string;
   message: string;
   status: "open" | "in_progress" | "resolved" | "closed";
   priority: "low" | "medium" | "high" | "urgent";
-  assigned_to?: string;
-  resolved_at?: string;
-  created_at: string;
-  updated_at: string;
-  tenant_name?: string;
-  tenant_email?: string;
-  response_text?: string;
-  response_by?: string;
-  response_at?: string;
+  assignedTo?: string;
+  resolvedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  tenantName?: string;
+  tenantEmail?: string;
+  responseText?: string;
+  responseBy?: string;
+  responseAt?: string;
+  tenantReplyText?: string;
+  tenantReplyBy?: string;
+  tenantReplyAt?: string;
 }
 
 export async function createComplaint(data: { tenantId: string; targetType: "property" | "unit" | "support"; targetId: string; subject: string; message: string; priority?: string }): Promise<Complaint> {
@@ -626,8 +643,18 @@ export async function getComplaints(tenantId?: string): Promise<Complaint[]> {
   return result.success ? result.complaints : [];
 }
 
+export async function getComplaintById(id: string): Promise<Complaint | null> {
+  const result = await apiGet(`/api/data/complaints/${id}`);
+  return result.success ? result.complaint : null;
+}
+
 export async function updateComplaintStatus(id: string, status: string, assignedTo?: string, responseText?: string, responseBy?: string): Promise<Complaint | null> {
   const result = await apiPatch("/api/data/complaints", { id, status, assignedTo, responseText, responseBy });
+  return result.complaint || null;
+}
+
+export async function replyToComplaint(id: string, replyText: string): Promise<Complaint | null> {
+  const result = await apiPatch("/api/data/complaints/tenant-reply", { id, replyText });
   return result.complaint || null;
 }
 

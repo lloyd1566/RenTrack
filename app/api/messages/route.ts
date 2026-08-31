@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUserId, getCurrentUser } from "@/lib/security";
-import { getConversations, getMessages, sendMessage, markAllMessagesRead, getUnreadMessageCount, findUserById } from "@/lib/db";
+import { getConversations, getMessages, sendMessage, markAllMessagesRead, getUnreadMessageCount, findUserById, createNotification } from "@/lib/db";
 import { requireAuth, withSecurityHeaders, withCorsHeaders, validateApiRequest, getClientIp } from "@/lib/api-security";
 import { logAudit } from "@/lib/db";
 import { sendEmail, getSiteUrl } from "@/lib/mail";
@@ -50,11 +50,29 @@ export async function POST(request: NextRequest) {
       const sender = await findUserById(auth.userId);
       if (receiver?.email && sender) {
         const siteUrl = getSiteUrl(request.headers.get("origin") || "");
-        const html = `<p>You have a new message from <strong>${sender.name}</strong> on RentTrack.</p><p><a href="${siteUrl}/dashboard/messages">Open Messages</a></p>`;
-        await sendEmail({ to: receiver.email, subject: `New message from ${sender.name}`, html, bcc: process.env.SMTP_USER });
+        const isAgentReply = sender.role === "agent";
+        const emailSubject = isAgentReply ? `Agent ${sender.name} replied to you on RentTrack` : `New message from ${sender.name}`;
+        const html = isAgentReply
+          ? `<p><strong>${sender.name}</strong> (Agent) has replied to your message on RentTrack.</p><p><a href="${siteUrl}/dashboard/messages">Open Messages</a></p>`
+          : `<p>You have a new message from <strong>${sender.name}</strong> on RentTrack.</p><p><a href="${siteUrl}/dashboard/messages">Open Messages</a></p>`;
+        await sendEmail({ to: receiver.email, subject: emailSubject, html, bcc: process.env.SMTP_USER });
       }
     } catch (err) {
       console.error("Failed to send message notification email:", err);
+    }
+
+    try {
+      const replySender = await findUserById(auth.userId);
+      if (replySender?.role === "agent") {
+        await createNotification({
+          userId: receiverId,
+          title: "Agent Reply",
+          message: `${replySender.name} replied to your message.`,
+          type: "system",
+        });
+      }
+    } catch (err) {
+      console.error("Failed to create agent reply notification:", err);
     }
 
     return NextResponse.json({ success: true, message });

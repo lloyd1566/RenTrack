@@ -16,14 +16,104 @@ import {
   sanitizeResponse, withSecurityHeaders, withCorsHeaders,
   sanitizeObject, getClientIp
 } from "@/lib/api-security";
-import { logAudit, verifyUserPaymentPin } from "@/lib/db";
+import { logAudit } from "@/lib/db";
 import { randomBytes } from "crypto";
 
 function buildAutomaticReceiptUrl(details: { id: string; amount: number; date: string; method: string; tenant: string; property: string; unit: string; notes: string }) {
   const escapeXml = (value: string) => value.replace(/[&<>\"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" }[character] || character));
-  const line = (label: string, value: string, y: number) => `<text x="56" y="${y}" font-family="Arial, sans-serif" font-size="18" fill="#334155"><tspan font-weight="700">${escapeXml(label)}</tspan><tspan dx="12">${escapeXml(value.slice(0, 54))}</tspan></text>`;
-  const paymentType = details.notes.toLowerCase().includes("advance") ? "Advance payment" : "Regular payment";
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="760" height="620" viewBox="0 0 760 620"><rect width="760" height="620" rx="24" fill="#ffffff"/><rect width="760" height="116" rx="24" fill="#2563eb"/><rect y="88" width="760" height="28" fill="#2563eb"/><text x="56" y="58" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#ffffff">RentTrack</text><text x="56" y="91" font-family="Arial, sans-serif" font-size="16" fill="#dbeafe">Payment receipt</text><text x="704" y="70" text-anchor="end" font-family="Arial, sans-serif" font-size="16" fill="#dbeafe">PENDING VERIFICATION</text>${line("Receipt ID", details.id, 168)}${line("Tenant", details.tenant, 208)}${line("Property", details.property || "Rental property", 248)}${line("Unit", details.unit || "Not assigned", 288)}${line("Payment type", paymentType, 328)}${line("Payment method", details.method, 368)}${line("Date", details.date, 408)}<line x1="56" y1="444" x2="704" y2="444" stroke="#e2e8f0" stroke-width="2"/><text x="56" y="500" font-family="Arial, sans-serif" font-size="18" fill="#64748b">Amount paid</text><text x="704" y="505" text-anchor="end" font-family="Arial, sans-serif" font-size="34" font-weight="700" fill="#16a34a">${escapeXml(formatCurrency(details.amount))}</text><text x="56" y="565" font-family="Arial, sans-serif" font-size="14" fill="#94a3b8">Keep this receipt for your records. The payment will be updated after confirmation.</text></svg>`;
+  const paymentType = details.notes.toLowerCase().includes("advance") ? "Advance Payment" : "Regular Payment";
+  const statusLabel = "PENDING VERIFICATION";
+  const amountFormatted = formatCurrency(details.amount);
+  const dateFormatted = details.date;
+  const methodFormatted = details.method.replace(/_/g, " ").replace(/\b\w/g, (match) => match.toUpperCase());
+  const now = new Date().toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" });
+
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="720" height="860" viewBox="0 0 720 860">
+    <rect width="720" height="860" rx="28" fill="#ffffff"/>
+    <rect width="720" height="160" rx="28" fill="#111827"/>
+    <rect y="132" width="720" height="28" fill="#111827"/>
+
+    <circle cx="72" cy="64" r="40" fill="#ffffff" opacity="0.08"/>
+    <circle cx="660" cy="72" r="52" fill="#ffffff" opacity="0.06"/>
+    <circle cx="620" cy="40" r="18" fill="#f59e0b" opacity="0.35"/>
+    <circle cx="92" cy="120" r="10" fill="#f59e0b" opacity="0.45"/>
+
+    <text x="56" y="58" font-family="Arial, sans-serif" font-size="26" font-weight="700" fill="#ffffff">RentTrack</text>
+    <text x="56" y="84" font-family="Arial, sans-serif" font-size="14" font-weight="500" fill="#e5e7eb">Rental Property Management</text>
+    <text x="56" y="106" font-family="Arial, sans-serif" font-size="12" fill="#9ca3af">receipt@renttrack.app • +63 900 000 0000</text>
+    <text x="56" y="124" font-family="Arial, sans-serif" font-size="12" fill="#9ca3af">123 Rizal Ave, Cebu City, Philippines</text>
+
+    <text x="664" y="56" text-anchor="end" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#fbbf24">${escapeXml(statusLabel)}</text>
+    <rect x="468" y="68" width="236" height="28" rx="14" fill="#fbbf24" opacity="0.18"/>
+    <text x="586" y="86" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="700" fill="#fbbf24">${now}</text>
+
+    <rect x="56" y="164" width="608" height="1" fill="#e5e7eb"/>
+
+    <text x="56" y="196" font-family="Arial, sans-serif" font-size="22" font-weight="700" fill="#111827">Payment Receipt</text>
+    <text x="56" y="218" font-family="Arial, sans-serif" font-size="13" fill="#6b7280">Thank you for your payment. Please keep this receipt for your records.</text>
+
+    <rect x="56" y="244" width="608" height="1" fill="#e5e7eb"/>
+
+    <text x="56" y="274" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#374151">Billed To</text>
+    <text x="56" y="298" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#111827">${escapeXml(details.tenant)}</text>
+    <text x="56" y="318" font-family="Arial, sans-serif" font-size="13" fill="#6b7280">${escapeXml(details.property || "Rental property")}</text>
+    <text x="56" y="338" font-family="Arial, sans-serif" font-size="13" fill="#6b7280">Unit ${escapeXml(details.unit || "N/A")}</text>
+
+    <rect x="56" y="356" width="608" height="1" fill="#e5e7eb"/>
+
+    <text x="56" y="386" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#374151">Receipt Details</text>
+
+    <rect x="56" y="398" width="608" height="160" rx="18" fill="#f8fafc"/>
+    <rect x="56" y="398" width="608" height="160" rx="18" fill="none" stroke="#e5e7eb" stroke-width="1"/>
+
+    <text x="84" y="428" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">Receipt ID</text>
+    <text x="84" y="452" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#111827">${escapeXml(details.id)}</text>
+
+    <text x="340" y="428" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">Date</text>
+    <text x="340" y="452" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#111827">${escapeXml(dateFormatted)}</text>
+
+    <text x="84" y="486" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">Payment Type</text>
+    <text x="84" y="510" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#111827">${escapeXml(paymentType)}</text>
+
+    <text x="340" y="486" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">Payment Method</text>
+    <text x="340" y="510" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#111827">${escapeXml(methodFormatted)}</text>
+
+    <text x="84" y="538" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">Status</text>
+    <text x="84" y="562" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#b45309">${escapeXml(statusLabel)}</text>
+
+    <rect x="56" y="580" width="608" height="1" fill="#e5e7eb"/>
+
+    <text x="56" y="612" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#374151">Payment Summary</text>
+
+    <rect x="56" y="624" width="608" height="110" rx="18" fill="#f8fafc"/>
+    <rect x="56" y="624" width="608" height="110" rx="18" fill="none" stroke="#e5e7eb" stroke-width="1"/>
+
+    <text x="84" y="654" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">Amount Paid</text>
+    <text x="664" y="654" text-anchor="end" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#111827">${escapeXml(amountFormatted)}</text>
+
+    <text x="84" y="682" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">Balance / Amount Due</text>
+    <text x="664" y="682" text-anchor="end" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#6b7280">${escapeXml(amountFormatted)}</text>
+
+    <text x="84" y="714" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">Notes</text>
+    <text x="84" y="734" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">${escapeXml(details.notes || "Payment submitted")}</text>
+
+    <rect x="56" y="754" width="608" height="1" fill="#e5e7eb"/>
+
+    <rect x="56" y="768" width="608" height="64" rx="14" fill="#f8fafc"/>
+    <rect x="56" y="768" width="608" height="64" rx="14" fill="none" stroke="#e5e7eb" stroke-width="1"/>
+    <text x="84" y="794" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">Reference / Verification Code</text>
+    <text x="84" y="816" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#111827">${escapeXml(details.id)}</text>
+    <text x="500" y="794" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">Issued On</text>
+    <text x="500" y="816" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#111827">${now}</text>
+
+    <rect x="56" y="844" width="608" height="1" fill="#e5e7eb"/>
+
+    <text x="56" y="866" font-family="Arial, sans-serif" font-size="11" fill="#9ca3af">This payment will be updated after confirmation.</text>
+    <text x="56" y="884" font-family="Arial, sans-serif" font-size="11" fill="#9ca3af">Thank you for using RentTrack. If you have questions, contact support@renttrack.app.</text>
+    <text x="56" y="902" font-family="Arial, sans-serif" font-size="10" fill="#d1d5db">DTI Permit No. 12345 • BIR TIN: 000-000-000</text>
+    <text x="56" y="918" font-family="Arial, sans-serif" font-size="10" fill="#d1d5db">This is a system-generated receipt. Valid without signature.</text>
+  </svg>`;
+
   return `data:image/svg+xml;base64,${Buffer.from(svg, "utf8").toString("base64")}`;
 }
 
@@ -58,10 +148,6 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const paymentInput = body.data || body;
-    const submittedPaymentPin = body.paymentPin ?? paymentInput.paymentPin;
-    if (submittedPaymentPin !== undefined && (typeof submittedPaymentPin !== "string" || submittedPaymentPin.length > 10)) {
-      return NextResponse.json({ success: false, error: "Invalid payment PIN" }, { status: 400 });
-    }
     const sanitized = sanitizeObject(paymentInput, [
       { key: "tenantId", type: "string", maxLength: 100 },
       { key: "tenantName", type: "string", maxLength: 200 },
@@ -80,9 +166,9 @@ export async function POST(request: NextRequest) {
       { key: "accountHolder", type: "string", maxLength: 200 },
       { key: "cardLast4", type: "string", maxLength: 4 },
       { key: "cardExpiry", type: "string", maxLength: 7 },
+      { key: "gcashNumber", type: "string", maxLength: 20 },
+      { key: "gcashName", type: "string", maxLength: 200 },
       { key: "notes", type: "string", maxLength: 500 },
-      { key: "receiptUrl", type: "string", maxLength: 10000 },
-      { key: "paymentPin", type: "string", maxLength: 10 },
     ]);
 
     const amountPaid = Number(sanitized.amountPaid);
@@ -104,14 +190,6 @@ export async function POST(request: NextRequest) {
     const targetTenant = await findUserById(targetTenantId);
     if (!targetTenant) {
       return NextResponse.json({ success: false, error: "Tenant not found" }, { status: 404 });
-    }
-
-    if (submittedPaymentPin) {
-      const pinValid = await verifyUserPaymentPin(targetTenantId, String(submittedPaymentPin));
-      if (!pinValid) {
-        await logAudit(auth.userId, "payment_pin_invalid", { targetTenantId }, auth.ip, auth.userAgent);
-        return NextResponse.json({ success: false, error: "Invalid payment PIN" }, { status: 403 });
-      }
     }
 
     const tenants = await getTenants();
@@ -167,6 +245,8 @@ export async function POST(request: NextRequest) {
       accountHolder: sanitized.accountHolder || null,
       cardLast4: sanitized.cardLast4 || null,
       cardExpiry: sanitized.cardExpiry || null,
+      gcashNumber: sanitized.gcashNumber || null,
+      gcashName: sanitized.gcashName || null,
       notes: paymentNotes,
       receiptUrl: automaticReceiptUrl,
       createdBy: user.id,
@@ -258,7 +338,7 @@ export async function PATCH(request: NextRequest) {
     if (sanitized.status === "paid") {
       const calculatedBalance = Math.max(0, Number(currentPayment.amountDue || 0) - Number(currentPayment.amountPaid || 0));
       sanitized.balance = calculatedBalance;
-      sanitized.status = calculatedBalance <= 0 ? "paid" : "partial";
+      sanitized.status = "paid";
     }
     const payment = await updatePayment(id, sanitized);
     if (!payment) {

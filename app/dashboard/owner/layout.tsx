@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { createPortal } from "react-dom";
 import {
@@ -11,7 +11,7 @@ import {
 import { useRouter, usePathname } from "next/navigation";
 import { cn, getInitials } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
-import { getNotifications, markNotificationRead, markAllNotificationsRead, getUnreadMessageCount, Notification } from "@/lib/data";
+import { getNotifications, markNotificationRead, markAllNotificationsRead, getUnreadCount, getUnreadMessageCount, getPendingPaymentsCount, Notification } from "@/lib/data";
 import { getTenants } from "@/lib/data";
 import Link from "next/link";
 import MessagingPanel from "@/components/messaging-panel";
@@ -26,7 +26,7 @@ const navItems = [
   { label: "Rental Units", tab: "units", href: "/dashboard/owner#units", icon: ClipboardCheck },
   { label: "Occupancy", tab: "occupancy", href: "/dashboard/owner#occupancy", icon: Home },
   { label: "Agents", tab: "agents", href: "/dashboard/owner#agents", icon: Users },
-  { label: "Create Tenant", tab: "create-tenant", href: "#", icon: UserPlus, isAction: true },
+  { label: "Create Tenant", tab: "create-tenant", href: "/dashboard/owner#create-tenant", icon: UserPlus },
   { label: "Payments", tab: "payments", href: "/dashboard/owner#payments", icon: CreditCard },
   { label: "Pending Approvals", tab: "assignments", href: "/dashboard/owner#assignments", icon: FileText },
   { label: "Receipts & Reports", tab: "reports", href: "/dashboard/owner#reports", icon: BarChart3 },
@@ -52,15 +52,24 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
   const [pendingAssignmentsCount, setPendingAssignmentsCount] = useState(0);
-  const [showCreateTenant, setShowCreateTenant] = useState(false);
-  const [newTenant, setNewTenant] = useState({ name: "", email: "", phone: "", address: "", propertyName: "", unitNumber: "", rentAmount: "", contractStart: "", contractEnd: "", password: "" });
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [pendingPaymentsCount, setPendingPaymentsCount] = useState(0);
+  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push("/");
     }
   }, [isLoading, isAuthenticated, router]);
+
+  const refreshNotificationsCount = useCallback(async () => {
+    if (!user) return;
+    try {
+      const count = await getUnreadCount(user.id);
+      setUnreadNotificationsCount(count);
+    } catch {
+      // ignore
+    }
+  }, [user]);
 
   useEffect(() => {
     if (user) {
@@ -70,8 +79,26 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
         const pending = tenants.filter((t: any) => t.assignmentStatus === "pending" && t.unitId).length;
         setPendingAssignmentsCount(pending);
       }).catch(() => setPendingAssignmentsCount(0));
+      getPendingPaymentsCount().then(setPendingPaymentsCount).catch(() => setPendingPaymentsCount(0));
+      refreshNotificationsCount();
     }
-  }, [user]);
+  }, [user, refreshNotificationsCount]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (user) {
+        getNotifications(user.id).then(setNotifications).catch(() => {});
+        getUnreadMessageCount().then(setUnreadMessageCount).catch(() => {});
+        getTenants(user).then((tenants) => {
+          const pending = tenants.filter((t: any) => t.assignmentStatus === "pending" && t.unitId).length;
+          setPendingAssignmentsCount(pending);
+        }).catch(() => {});
+        getPendingPaymentsCount().then(setPendingPaymentsCount).catch(() => {});
+        refreshNotificationsCount();
+      }
+    }, 30000);
+    return () => clearInterval(interval);
+  }, [user, refreshNotificationsCount]);
 
   useEffect(() => {
     const refreshPending = () => {
@@ -81,11 +108,28 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
     return () => window.removeEventListener("owner-data-changed", refreshPending);
   }, [user]);
 
+  useEffect(() => {
+    const refreshProfile = () => {
+      if (user) getTenants(user).then((tenants) => setPendingAssignmentsCount(tenants.filter((tenant: any) => tenant.assignmentStatus === "pending" && tenant.unitId).length)).catch(() => {});
+    };
+    window.addEventListener("renttrack-profile-updated", refreshProfile);
+    return () => window.removeEventListener("renttrack-profile-updated", refreshProfile);
+  }, [user]);
+
+  useEffect(() => {
+    const refreshPayments = () => {
+      if (user) getPendingPaymentsCount().then(setPendingPaymentsCount).catch(() => setPendingPaymentsCount(0));
+    };
+    window.addEventListener("payment-confirmed", refreshPayments);
+    return () => window.removeEventListener("payment-confirmed", refreshPayments);
+  }, [user]);
+
   const handleNotificationClick = async (id: string) => {
     setShowNotifications(false);
     try {
       await markNotificationRead(id);
       getNotifications(user?.id).then(setNotifications).catch(() => {});
+      refreshNotificationsCount();
     } catch {
       // ignore
     }
@@ -97,39 +141,14 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
     if (!showNotifications && user) {
       try {
         await markAllNotificationsRead(user.id);
-        getNotifications(user.id).then(setNotifications).catch(() => {});
-      } catch {
-        // ignore
+        const updated = await getNotifications(user.id);
+        setNotifications(updated);
+        const count = await getUnreadCount(user.id);
+        console.log("[OwnerLayout] Refreshed notification count:", count);
+        setUnreadNotificationsCount(count);
+      } catch (err) {
+        console.error("[OwnerLayout] Failed to refresh notifications:", err);
       }
-    }
-  };
-
-  const handleCreateTenant = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newTenant.name || !newTenant.email || !newTenant.password || !newTenant.propertyName || !newTenant.unitNumber) {
-      toast.error("Name, email, password, property, and unit are required");
-      return;
-    }
-    setIsSubmitting(true);
-    try {
-      const res = await fetch("/api/auth/signup", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newTenant.name, email: newTenant.email, phone: newTenant.phone, address: newTenant.address, password: newTenant.password, role: "tenant" }),
-      });
-      const data = await res.json();
-      if (data.success) {
-        await fetch("/api/data/tenants", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ name: newTenant.name, email: newTenant.email, phone: newTenant.phone, address: newTenant.address, propertyName: newTenant.propertyName, unitNumber: newTenant.unitNumber, rentAmount: Number(newTenant.rentAmount) || 0, contractStart: newTenant.contractStart || undefined, contractEnd: newTenant.contractEnd || undefined, assignmentStatus: "confirmed" }) });
-        toast.success("Tenant account created successfully!");
-        setNewTenant({ name: "", email: "", phone: "", address: "", propertyName: "", unitNumber: "", rentAmount: "", contractStart: "", contractEnd: "", password: "" });
-        setShowCreateTenant(false);
-      } else {
-        toast.error(data.error || "Failed to create tenant account");
-      }
-    } catch {
-      toast.error("Failed to create tenant account");
-    } finally {
-      setIsSubmitting(false);
     }
   };
 
@@ -262,7 +281,6 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
                   key={item.tab || item.href}
                   id={`sidebar-${item.tab}`}
                   onClick={() => {
-                    if (item.isAction) { setShowCreateTenant(true); return; }
                     if (window.location.pathname !== "/dashboard/owner") {
                       router.push(`/dashboard/owner#${item.tab}`);
                     } else {
@@ -279,9 +297,24 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
                   <Icon className={cn("h-4 w-4 shrink-0", isActive ? "text-blue-600" : "text-gray-400")} />
                   {sidebarOpen && <span className="truncate">{item.label}</span>}
                   {item.tab === "assignments" && pendingAssignmentsCount > 0 && (
-                    <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white">
+                    <motion.span
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: "spring", stiffness: 500, damping: 15 }}
+                      className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-amber-500 text-[10px] font-bold text-white shadow-md"
+                    >
                       {pendingAssignmentsCount}
-                    </span>
+                    </motion.span>
+                  )}
+                  {item.tab === "payments" && pendingPaymentsCount > 0 && (
+                    <motion.span
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: "spring", stiffness: 500, damping: 15 }}
+                      className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-md"
+                    >
+                      {pendingPaymentsCount}
+                    </motion.span>
                   )}
                   {isActive && sidebarOpen && <ChevronRight className="h-3.5 w-3.5 ml-auto text-primary-600" />}
                 </button>
@@ -337,15 +370,14 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
                       <button
                         key={item.tab || item.href}
                         id={`sidebar-${item.tab}`}
-                        onClick={() => {
-                          if (item.isAction) { setShowCreateTenant(true); setSidebarOpen(false); return; }
-                          if (window.location.pathname !== "/dashboard/owner") {
-                            router.push(`/dashboard/owner#${item.tab}`);
-                          } else {
-                            window.location.hash = item.tab;
-                          }
-                          setSidebarOpen(false);
-                        }}
+                    onClick={() => {
+                      if (window.location.pathname !== "/dashboard/owner") {
+                        router.push(`/dashboard/owner#${item.tab}`);
+                      } else {
+                        window.location.hash = item.tab;
+                      }
+                      setSidebarOpen(false);
+                    }}
                         className={cn(
                           "w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-base font-medium transition-all",
                           isActive
@@ -401,11 +433,20 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
                   className="relative p-2 rounded-lg hover:bg-surface-secondary transition-colors text-text-secondary hover:text-foreground"
                 >
                   <Bell className="h-5 w-5" />
-                  {notifications.filter(n => !n.read).length > 0 && (
-                    <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
-                      {notifications.filter(n => !n.read).length}
-                    </span>
-                  )}
+                  <AnimatePresence mode="popLayout">
+                    {unreadNotificationsCount > 0 && (
+                      <motion.span
+                        key="notification-badge"
+                        initial={{ scale: 0, y: -4 }}
+                        animate={{ scale: 1, y: 0 }}
+                        exit={{ scale: 0, y: -4 }}
+                        transition={{ type: "spring", stiffness: 500, damping: 15 }}
+                        className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-lg"
+                      >
+                        {unreadNotificationsCount}
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
                 </button>
                 <AnimatePresence initial={false}>
                   {showNotifications && (
@@ -519,57 +560,8 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
             </div>
           </div>,
           document.body
-        )}
-        {showCreateTenant && createPortal(
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/50" onClick={() => setShowCreateTenant(false)} />
-            <div className="relative flex max-h-[88vh] w-full max-w-sm flex-col rounded-md border border-slate-700 bg-white shadow-2xl">
-              <div className="flex items-center justify-between border-b border-slate-700 p-4">
-                <div><h3 className="text-base font-semibold text-foreground">Create Tenant</h3><p className="text-xs text-text-secondary">Add tenant, rental, and account information</p></div>
-                <button onClick={() => setShowCreateTenant(false)} className="h-8 w-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-foreground hover:bg-surface-secondary transition-colors">
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-              <form onSubmit={handleCreateTenant} className="space-y-3 overflow-y-auto p-4">
-                <h4 className="text-sm font-semibold text-blue-600">Tenant Information</h4>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1.5">Full Name *</label>
-                  <Input value={newTenant.name} onChange={(e) => setNewTenant({ ...newTenant, name: e.target.value })} placeholder="Juan Dela Cruz" required />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1.5">Email *</label>
-                  <Input type="email" value={newTenant.email} onChange={(e) => setNewTenant({ ...newTenant, email: e.target.value })} placeholder="juan@example.com" required />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1.5">Phone</label>
-                  <Input value={newTenant.phone} onChange={(e) => setNewTenant({ ...newTenant, phone: e.target.value })} placeholder="+63 XXX XXX XXXX" />
-                </div>
-                <div><label className="block text-sm font-medium text-foreground mb-1.5">Address</label><Input value={newTenant.address} onChange={(e) => setNewTenant({ ...newTenant, address: e.target.value })} placeholder="Tenant address" /></div>
-                <div className="space-y-2 border-t border-slate-700 pt-3"><h4 className="text-sm font-semibold text-blue-600">Rental Information</h4><Input value={newTenant.propertyName} onChange={(e) => setNewTenant({ ...newTenant, propertyName: e.target.value })} placeholder="Property name" required /><Input value={newTenant.unitNumber} onChange={(e) => setNewTenant({ ...newTenant, unitNumber: e.target.value })} placeholder="Rental unit / room" required /><Input type="number" value={newTenant.rentAmount} onChange={(e) => setNewTenant({ ...newTenant, rentAmount: e.target.value })} placeholder="Monthly rent" /><div className="grid grid-cols-2 gap-2"><Input type="date" value={newTenant.contractStart} onChange={(e) => setNewTenant({ ...newTenant, contractStart: e.target.value })} /><Input type="date" value={newTenant.contractEnd} onChange={(e) => setNewTenant({ ...newTenant, contractEnd: e.target.value })} /></div></div>
-                <div className="border-t border-slate-700 pt-3"><h4 className="text-sm font-semibold text-blue-600">Account Information</h4>
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-1.5">Password *</label>
-                  <Input type="password" value={newTenant.password} onChange={(e) => setNewTenant({ ...newTenant, password: e.target.value })} placeholder="Min. 8 characters" required />
-                </div></div>
-                <Button type="submit" disabled={isSubmitting} className="w-full">
-                  {isSubmitting ? (
-                    <span className="flex items-center gap-2">
-                      <span className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      Creating...
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-2">
-                      <UserPlus className="h-4 w-4" />
-                      Create Tenant Account
-                    </span>
-                  )}
-                </Button>
-              </form>
-            </div>
-          </div>,
-          document.body
-        )}
-      </div>
-    </div>
-  );
-}
+         )}
+       </div>
+     </div>
+   );
+ }

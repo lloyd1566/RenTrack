@@ -315,6 +315,8 @@ export async function initDatabase() {
   statements.push(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS account_holder TEXT`);
   statements.push(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS card_last4 TEXT`);
   statements.push(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS card_expiry TEXT`);
+  statements.push(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS gcash_number TEXT`);
+  statements.push(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS gcash_name TEXT`);
 
   // Keep existing installations compatible with the landing-page chat reply flow.
   statements.push(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS agent_id TEXT`);
@@ -715,7 +717,7 @@ export async function getPaymentsForUser(userId: string, role?: string) {
 
 export async function createPayment(data: any, userId: string) {
   const id = data.id || `pay_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
-  const { error } = await getAdminSupabase().from("payments").insert({
+  const basePayload: Record<string, any> = {
     id,
     tenant_id: data.tenantId || null,
     tenant_name: data.tenantName || null,
@@ -734,18 +736,38 @@ export async function createPayment(data: any, userId: string) {
     account_holder: data.accountHolder || null,
     card_last4: data.cardLast4 || null,
     card_expiry: data.cardExpiry || null,
+    gcash_number: data.gcashNumber || null,
+    gcash_name: data.gcashName || null,
     receipt_url: data.receiptUrl || null,
+    stay_start: data.stayStart || null,
+    stay_end: data.stayEnd || null,
     notes: data.notes || null,
     created_by: userId,
     created_at: new Date().toISOString(),
-  });
+  };
+
+  let { error } = await getAdminSupabase().from("payments").insert(basePayload);
+  if (error && /Could not find the '.+' column of 'payments'/.test(error.message)) {
+    const fallbackPayload = { ...basePayload };
+    delete fallbackPayload.gcash_number;
+    delete fallbackPayload.gcash_name;
+    delete fallbackPayload.stay_start;
+    delete fallbackPayload.stay_end;
+    ({ error } = await getAdminSupabase().from("payments").insert(fallbackPayload));
+  }
   if (error) throw error;
   return { ...data, id, createdAt: new Date().toISOString() };
 }
 
 export async function updatePayment(id: string, data: any) {
   const snakeData = camelToSnake(data);
-  const { error } = await getAdminSupabase().from("payments").update(snakeData).eq("id", id);
+  let { error } = await getAdminSupabase().from("payments").update(snakeData).eq("id", id);
+  if (error && /Could not find the '.+' column of 'payments'/.test(error.message)) {
+    const fallbackData = { ...snakeData };
+    delete fallbackData.gcash_number;
+    delete fallbackData.gcash_name;
+    ({ error } = await getAdminSupabase().from("payments").update(fallbackData).eq("id", id));
+  }
   if (error) throw error;
   const { data: updated } = await getAdminSupabase().from("payments").select("*").eq("id", id).single();
   return updated ? snakeToCamel(updated) : null;
@@ -845,7 +867,8 @@ export async function createComplaint(data: { tenantId: string; targetType: "pro
 }
 
 export async function getComplaints(tenantId?: string) {
-  let query = getAdminSupabase().from("complaints").select("id, tenant_id, target_type, target_id, subject, message, status, priority, assigned_to, resolved_at, response_text, response_by, response_at, created_at, updated_at, users!complaints_tenant_id_fkey(name, email)").order("created_at", { ascending: false });
+  const selectFields = "id, tenant_id, target_type, target_id, subject, message, status, priority, assigned_to, resolved_at, response_text, response_by, response_at, tenant_reply_text, tenant_reply_by, tenant_reply_at, created_at, updated_at, users!complaints_tenant_id_fkey(name, email)";
+  let query = getAdminSupabase().from("complaints").select(selectFields).order("created_at", { ascending: false });
   if (tenantId) query = query.eq("tenant_id", tenantId);
   const { data, error } = await query;
   if (error) throw error;
@@ -861,6 +884,15 @@ export async function updateComplaintStatus(id: string, status: string, assigned
   if (assignedTo) updates.assigned_to = assignedTo;
   if (status === "resolved" || status === "closed") updates.resolved_at = new Date().toISOString();
   if (responseText?.trim()) { updates.response_text = responseText.trim(); updates.response_by = responseBy || null; updates.response_at = new Date().toISOString(); }
+
+  const { data, error } = await getAdminSupabase().from("complaints").update(updates).eq("id", id).select().single();
+  if (error) throw error;
+  return data ? snakeToCamel(data) : null;
+}
+
+export async function updateComplaintTenantReply(id: string, replyText: string, repliedBy: string) {
+  const updates: Record<string, any> = { updated_at: new Date().toISOString() };
+  if (replyText?.trim()) { updates.tenant_reply_text = replyText.trim(); updates.tenant_reply_by = repliedBy; updates.tenant_reply_at = new Date().toISOString(); }
 
   const { data, error } = await getAdminSupabase().from("complaints").update(updates).eq("id", id).select().single();
   if (error) throw error;

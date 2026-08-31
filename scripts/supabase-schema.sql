@@ -123,6 +123,17 @@ CREATE TABLE IF NOT EXISTS payments (
   created_by TEXT REFERENCES users(id) ON DELETE SET NULL
 );
 
+ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_payment_method_check;
+ALTER TABLE payments ADD CONSTRAINT payments_payment_method_check CHECK (payment_method IN ('cash', 'bank_transfer', 'gcash', 'credit_card', 'other'));
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS payment_method_note TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS bank_name TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS account_number TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS account_holder TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS card_last4 TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS card_expiry TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS gcash_number TEXT;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS gcash_name TEXT;
+
 CREATE TABLE IF NOT EXISTS notifications (
   id TEXT PRIMARY KEY,
   user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
@@ -185,6 +196,9 @@ CREATE TABLE IF NOT EXISTS complaints (
 ALTER TABLE complaints ADD COLUMN IF NOT EXISTS response_text TEXT;
 ALTER TABLE complaints ADD COLUMN IF NOT EXISTS response_by TEXT;
 ALTER TABLE complaints ADD COLUMN IF NOT EXISTS response_at TIMESTAMPTZ;
+ALTER TABLE complaints ADD COLUMN IF NOT EXISTS tenant_reply_text TEXT;
+ALTER TABLE complaints ADD COLUMN IF NOT EXISTS tenant_reply_by TEXT;
+ALTER TABLE complaints ADD COLUMN IF NOT EXISTS tenant_reply_at TIMESTAMPTZ;
 ALTER TABLE complaints DROP CONSTRAINT IF EXISTS complaints_target_type_check;
 ALTER TABLE complaints ADD CONSTRAINT complaints_target_type_check CHECK (target_type IN ('property', 'unit', 'support'));
 

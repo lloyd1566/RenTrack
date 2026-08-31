@@ -129,7 +129,7 @@ export default function TenantRatingsPage() {
                         <CardContent className="p-5">
                           <div className="flex items-start justify-between">
                             <div>
-                              <p className="font-medium text-gray-900 capitalize">{rating.target_type}: {rating.target_id}</p>
+                              <p className="font-medium text-gray-900 capitalize">{rating.targetType}: {rating.targetId}</p>
                               <div className="flex items-center gap-1 mt-2">
                                 {[1, 2, 3, 4, 5].map((star) => (
                                   <motion.div
@@ -148,7 +148,7 @@ export default function TenantRatingsPage() {
                                 <p className="text-sm text-gray-600 mt-2">{rating.comment}</p>
                               )}
                             </div>
-                            <span className="text-xs text-gray-400">{new Date(rating.created_at).toLocaleDateString()}</span>
+                            <span className="text-xs text-gray-400">{new Date(rating.createdAt).toLocaleDateString()}</span>
                           </div>
                         </CardContent>
                       </Card>
@@ -200,7 +200,7 @@ export default function TenantRatingsPage() {
                                 <Badge variant="outline" className="text-xs capitalize">{complaint.priority}</Badge>
                               </div>
                             </div>
-                            <span className="text-xs text-gray-400">{new Date(complaint.created_at).toLocaleDateString()}</span>
+                            <span className="text-xs text-gray-400">{new Date(complaint.createdAt).toLocaleDateString()}</span>
                           </div>
                         </CardContent>
                       </Card>

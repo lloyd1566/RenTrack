@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
+import { DropdownMenu, DropdownItem } from "@/components/ui/dropdown-menu";
 import { cn, formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import {
@@ -23,11 +24,13 @@ import {
   deleteUser, updateUserRole, updateUser, adminResetUserPassword,
   getConversations,
   updateComplaintStatus,
+  getComplaintById,
 } from "@/lib/data";
 import { toast } from "sonner";
 import { useSearchParams, useRouter } from "next/navigation";
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from "recharts";
 import MessagingModal from "@/components/messaging-modal";
+import CreateTenantModal from "@/components/create-tenant-modal";
 
 const fadeInUp = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.5 } } };
 
@@ -64,10 +67,12 @@ export default function AdminDashboard() {
   const [resettingPassword, setResettingPassword] = useState<UserRecord | null>(null);
   const [newPassword, setNewPassword] = useState("");
   const [showCreateTenant, setShowCreateTenant] = useState(false);
-  const [newTenant, setNewTenant] = useState({ name: "", email: "", phone: "", password: "" });
   const [isCreatingTenant, setIsCreatingTenant] = useState(false);
   const [replyingComplaint, setReplyingComplaint] = useState<string | null>(null);
   const [complaintReply, setComplaintReply] = useState("");
+  const [replying, setReplying] = useState(false);
+  const [selectedComplaint, setSelectedComplaint] = useState<Complaint | null>(null);
+  const [selectedTenant, setSelectedTenant] = useState<TenantRecord | null>(null);
 
   const loadData = useCallback(async () => {
     setIsRefreshing(true);
@@ -93,6 +98,26 @@ export default function AdminDashboard() {
     }
   }, [user]);
 
+  const openComplaint = useCallback(async (complaint: Complaint) => {
+    try {
+      const fresh = await getComplaintById(complaint.id);
+      setSelectedComplaint(fresh || complaint);
+    } catch {
+      setSelectedComplaint(complaint);
+    }
+    if (complaint.tenantId) {
+      try {
+        const tenantList = await getTenants();
+        setTenants(tenantList);
+        const tenant = tenantList.find(t => t.id === complaint.tenantId);
+        setSelectedTenant(tenant || null);
+      } catch {
+        // ignore
+      }
+    }
+    router.push("/dashboard/admin?tab=complaints");
+  }, [router]);
+
   useEffect(() => {
     loadData();
     fetch("/api/health")
@@ -110,6 +135,44 @@ export default function AdminDashboard() {
   }, [loadData]);
 
   useEffect(() => {
+    if (!user) return;
+    const interval = setInterval(() => {
+      getNotifications(user.id).then(setNotifications).catch(() => {});
+      if (activeTab === "complaints") {
+        getComplaints().then(setComplaints).catch(() => {});
+      }
+    }, 10000);
+    const handleFocus = () => {
+      getNotifications(user.id).then(setNotifications).catch(() => {});
+      if (activeTab === "complaints") {
+        getComplaints().then(setComplaints).catch(() => {});
+      }
+    };
+    window.addEventListener("focus", handleFocus);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener("focus", handleFocus);
+    };
+  }, [user, activeTab]);
+
+  useEffect(() => {
+    const refreshAllUsers = async () => {
+      try {
+        const [usersData, tenantsData] = await Promise.all([
+          getUsers(),
+          getTenants(),
+        ]);
+        setUsers(usersData);
+        setTenants(tenantsData);
+      } catch {
+        // ignore
+      }
+    };
+    window.addEventListener("renttrack-profile-updated", refreshAllUsers);
+    return () => window.removeEventListener("renttrack-profile-updated", refreshAllUsers);
+  }, []);
+
+  useEffect(() => {
     if (activeTab === "messages" && user) {
       (async () => {
         try {
@@ -121,6 +184,13 @@ export default function AdminDashboard() {
       })();
     }
   }, [activeTab, user]);
+
+  useEffect(() => {
+    if (activeTab === "complaints") {
+      getTenants().then(setTenants).catch(() => {});
+      getComplaints().then(setComplaints).catch(() => {});
+    }
+  }, [activeTab]);
 
   const saveConfig = async (key: string, value: string) => {
     try {
@@ -142,9 +212,19 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleCreateTenant = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newTenant.name || !newTenant.email || !newTenant.password) {
+  const handleCreateTenant = async (formData: {
+    name: string;
+    email: string;
+    phone: string;
+    address: string;
+    propertyName: string;
+    unitNumber: string;
+    rentAmount: string;
+    contractStart: string;
+    contractEnd: string;
+    password: string;
+  }) => {
+    if (!formData.name || !formData.email || !formData.password) {
       toast.error("Name, email, and password are required");
       return;
     }
@@ -153,12 +233,12 @@ export default function AdminDashboard() {
       const res = await fetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...newTenant, role: "tenant" }),
+        body: JSON.stringify({ ...formData, role: "tenant" }),
       });
       const data = await res.json();
       if (data.success) {
+        await fetch("/api/data/tenants", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ name: formData.name, email: formData.email, phone: formData.phone, address: formData.address, propertyName: formData.propertyName, unitNumber: formData.unitNumber, rentAmount: Number(formData.rentAmount) || 0, contractStart: formData.contractStart || undefined, contractEnd: formData.contractEnd || undefined, assignmentStatus: "confirmed" }) });
         toast.success("Tenant account created successfully!");
-        setNewTenant({ name: "", email: "", phone: "", password: "" });
         setShowCreateTenant(false);
         loadData();
       } else {
@@ -267,6 +347,49 @@ export default function AdminDashboard() {
     date: log.createdAt,
   }))].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
 
+  const userRoleMap = useMemo(() => {
+    const map = new Map<string, string>();
+    users.forEach((u) => map.set(u.id, u.role));
+    return map;
+  }, [users]);
+
+  const userUpdates = useMemo(() => {
+    const updates: { id: string; title: string; detail: string; role: string; date: string }[] = [];
+    notifications.forEach((notification) => {
+      const role = userRoleMap.get(notification.userId);
+      if (role === "owner" || role === "tenant" || role === "agent") {
+        updates.push({
+          id: `notification-${notification.id}`,
+          title: notification.title,
+          detail: notification.message,
+          role,
+          date: notification.createdAt,
+        });
+      }
+    });
+    auditLogs.forEach((log) => {
+      if (!log.userId) return;
+      const role = userRoleMap.get(log.userId);
+      if (role === "owner" || role === "tenant" || role === "agent") {
+        updates.push({
+          id: `audit-${log.id}`,
+          title: log.action.replace(/_/g, " "),
+          detail: `${log.actor} • ${formatDate(log.createdAt)}`,
+          role,
+          date: log.createdAt,
+        });
+      }
+    });
+    return updates.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 6);
+  }, [notifications, auditLogs, userRoleMap]);
+
+  const getRoleBadge = (role: string) => {
+    if (role === "owner") return { label: "Owner", className: "bg-amber-50 text-amber-700 border-amber-200" };
+    if (role === "tenant") return { label: "Tenant", className: "bg-emerald-50 text-emerald-700 border-emerald-200" };
+    if (role === "agent") return { label: "Agent", className: "bg-blue-50 text-blue-700 border-blue-200" };
+    return { label: role, className: "bg-gray-50 text-gray-700 border-gray-200" };
+  };
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3 }} className="space-y-6 w-full max-w-none">
       {/* Overview Tab */}
@@ -285,12 +408,36 @@ export default function AdminDashboard() {
               { label: "Occupied Units", value: occupiedUnits, icon: Users, tone: "text-emerald-600 bg-emerald-50" },
               { label: "Available Units", value: availableUnits, icon: Home, tone: "text-amber-600 bg-amber-50" },
             ].map((stat) => (
-              <Card key={stat.label} className="border-gray-200 shadow-sm transition-shadow hover:shadow-md dark:border-gray-700">
-                <CardContent className="flex items-center justify-between p-5">
-                  <div><p className="text-xs font-medium text-gray-500 dark:text-gray-400">{stat.label}</p><p className="mt-2 text-3xl font-bold text-gray-900 dark:text-white">{stat.value}</p></div>
-                  <div className={cn("flex h-11 w-11 items-center justify-center rounded-xl", stat.tone)}><stat.icon className="h-5 w-5" /></div>
-                </CardContent>
-              </Card>
+              <motion.div
+                key={stat.label}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                whileHover={{ y: -2 }}
+                transition={{ duration: 0.3 }}
+              >
+                <Card className="border-gray-200 shadow-sm transition-all hover:shadow-md dark:border-gray-700">
+                  <CardContent className="flex items-center justify-between p-5">
+                    <div>
+                      <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{stat.label}</p>
+                      <motion.p
+                        className="mt-2 text-3xl font-bold text-gray-900 dark:text-white"
+                        initial={{ scale: 0.8 }}
+                        animate={{ scale: 1 }}
+                        transition={{ type: "spring", stiffness: 200, damping: 15 }}
+                      >
+                        {stat.value}
+                      </motion.p>
+                    </div>
+                    <motion.div
+                      whileHover={{ rotate: 15, scale: 1.1 }}
+                      transition={{ type: "spring", stiffness: 400, damping: 10 }}
+                      className={cn("flex h-11 w-11 items-center justify-center rounded-xl", stat.tone)}
+                    >
+                      <stat.icon className="h-5 w-5" />
+                    </motion.div>
+                  </CardContent>
+                </Card>
+              </motion.div>
             ))}
           </div>
 
@@ -301,20 +448,22 @@ export default function AdminDashboard() {
             ].map((chart) => {
               const total = chart.primary + chart.secondary;
               const primaryPercent = total ? Math.round((chart.primary / total) * 100) : 0;
-              return <Card key={chart.title} className="border-gray-200 shadow-sm dark:border-gray-700">
+              return <motion.div key={chart.title} whileHover={{ y: -2 }} transition={{ duration: 0.2 }}><Card className="border-gray-200 shadow-sm dark:border-gray-700">
                 <CardHeader><CardTitle className="text-base text-gray-900 dark:text-white">{chart.title}</CardTitle><CardDescription>{chart.description}</CardDescription></CardHeader>
                 <CardContent className="grid grid-cols-1 items-center gap-4 sm:grid-cols-[220px_1fr]">
                   <div className="h-56"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={[{ name: chart.primaryLabel, value: chart.primary }, { name: chart.secondaryLabel, value: chart.secondary }]} innerRadius={58} outerRadius={88} paddingAngle={3} dataKey="value" stroke="none"><Cell fill={chart.primaryColor} /><Cell fill={chart.secondaryColor} /></Pie><Tooltip /></PieChart></ResponsiveContainer></div>
-                  <div className="space-y-4">{[[chart.primaryLabel, chart.primary, chart.primaryColor, primaryPercent], [chart.secondaryLabel, chart.secondary, chart.secondaryColor, 100 - primaryPercent]].map(([label, value, color, percent]) => <div key={String(label)} className="flex items-center justify-between border-b border-gray-100 pb-3 last:border-0 dark:border-gray-700"><div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: String(color) }} /><span className="text-sm text-gray-600 dark:text-gray-300">{label}</span></div><span className="text-sm font-semibold text-gray-900 dark:text-white">{value} <span className="ml-1 text-xs font-normal text-gray-400">({percent}%)</span></span></div>)}</div>
+                  <div className="space-y-4">{[[chart.primaryLabel, chart.primary, chart.primaryColor, primaryPercent], [chart.secondaryLabel, chart.secondary, chart.secondaryColor, 100 - primaryPercent]].map(([label, value, color, percent]) => <motion.div key={String(label)} whileHover={{ x: 2 }} className="flex items-center justify-between border-b border-gray-100 pb-3 last:border-0 dark:border-gray-700 transition-all"><div className="flex items-center gap-2"><span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: String(color) }} /><span className="text-sm text-gray-600 dark:text-gray-300">{label}</span></div><span className="text-sm font-semibold text-gray-900 dark:text-white">{value} <span className="ml-1 text-xs font-normal text-gray-400">({percent}%)</span></span></motion.div>)}</div>
                 </CardContent>
-              </Card>;
+              </Card>
+              </motion.div>
             })}
           </div>
 
           <div className="grid grid-cols-1 gap-4 xl:grid-cols-3">
-            <Card className="border-gray-200 shadow-sm dark:border-gray-700"><CardHeader><CardTitle className="text-base text-gray-900 dark:text-white">User Overview</CardTitle><CardDescription>Accounts by role</CardDescription></CardHeader><CardContent className="space-y-3">{[["Total Users", users.length], ["Administrators", roleCounts.admin], ["Property Owners", roleCounts.owner], ["Agents", roleCounts.agent], ["Tenants", roleCounts.tenant]].map(([label, value]) => <div key={String(label)} className="flex justify-between text-sm"><span className="text-gray-500 dark:text-gray-400">{label}</span><span className="font-semibold text-gray-900 dark:text-white">{value}</span></div>)}</CardContent></Card>
-            <Card className="border-gray-200 shadow-sm dark:border-gray-700"><CardHeader><CardTitle className="text-base text-gray-900 dark:text-white">System Status</CardTitle><CardDescription>Live platform checks</CardDescription></CardHeader><CardContent className="space-y-3">{[["Application Status", "Online"], ["Database Status", healthData?.checks?.database || "Connected"], ["System Health", healthData?.success ? "Good" : "Checking"], ["Last System Check", healthData ? "Just now" : "Loading..."]].map(([label, value]) => <div key={String(label)} className="flex items-center justify-between text-sm"><span className="text-gray-500 dark:text-gray-400">{label}</span><span className="flex items-center gap-1.5 font-medium text-emerald-600"><span className="h-2 w-2 rounded-full bg-emerald-500" />{value}</span></div>)}</CardContent></Card>
-            <Card className="border-gray-200 shadow-sm dark:border-gray-700"><CardHeader><CardTitle className="text-base text-gray-900 dark:text-white">Recent System Activity</CardTitle><CardDescription>Latest important changes</CardDescription></CardHeader><CardContent className="space-y-3">{recentActivities.length ? recentActivities.map((activity) => <div key={activity.id} className="flex gap-2 border-b border-gray-100 pb-3 last:border-0 dark:border-gray-700"><Activity className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" /><div className="min-w-0"><p className="truncate text-sm font-medium capitalize text-gray-900 dark:text-white">{activity.title}</p><p className="truncate text-xs text-gray-500 dark:text-gray-400">{activity.detail}</p></div></div>) : <p className="py-4 text-center text-sm text-gray-500">No recent activity</p>}</CardContent></Card>
+            <Card className="border-gray-200 shadow-sm dark:border-gray-700"><CardHeader><CardTitle className="text-base text-gray-900 dark:text-white">User Overview</CardTitle><CardDescription>Accounts by role</CardDescription></CardHeader><CardContent className="space-y-3">{[["Total Users", users.length], ["Administrators", roleCounts.admin], ["Property Owners", roleCounts.owner], ["Agents", roleCounts.agent], ["Tenants", roleCounts.tenant]].map(([label, value]) => <motion.div key={String(label)} whileHover={{ x: 2 }} className="flex justify-between text-sm transition-all"><span className="text-gray-500 dark:text-gray-400">{label}</span><span className="font-semibold text-gray-900 dark:text-white">{value}</span></motion.div>)}</CardContent></Card>
+            <Card className="border-gray-200 shadow-sm dark:border-gray-700"><CardHeader><CardTitle className="text-base text-gray-900 dark:text-white">Recent Updates</CardTitle><CardDescription>Latest activity from owners, tenants, and agents</CardDescription></CardHeader><CardContent className="space-y-3">{userUpdates.length ? userUpdates.map((update) => { const badge = getRoleBadge(update.role); return <motion.div key={update.id} whileHover={{ x: 2 }} className="flex gap-2 border-b border-gray-100 pb-3 last:border-0 dark:border-gray-700 cursor-default transition-all"><Activity className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" /><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><p className="truncate text-sm font-medium capitalize text-gray-900 dark:text-white">{update.title}</p><span className={`shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${badge.className}`}>{badge.label}</span></div><p className="truncate text-xs text-gray-500 dark:text-gray-400">{update.detail}</p></div></motion.div>; }) : <p className="py-4 text-center text-sm text-gray-500">No updates from owners, tenants, or agents yet</p>}</CardContent></Card>
+            <Card className="border-gray-200 shadow-sm dark:border-gray-700 hover:shadow-md transition-all cursor-pointer" onClick={() => router.push("/dashboard/admin?tab=complaints")}><CardHeader><CardTitle className="text-base text-gray-900 dark:text-white">Recent Complaints</CardTitle><CardDescription>Latest tenant complaints</CardDescription></CardHeader><CardContent className="space-y-3">{complaints.slice(0, 5).length ? complaints.slice(0, 5).map((c) => { const tenant = tenants.find(t => t.id === c.tenantId); return (<motion.div key={c.id} whileHover={{ scale: 1.01 }} className="flex gap-3 border-b border-gray-100 pb-3 last:border-0 dark:border-gray-700 cursor-pointer transition-all" onClick={() => openComplaint(c)}><Avatar src={tenant?.avatarUrl} fallback={(tenant?.name || c.tenantName || c.tenantId || "T").split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()} size="sm" /><div className="min-w-0 flex-1"><div className="flex items-center gap-2 flex-wrap"><p className="truncate text-sm font-medium text-gray-900 dark:text-white">{c.subject}</p><motion.span whileHover={{ scale: 1.05 }} className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border transition-all", c.priority === "urgent" && "bg-red-50 text-red-700 border-red-200", c.priority === "high" && "bg-orange-50 text-orange-700 border-orange-200", c.priority === "medium" && "bg-amber-50 text-amber-700 border-amber-200", c.priority === "low" && "bg-gray-50 text-gray-700 border-gray-200")}>{c.priority}</motion.span></div><p className="truncate text-xs text-gray-500 dark:text-gray-400">{tenant?.name || c.tenantName || c.tenantId}</p><div className="mt-1">                                <motion.span whileHover={{ scale: 1.05 }} className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border transition-all", c.status === "open" && "bg-red-50 text-red-700 border-red-200", c.status === "in_progress" && "bg-amber-50 text-amber-700 border-amber-200", c.status === "resolved" && "bg-emerald-50 text-emerald-700 border-emerald-200", c.status === "closed" && "bg-gray-50 text-gray-700 border-gray-200")}>{c.status.replace("_", " ")}</motion.span>
+                                {c.tenantReplyText && <motion.span whileHover={{ scale: 1.05 }} className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border border-blue-200 bg-blue-50 text-blue-700">Tenant Replied</motion.span>}</div></div></motion.div>); }) : <p className="py-4 text-center text-sm text-gray-500">No complaints yet</p>}</CardContent></Card>
           </div>
         </div>
       )}
@@ -366,7 +515,7 @@ export default function AdminDashboard() {
                         initial={{ opacity: 0, x: -20 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: i * 0.03, duration: 0.3 }}
-                        whileHover={{ backgroundColor: "rgba(249, 250, 251, 0.8)" }}
+                        whileHover={{ scale: 1.005, backgroundColor: "rgba(249, 250, 251, 0.8)" }}
                         className="border-b border-border/50 hover:bg-surface-secondary transition-all duration-200"
                       >
                       <TableCell>
@@ -377,34 +526,36 @@ export default function AdminDashboard() {
                       </TableCell>
                       <TableCell className="text-text-secondary">{u.email}</TableCell>
                       <TableCell>
-                        <span className={cn(
-                          "inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium",
-                          u.role === "admin" && "bg-purple-50 text-purple-600",
-                          u.role === "owner" && "bg-blue-50 text-blue-600",
-                          u.role === "agent" && "bg-amber-50 text-amber-600",
-                          u.role === "tenant" && "bg-green-50 text-green-600",
-                        )}>
+                        <motion.span
+                          whileHover={{ scale: 1.05 }}
+                          className={cn(
+                            "inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border transition-all",
+                            u.role === "admin" && "bg-purple-50 text-purple-700 border-purple-200 shadow-sm shadow-purple-100",
+                            u.role === "owner" && "bg-blue-50 text-blue-700 border-blue-200 shadow-sm shadow-blue-100",
+                            u.role === "agent" && "bg-amber-50 text-amber-700 border-amber-200 shadow-sm shadow-amber-100",
+                            u.role === "tenant" && "bg-emerald-50 text-emerald-700 border-emerald-200 shadow-sm shadow-emerald-100",
+                          )}
+                        >
                           {u.role}
-                        </span>
+                        </motion.span>
                       </TableCell>
                       <TableCell className="text-text-secondary text-xs">{u.createdAt ? formatDate(u.createdAt) : "N/A"}</TableCell>
-                        <TableCell className="text-right">
-                           <div className="flex items-center justify-end gap-1">
-                             <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-                               <Button variant="ghost" size="sm" className="h-8 w-8 p-0" title="Edit user" onClick={() => handleEditUser(u)}>
-                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-blue-500"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>
-                               </Button>
-                             </motion.div>
-                             <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-                               <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-amber-500" title="Reset password" onClick={() => setResettingPassword(u)}>
-                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>
-                               </Button>
-                             </motion.div>
-                             <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-                               <Button variant="ghost" size="sm" className="h-8 w-8 p-0 text-red-500" onClick={() => handleDeleteUser(u.id)}><Trash2 className="h-4 w-4" /></Button>
-                             </motion.div>
-                           </div>
-                        </TableCell>
+                      <TableCell className="text-right">
+                        <DropdownMenu
+                          align="end"
+                          trigger={
+                            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-gray-500"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+                              </Button>
+                            </motion.div>
+                          }
+                        >
+                          <DropdownItem icon={<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-blue-500"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>} onClick={() => handleEditUser(u)}>Edit</DropdownItem>
+                          <DropdownItem icon={<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-amber-500"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>} onClick={() => setResettingPassword(u)}>Reset password</DropdownItem>
+                          <DropdownItem icon={<Trash2 className="h-4 w-4 text-red-500" />} onClick={() => handleDeleteUser(u.id)} className="text-red-600">Delete</DropdownItem>
+                        </DropdownMenu>
+                      </TableCell>
                      </motion.tr>
                    ))}
                  </TableBody>
@@ -696,21 +847,21 @@ export default function AdminDashboard() {
                         transition={{ delay: i * 0.05, duration: 0.3 }}
                         className="border-b border-border/50 hover:bg-surface-secondary"
                       >
-                        <TableCell className="font-medium">{r.user_name || r.user_id}</TableCell>
+                        <TableCell className="font-medium">{r.userName || r.userId}</TableCell>
                         <TableCell>
                           <span className={cn(
                             "inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium",
-                            r.target_type === "property" && "bg-blue-50 text-blue-600",
-                            r.target_type === "unit" && "bg-purple-50 text-purple-600",
+                            r.targetType === "property" && "bg-blue-50 text-blue-600",
+                            r.targetType === "unit" && "bg-purple-50 text-purple-600",
                           )}>
-                            {r.target_type} ({r.target_id})
+                            {r.targetType} ({r.targetId})
                           </span>
                         </TableCell>
                         <TableCell>
                           <span className="text-amber-600 font-medium">{r.rating}/5</span>
                         </TableCell>
                         <TableCell className="text-text-secondary text-xs max-w-xs truncate">{r.comment || "-"}</TableCell>
-                        <TableCell className="text-text-secondary text-xs">{r.created_at ? formatDate(r.created_at) : "N/A"}</TableCell>
+                        <TableCell className="text-text-secondary text-xs">{r.createdAt ? formatDate(r.createdAt) : "N/A"}</TableCell>
                       </motion.tr>
                     ))}
                   </TableBody>
@@ -734,59 +885,168 @@ export default function AdminDashboard() {
             {complaints.length === 0 ? (
               <p className="text-center py-8 text-gray-500">No complaints found</p>
             ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Subject</TableHead>
-                      <TableHead>Tenant</TableHead>
-                      <TableHead>Priority</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead>Created</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {complaints.map((c, i) => (
-                      <motion.tr
-                        key={c.id}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: i * 0.05, duration: 0.3 }}
-                        className="border-b border-border/50 hover:bg-surface-secondary"
+              <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+                <div className="lg:col-span-1 overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Subject</TableHead>
+                        <TableHead>Tenant</TableHead>
+                        <TableHead>Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {complaints.map((c) => {
+                        const tenant = tenants.find(t => t.id === c.tenantId);
+                        return (
+                           <motion.tr
+                             key={c.id}
+                             initial={{ opacity: 0, x: -20 }}
+                             animate={{ opacity: 1, x: 0 }}
+                             onClick={() => openComplaint(c)}
+                             whileHover={{ scale: 1.005 }}
+                             className={`border-b border-border/50 cursor-pointer transition-all ${selectedComplaint?.id === c.id ? "bg-blue-50" : "hover:bg-surface-secondary"}`}
+                           >
+                            <TableCell className="font-medium">{c.subject}</TableCell>
+                            <TableCell>
+                              <div className="flex items-center gap-2">
+                                <Avatar src={tenant?.avatarUrl} fallback={(tenant?.name || c.tenantName || c.tenantId || "T").split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()} size="sm" />
+                                <span className="text-text-secondary">{c.tenantName || c.tenantId}</span>
+                              </div>
+                            </TableCell>
+                             <TableCell>
+                               <div className="flex flex-wrap items-center gap-1.5">
+                                 <motion.span
+                                   whileHover={{ scale: 1.05 }}
+                                   className={cn(
+                                     "inline-flex whitespace-nowrap items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border transition-all",
+                                     c.status === "open" && "bg-red-50 text-red-700 border-red-200",
+                                     c.status === "in_progress" && "bg-amber-50 text-amber-700 border-amber-200",
+                                     c.status === "resolved" && "bg-emerald-50 text-emerald-700 border-emerald-200",
+                                     c.status === "closed" && "bg-gray-50 text-gray-700 border-gray-200",
+                                   )}
+                                 >
+                                   {c.status}
+                                 </motion.span>
+                                 {c.tenantReplyText && (
+                                   <motion.span whileHover={{ scale: 1.05 }} className="inline-flex whitespace-nowrap items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border border-blue-200 bg-blue-50 text-blue-700">Tenant Replied</motion.span>
+                                 )}
+                               </div>
+                             </TableCell>
+                          </motion.tr>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                </div>
+                <div className="lg:col-span-2">
+                  {selectedComplaint ? (
+                    <div className="rounded-xl border border-gray-200 p-5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-start gap-3">
+                          <Avatar src={selectedTenant?.avatarUrl} fallback={(selectedTenant?.name || selectedComplaint.tenantName || selectedComplaint.tenantId || "T").split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()} size="md" />
+                           <div>
+                             <h3 className="text-lg font-semibold text-gray-900">{selectedComplaint.subject}</h3>
+                              <div className="mt-1 flex items-center gap-2 flex-wrap">
+                                <span className="text-xs text-gray-500">Tenant: {selectedComplaint.tenantName || selectedComplaint.tenantId}</span>
+                                <motion.span whileHover={{ scale: 1.05 }} className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border transition-all", selectedComplaint.priority === "urgent" && "bg-red-50 text-red-700 border-red-200", selectedComplaint.priority === "high" && "bg-orange-50 text-orange-700 border-orange-200", selectedComplaint.priority === "medium" && "bg-amber-50 text-amber-700 border-amber-200", selectedComplaint.priority === "low" && "bg-gray-50 text-gray-700 border-gray-200")}>{selectedComplaint.priority}</motion.span>
+                                <motion.span whileHover={{ scale: 1.05 }} className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border transition-all", selectedComplaint.status === "open" && "bg-red-50 text-red-700 border-red-200", selectedComplaint.status === "in_progress" && "bg-amber-50 text-amber-700 border-amber-200", selectedComplaint.status === "resolved" && "bg-emerald-50 text-emerald-700 border-emerald-200", selectedComplaint.status === "closed" && "bg-gray-50 text-gray-700 border-gray-200")}>{selectedComplaint.status.replace("_", " ")}</motion.span>
+                                {selectedComplaint.tenantReplyText && (
+                                  <motion.span whileHover={{ scale: 1.05 }} className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-semibold border border-blue-200 bg-blue-50 text-blue-700">Tenant Replied</motion.span>
+                                )}
+                              </div>
+                              {selectedTenant && (
+                               <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-gray-500">
+                                 <span>{selectedTenant.email}</span>
+                                 {selectedTenant.phone && <span>• {selectedTenant.phone}</span>}
+                                 {selectedTenant.address && <span>• {selectedTenant.address}</span>}
+                               </div>
+                             )}
+                           </div>
+                         </div>
+                         {selectedComplaint.status !== "resolved" && selectedComplaint.status !== "closed" && (
+                           <Button size="sm" onClick={async () => {
+                             try {
+                               const updated = await updateComplaintStatus(selectedComplaint.id, "resolved", selectedComplaint.assignedTo || user?.id, selectedComplaint.responseText, user?.name);
+                               if (updated) {
+                                 setSelectedComplaint(updated);
+                                 setComplaints((current) => current.map((item) => item.id === selectedComplaint.id ? updated : item));
+                                 toast.success("Complaint marked as resolved");
+                               }
+                             } catch { toast.error("Failed to update status"); }
+                           }}>Mark as Resolved</Button>
+                         )}
+                         {selectedComplaint.status !== "closed" && (
+                           <Button size="sm" variant="outline" onClick={async () => {
+                             try {
+                               const updated = await updateComplaintStatus(selectedComplaint.id, "closed", selectedComplaint.assignedTo || user?.id, selectedComplaint.responseText, user?.name);
+                               if (updated) {
+                                 setSelectedComplaint(updated);
+                                 setComplaints((current) => current.map((item) => item.id === selectedComplaint.id ? updated : item));
+                                 toast.success("Complaint closed");
+                               }
+                             } catch { toast.error("Failed to close complaint"); }
+                           }}>Mark as Closed</Button>
+                         )}
+                      </div>
+                      <div className="mt-4 rounded-lg bg-gray-50 p-4 transition-colors hover:bg-gray-100">
+                        <p className="text-xs font-semibold text-gray-500">Original Request</p>
+                        <p className="mt-1 whitespace-pre-wrap text-sm text-gray-700">{selectedComplaint.message}</p>
+                      </div>
+                      {selectedComplaint.tenantReplyText && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="mt-4 rounded-lg bg-blue-50 p-4 transition-colors hover:bg-blue-100"
+                        >
+                          <p className="text-xs font-semibold text-blue-700">Tenant Reply</p>
+                          <p className="mt-1 whitespace-pre-wrap text-sm text-gray-700">{selectedComplaint.tenantReplyText}</p>
+                        </motion.div>
+                      )}
+                      {selectedComplaint.responseText && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="mt-4 rounded-lg bg-emerald-50 p-4 transition-colors hover:bg-emerald-100"
+                        >
+                          <p className="text-xs font-semibold text-emerald-700">Support Response</p>
+                          <p className="mt-1 whitespace-pre-wrap text-sm text-gray-700">{selectedComplaint.responseText}</p>
+                        </motion.div>
+                      )}
+                      <motion.form
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="mt-4"
+                        onSubmit={async (event) => {
+                          event.preventDefault();
+                          if (!complaintReply.trim()) return;
+                          setReplying(true);
+                          try {
+                              const updated = await updateComplaintStatus(selectedComplaint.id, "in_progress", user?.id, complaintReply, user?.name);
+                            if (updated) {
+                              setSelectedComplaint(updated);
+                              setComplaints((current) => current.map((item) => item.id === selectedComplaint.id ? updated : item));
+                              setComplaintReply("");
+                              toast.success("Support response sent");
+                            }
+                          } catch { toast.error("Failed to send response"); }
+                          finally { setReplying(false); }
+                        }}
                       >
-                        <TableCell className="font-medium">{c.subject}</TableCell>
-                        <TableCell className="text-text-secondary">{c.tenant_name || c.tenant_id}</TableCell>
-                        <TableCell>
-                          <span className={cn(
-                            "inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium",
-                            c.priority === "urgent" && "bg-red-50 text-red-600",
-                            c.priority === "high" && "bg-orange-50 text-orange-600",
-                            c.priority === "medium" && "bg-amber-50 text-amber-600",
-                            c.priority === "low" && "bg-gray-50 text-gray-600",
-                          )}>
-                            {c.priority}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          <span className={cn(
-                            "inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium",
-                            c.status === "open" && "bg-red-50 text-red-600",
-                            c.status === "in_progress" && "bg-amber-50 text-amber-600",
-                            c.status === "resolved" && "bg-green-50 text-green-600",
-                            c.status === "closed" && "bg-gray-50 text-gray-600",
-                          )}>
-                            {c.status}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-text-secondary text-xs">{c.created_at ? formatDate(c.created_at) : "N/A"}</TableCell>
-                        <TableCell><Button size="sm" variant="outline" onClick={() => { setReplyingComplaint(c.id); setComplaintReply(""); }}>Reply</Button></TableCell>
-                      </motion.tr>
-                    ))}
-                  </TableBody>
-                </Table>
+                        <textarea value={complaintReply} onChange={(event) => setComplaintReply(event.target.value)} rows={3} placeholder="Write a response to the tenant..." className="w-full rounded-lg border border-gray-200 p-3 text-sm transition-all focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20" />
+                        <motion.div whileHover={{ scale: 1.01 }} whileTap={{ scale: 0.99 }}>
+                          <Button type="submit" className="mt-2" disabled={replying}>{replying ? "Sending..." : "Send Response"}</Button>
+                        </motion.div>
+                      </motion.form>
+                    </div>
+                  ) : (
+                    <div className="flex h-64 items-center justify-center rounded-xl border border-dashed border-gray-200">
+                      <p className="text-sm text-gray-500">Select a complaint to view details and reply</p>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
-            {replyingComplaint && <form className="mt-4 border-t border-gray-200 pt-4" onSubmit={async (event) => { event.preventDefault(); if (!complaintReply.trim()) return; try { const updated = await updateComplaintStatus(replyingComplaint, "in_progress", undefined, complaintReply, user?.name); if (updated) setComplaints((current) => current.map((item) => item.id === replyingComplaint ? { ...item, ...updated } : item)); setReplyingComplaint(null); setComplaintReply(""); toast.success("Support response sent"); } catch { toast.error("Failed to send response"); } }}><textarea value={complaintReply} onChange={(event) => setComplaintReply(event.target.value)} rows={3} placeholder="Write a response to the tenant..." className="w-full rounded-lg border border-gray-200 p-3 text-sm" /><Button type="submit" className="mt-2">Send Response</Button></form>}
           </CardContent>
         </Card>
       )}
@@ -1420,51 +1680,14 @@ export default function AdminDashboard() {
 
       {/* Create Tenant Modal */}
       {showCreateTenant && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowCreateTenant(false)} />
-          <div className="relative w-full max-w-md rounded-2xl border border-gray-200 bg-white shadow-2xl">
-            <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900">Create Tenant Account</h3>
-                <p className="text-sm text-gray-500">Add a new tenant to the system</p>
-              </div>
-              <button onClick={() => setShowCreateTenant(false)} className="h-8 w-8 rounded-lg flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-            <form onSubmit={handleCreateTenant} className="p-6 space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Full Name *</label>
-                <Input value={newTenant.name} onChange={(e) => setNewTenant({ ...newTenant, name: e.target.value })} placeholder="Juan Dela Cruz" required />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Email *</label>
-                <Input type="email" value={newTenant.email} onChange={(e) => setNewTenant({ ...newTenant, email: e.target.value })} placeholder="juan@example.com" required />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Phone</label>
-                <Input value={newTenant.phone} onChange={(e) => setNewTenant({ ...newTenant, phone: e.target.value })} placeholder="+63 XXX XXX XXXX" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1.5">Password *</label>
-                <Input type="text" value={newTenant.password} onChange={(e) => setNewTenant({ ...newTenant, password: e.target.value })} placeholder="Min. 6 characters" required />
-              </div>
-              <Button type="submit" disabled={isCreatingTenant} className="w-full">
-                {isCreatingTenant ? (
-                  <span className="flex items-center gap-2">
-                    <span className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Creating...
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-2">
-                    <Plus className="h-4 w-4" />
-                    Create Tenant Account
-                  </span>
-                )}
-              </Button>
-            </form>
-          </div>
-        </div>
+        <CreateTenantModal
+          isOpen={showCreateTenant}
+          onClose={() => setShowCreateTenant(false)}
+          onSubmit={async (formData) => {
+            await handleCreateTenant(formData);
+          }}
+          submitting={isCreatingTenant}
+        />
       )}
     </motion.div>
   );

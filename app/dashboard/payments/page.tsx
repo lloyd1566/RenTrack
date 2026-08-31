@@ -69,7 +69,7 @@ export default function PaymentsPage() {
   });
 
   const totalCollected = payments.filter((p) => p.status === "paid").reduce((s, p) => s + p.amountPaid, 0);
-  const totalPending = payments.filter((p) => p.status === "pending" || p.status === "partial").reduce((s, p) => s + p.balance, 0);
+  const totalPending = payments.filter((p) => p.status === "pending").reduce((s, p) => s + p.balance, 0);
   const totalOverdue = payments.filter((p) => p.status === "overdue").reduce((s, p) => s + p.balance, 0);
   const totalAdvance = payments.filter((p) => p.amountPaid > p.amountDue).reduce((s, p) => s + (p.amountPaid - p.amountDue), 0);
 

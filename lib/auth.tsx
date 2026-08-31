@@ -169,12 +169,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return fetch("/api/auth/logout", { method: "POST", credentials: "include" }).catch(() => undefined);
   }, [setUser]);
 
+  const profileChannel = typeof window !== "undefined" ? new BroadcastChannel("renttrack-profile-updates") : null;
+
   const refreshUser = useCallback(async () => {
     try {
       const result = await apiGet("/api/auth/me");
       if (result.success) {
         setUserState(result.user);
         localStorage.setItem(SESSION_KEY, JSON.stringify(result.user));
+        window.dispatchEvent(new Event("renttrack-profile-updated"));
+        profileChannel?.postMessage({ type: "profile-updated", userId: result.user?.id });
       } else {
         setUserState(null);
         localStorage.removeItem(SESSION_KEY);
@@ -183,7 +187,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUserState(null);
       localStorage.removeItem(SESSION_KEY);
     }
-  }, [setUser]);
+  }, [setUser, profileChannel]);
+
+  useEffect(() => {
+    if (!profileChannel) return;
+    const handler = (event: MessageEvent) => {
+      if (event.data?.type === "profile-updated") {
+        window.dispatchEvent(new Event("renttrack-profile-updated"));
+      }
+    };
+    profileChannel.addEventListener("message", handler);
+    return () => profileChannel.removeEventListener("message", handler);
+  }, [profileChannel]);
+
+  useEffect(() => {
+    const handler = (event: StorageEvent) => {
+      if (event.key === SESSION_KEY && event.newValue) {
+        window.dispatchEvent(new Event("renttrack-profile-updated"));
+      }
+    };
+    window.addEventListener("storage", handler);
+    return () => window.removeEventListener("storage", handler);
+  }, []);
 
   return (
     <AuthContext.Provider

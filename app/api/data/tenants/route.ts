@@ -26,7 +26,7 @@ export async function POST(request: NextRequest) {
     const rateLimit = await withRateLimit(request, `create_tenant:${getClientIp(request)}`);
     if (rateLimit) return rateLimit;
 
-    const auth = await requireRole(request, ["admin", "owner", "agent"]);
+    const auth = await requireRole(request, ["admin", "owner"]);
     if (auth instanceof NextResponse) return auth;
 
     const validation = validateApiRequest(request);
