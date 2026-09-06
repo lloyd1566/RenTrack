@@ -22,7 +22,6 @@ import {
   FileText,
   Stethoscope,
   HeartPulse,
-  Wrench,
   SlidersHorizontal,
   ShieldCheck,
   Bell,
@@ -73,7 +72,6 @@ const navSections: NavSection[] = [
     title: "System",
     items: [
       { label: "Audit Logs", href: "/dashboard/admin?tab=audit", tab: "audit", icon: FileText },
-      { label: "Maintenance", href: "/dashboard/admin?tab=maintenance", tab: "maintenance", icon: Wrench },
       { label: "Configuration", href: "/dashboard/admin?tab=configuration", tab: "configuration", icon: SlidersHorizontal },
     ],
   },
