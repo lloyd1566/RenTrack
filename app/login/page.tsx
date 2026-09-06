@@ -232,7 +232,7 @@ export default function LoginPage() {
                 <Button
                   type="submit"
                   variant="gradient"
-                  size="lg"
+                  size="default"
                   className="w-full h-10"
                   disabled={isSubmitting}
                 >
