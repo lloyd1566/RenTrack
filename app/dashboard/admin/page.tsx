@@ -4,8 +4,8 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Shield, Users, Settings, Activity, FileText, Stethoscope,
-  Heart, Wrench, CheckCircle2, XCircle, Search, Eye, Trash2,
-  UserPlus, RefreshCw, Download, Server, Gauge, Sliders,
+  Heart, CheckCircle2, XCircle, Search, Eye, Trash2,
+  UserPlus, RefreshCw, Sliders,
   Bell, Home, Building2, CreditCard, Star, MessageSquare, ToggleLeft, ToggleRight, Plus, X,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
@@ -54,11 +54,9 @@ export default function AdminDashboard() {
   const [diagnosisResults, setDiagnosisResults] = useState<Record<string, string> | null>(null);
   const [isRunningDiagnosis, setIsRunningDiagnosis] = useState(false);
   const [healthData, setHealthData] = useState<{ success: boolean; checks: Record<string, string> } | null>(null);
-  const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [systemConfig, setSystemConfig] = useState<Record<string, string>>({});
   const [editingConfig, setEditingConfig] = useState<string | null>(null);
   const [configDraft, setConfigDraft] = useState<string>("");
-  const [maintenanceLoading, setMaintenanceLoading] = useState<Record<string, boolean>>({});
   const [conversations, setConversations] = useState<any[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<any>(null);
   const [isMessagingOpen, setIsMessagingOpen] = useState(false);
@@ -127,10 +125,6 @@ export default function AdminDashboard() {
     fetch("/api/admin/config", { credentials: "include" })
       .then(res => res.json())
       .then(data => { if (data.success && data.config) setSystemConfig(data.config); })
-      .catch(() => {});
-    fetch("/api/admin/maintenance/mode", { credentials: "include" })
-      .then(res => res.json())
-      .then(data => { if (data.success) setMaintenanceMode(data.enabled); })
       .catch(() => {});
   }, [loadData]);
 
@@ -1422,108 +1416,6 @@ export default function AdminDashboard() {
                     "text-gray-500 bg-gray-100"
                   }`}>{item.status}</p>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Maintenance Tab */}
-      {activeTab === "maintenance" && (
-        <Card className="border border-gray-200">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-gray-900">
-              <Wrench className="h-5 w-5 text-gray-600" />
-              System Maintenance
-            </CardTitle>
-            <CardDescription>Perform maintenance tasks and configuration</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {[
-                { key: "clearCache", label: "Clear Cache", icon: Gauge, action: async () => {
-                  setMaintenanceLoading(prev => ({ ...prev, clearCache: true }));
-                  try {
-                    const res = await fetch("/api/admin/maintenance/clear-cache", { method: "POST", credentials: "include" });
-                    const data = await res.json();
-                    if (data.success) toast.success("Cache cleared successfully"); else toast.error(data.error || "Failed to clear cache");
-                  } catch { toast.error("Failed to clear cache"); }
-                  setMaintenanceLoading(prev => ({ ...prev, clearCache: false }));
-                }},
-                { key: "optimizeDb", label: "Optimize Database", icon: Server, action: async () => {
-                  setMaintenanceLoading(prev => ({ ...prev, optimizeDb: true }));
-                  try {
-                    const res = await fetch("/api/admin/maintenance/optimize-database", { method: "POST", credentials: "include" });
-                    const data = await res.json();
-                    if (data.success) toast.success("Database optimized successfully"); else toast.error(data.error || "Failed to optimize database");
-                  } catch { toast.error("Failed to optimize database"); }
-                  setMaintenanceLoading(prev => ({ ...prev, optimizeDb: false }));
-                }},
-                { key: "backup", label: "Create Backup", icon: Download, action: async () => {
-                  setMaintenanceLoading(prev => ({ ...prev, backup: true }));
-                  try {
-                    const res = await fetch("/api/admin/maintenance/backup", { method: "POST", credentials: "include" });
-                    if (res.ok) {
-                      const blob = await res.blob();
-                      const url = window.URL.createObjectURL(blob);
-                      const a = document.createElement("a");
-                      a.href = url;
-                      a.download = `renttrack_backup_${new Date().toISOString().split("T")[0]}.sql`;
-                      document.body.appendChild(a);
-                      a.click();
-                      document.body.removeChild(a);
-                      window.URL.revokeObjectURL(url);
-                      toast.success("Backup downloaded successfully");
-                    } else {
-                      toast.error("Failed to create backup");
-                    }
-                  } catch { toast.error("Failed to create backup"); }
-                  setMaintenanceLoading(prev => ({ ...prev, backup: false }));
-                }},
-                { key: "maintenanceMode", label: maintenanceMode ? "Disable Maintenance Mode" : "Enable Maintenance Mode", icon: Wrench, action: async () => {
-                  setMaintenanceLoading(prev => ({ ...prev, maintenanceMode: true }));
-                  try {
-                    const res = await fetch("/api/admin/maintenance/mode", {
-                      method: "POST",
-                      headers: { "Content-Type": "application/json" },
-                      credentials: "include",
-                      body: JSON.stringify({ enabled: !maintenanceMode }),
-                    });
-                    const data = await res.json();
-                    if (data.success) {
-                      setMaintenanceMode(data.enabled);
-                      toast.success(`Maintenance mode ${data.enabled ? "enabled" : "disabled"}`);
-                    } else {
-                      toast.error(data.error || "Failed to toggle maintenance mode");
-                    }
-                  } catch { toast.error("Failed to toggle maintenance mode"); }
-                  setMaintenanceLoading(prev => ({ ...prev, maintenanceMode: false }));
-                }},
-              ].map((item, i) => (
-                <motion.button
-                  key={item.key}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.1, duration: 0.3 }}
-                  whileHover={{ scale: 1.03, y: -2 }}
-                  whileTap={{ scale: 0.97 }}
-                  onClick={item.action}
-                  disabled={maintenanceLoading[item.key]}
-                  className="flex flex-col items-center gap-3 p-6 rounded-xl border-2 border-dashed border-gray-200 hover:border-gray-300 hover:shadow-lg transition-all duration-300 group"
-                >
-                  <motion.div
-                    className="h-12 w-12 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-gray-100 transition-colors"
-                    whileHover={{ rotate: 15, scale: 1.1 }}
-                    transition={{ type: "spring", stiffness: 400, damping: 10 }}
-                  >
-                    {maintenanceLoading[item.key] ? (
-                      <RefreshCw className="h-6 w-6 text-gray-400 animate-spin" />
-                    ) : (
-                      <item.icon className="h-6 w-6 text-gray-600" />
-                    )}
-                  </motion.div>
-                  <span className="text-sm font-medium text-gray-900">{item.label}</span>
-                </motion.button>
               ))}
             </div>
           </CardContent>
