@@ -7,8 +7,6 @@ import { useAuth } from "@/lib/auth";
 import { getNotifications, markNotificationRead, markAllNotificationsRead, getUnreadCount, getConversations, Notification, Conversation } from "@/lib/data";
 import AdminSidebar from "@/components/admin-sidebar";
 import AccountRequestReviewModal from "@/components/account-request-review-modal";
-import MessagingPanel from "@/components/messaging-panel";
-import MessagingModal from "@/components/messaging-modal";
 import { Avatar } from "@/components/ui/avatar";
 import { Bell, ChevronDown } from "lucide-react";
 
@@ -25,8 +23,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [accountRequests, setAccountRequests] = useState<Conversation[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedAccountRequest, setSelectedAccountRequest] = useState<Conversation | null>(null);
-  const [showMessages, setShowMessages] = useState(false);
-  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -142,8 +138,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     );
   }
 
-  const selectedOtherUser = selectedConversation?.otherUser;
-
   return (
     <div className="min-h-screen flex w-full bg-gradient-to-br from-gray-50 to-blue-50/30 dark:from-gray-900 dark:to-gray-800">
       {/* Sidebar - fixed on all screens */}
@@ -222,14 +216,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               </AnimatePresence>
             </div>
 
-            <MessagingPanel
-              isOpen={showMessages}
-              onClose={() => setShowMessages(false)}
-              onSelectConversation={setSelectedConversation}
-              floating
-            />
-
-            <div className="relative">
+             <div className="relative">
               <button
                 onClick={() => setShowUserMenu(!showUserMenu)}
                 className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
@@ -303,13 +290,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             }).catch(() => {});
           }}
         />
-        {selectedOtherUser && (
-          <MessagingModal
-            isOpen={true}
-            onClose={() => setSelectedConversation(null)}
-            otherUser={selectedOtherUser as NonNullable<Conversation["otherUser"]>}
-          />
-        )}
       </motion.div>
     </div>
   );
