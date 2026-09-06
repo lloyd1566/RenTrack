@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyLoginOtp, initDatabase, findOrCreateAdmin, findUserById, logAudit, updateUser } from "@/lib/db";
+import { verifyLoginOtp, initDatabase, findOrCreateAdmin, findUserByEmail, findUserById, logAudit, updateUser } from "@/lib/db";
 import { withSecurityHeaders, withCorsHeaders, validateApiRequest, getClientIp } from "@/lib/api-security";
 import { checkVerifyRateLimit, clearVerifyRateLimit, VERIFY_LOCKOUT_DURATION_MS } from "@/lib/auth-security";
 
@@ -11,13 +11,27 @@ export async function POST(request: NextRequest) {
     const validation = validateApiRequest(request);
     if (validation) return validation;
 
-    const { userId, otp } = await request.json();
-    if (!userId || !otp) {
-      return NextResponse.json({ success: false, error: "User ID and verification code are required" }, { status: 400 });
+    const { email, userId, otp } = await request.json();
+    if ((!email && !userId) || !otp) {
+      return NextResponse.json({ success: false, error: "Email/User ID and verification code are required" }, { status: 400 });
     }
 
     const ip = getClientIp(request);
-    const rateLimitKey = `signup_verify:${ip}:${userId}`;
+
+    let resolvedUserId = userId;
+    if (!resolvedUserId && email) {
+      const userByEmail = await findUserByEmail(String(email).toLowerCase().trim());
+      if (!userByEmail) {
+        return NextResponse.json({ success: false, error: "No account found with this email" }, { status: 404 });
+      }
+      resolvedUserId = userByEmail.id;
+    }
+
+    if (!resolvedUserId) {
+      return NextResponse.json({ success: false, error: "User ID or email is required" }, { status: 400 });
+    }
+
+    const rateLimitKey = `signup_verify:${ip}:${resolvedUserId}`;
     const rateLimit = checkVerifyRateLimit(rateLimitKey);
 
     if (!rateLimit.allowed) {
@@ -30,19 +44,19 @@ export async function POST(request: NextRequest) {
       }, { status: 429 });
     }
 
-    const result = await verifyLoginOtp(userId, otp);
+    const result = await verifyLoginOtp(resolvedUserId, otp);
     if (!result.success) {
       return NextResponse.json({ success: false, error: result.error }, { status: 400 });
     }
 
-    const user = await findUserById(userId);
+    const user = await findUserById(resolvedUserId);
     if (!user) {
       return NextResponse.json({ success: false, error: "User not found" }, { status: 404 });
     }
 
-    await updateUser(userId, { emailVerified: true, verificationToken: null, verificationExpiresAt: null });
+    await updateUser(resolvedUserId, { emailVerified: true, verificationToken: null, verificationExpiresAt: null });
 
-    const updatedUser = await findUserById(userId);
+    const updatedUser = await findUserById(resolvedUserId);
     if (!updatedUser || !updatedUser.emailVerified) {
       return NextResponse.json({ success: false, error: "Failed to verify email. Please try again." }, { status: 500 });
     }
@@ -50,7 +64,7 @@ export async function POST(request: NextRequest) {
     clearVerifyRateLimit(rateLimitKey);
 
     try {
-      await logAudit(userId, "email_verified", { email: user.email }, ip, request.headers.get("user-agent") || "unknown");
+      await logAudit(resolvedUserId, "email_verified", { email: user.email }, ip, request.headers.get("user-agent") || "unknown");
     } catch {}
 
     const safeUser = { ...updatedUser };

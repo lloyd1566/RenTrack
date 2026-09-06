@@ -14,9 +14,10 @@ interface MessagingPanelProps {
   onClose: () => void;
   onSelectConversation?: (conv: Conversation) => void;
   fullPage?: boolean;
+  floating?: boolean;
 }
 
-export default function MessagingPanel({ isOpen, onClose, onSelectConversation, fullPage = false }: MessagingPanelProps) {
+export default function MessagingPanel({ isOpen, onClose, onSelectConversation, fullPage = false, floating = false }: MessagingPanelProps) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -33,12 +34,12 @@ export default function MessagingPanel({ isOpen, onClose, onSelectConversation, 
   }, [isOpen]);
 
   const handleConversationClick = async (conv: Conversation) => {
-    await markAllMessagesRead(conv.userId);
     setConversations((prev) =>
       prev.map((c) => (c.userId === conv.userId ? { ...c, unreadCount: 0 } : c))
     );
     onSelectConversation?.(conv);
     onClose();
+    void markAllMessagesRead(conv.userId).catch(() => undefined);
   };
 
   return (
@@ -49,7 +50,7 @@ export default function MessagingPanel({ isOpen, onClose, onSelectConversation, 
       transition={{ duration: 0.2 }}
       className={cn(
         "rounded-2xl border border-border bg-surface shadow-dropdown overflow-hidden z-50",
-        fullPage ? "relative w-full" : "absolute right-0 mt-2 w-80 sm:w-96"
+        fullPage ? "relative w-full" : floating ? "fixed right-6 top-20 w-80 sm:w-96" : "absolute right-0 mt-2 w-80 sm:w-96"
       )}
     >
       <div className="p-4 border-b border-border flex items-center justify-between">

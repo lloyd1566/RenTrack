@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { findUserById } from "@/lib/db";
+import { findUserById, updateUserPresence } from "@/lib/db";
 import { getSessionUserId } from "@/lib/security";
 
 export async function GET(request: NextRequest) {
@@ -13,6 +13,8 @@ export async function GET(request: NextRequest) {
     if (!user) {
       return NextResponse.json({ success: false, error: "Not authenticated" }, { status: 401 });
     }
+
+    await updateUserPresence(userId);
 
     const safeUser = { ...user };
     delete safeUser.password;

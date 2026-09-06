@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getPaymentsForUser, findUserById } from "@/lib/db";
+import { getAdminSupabase } from "@/lib/db";
 import { getSessionUserId } from "@/lib/security";
 import { requireAuth, sanitizeResponse, withSecurityHeaders, withCorsHeaders } from "@/lib/api-security";
 
@@ -8,7 +8,19 @@ export async function GET(request: NextRequest) {
     const auth = await requireAuth(request);
     if (auth instanceof NextResponse) return auth;
 
-    const payments = await getPaymentsForUser(auth.userId, auth.user.role);
+    const startDate = new Date();
+    startDate.setMonth(startDate.getMonth() - 11, 1);
+    const start = startDate.toISOString().slice(0, 10);
+    let query = getAdminSupabase()
+      .from("payments")
+      .select("payment_date, amount_paid, amount_due, status")
+      .gte("payment_date", start)
+      .limit(5000);
+    if (auth.user.role === "tenant") {
+      query = query.or(`tenant_id.eq.${auth.userId},created_by.eq.${auth.userId}`);
+    }
+    const { data: payments, error } = await query;
+    if (error) throw error;
 
     const monthlyMap = new Map<string, { collected: number; pending: number; overdue: number }>();
 

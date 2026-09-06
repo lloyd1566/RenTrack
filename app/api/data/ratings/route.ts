@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createRating, getRatings, getAverageRating, getRatingsByUser } from "@/lib/db";
 import { requireAuth, validateApiRequest, withSecurityHeaders, withCorsHeaders, sanitizeObject, getClientIp } from "@/lib/api-security";
 import { logAudit } from "@/lib/db";
-import { sendSystemEmail, isSmtpConfigured } from "@/lib/mail";
+import { sendSystemEmail, isSmtpConfigured, createRentTrackEmailTemplate, escapeHtml } from "@/lib/mail";
 
 export async function POST(request: NextRequest) {
   try {
@@ -43,10 +43,15 @@ export async function POST(request: NextRequest) {
         const users = await (await import("@/lib/db")).getAllUsers();
         const recipients = users.filter((u: any) => (u.role === "owner" || u.role === "admin" || u.role === "agent") && u.email);
         for (const recipient of recipients) {
+          const html = createRentTrackEmailTemplate({
+            title: "New Rating Received",
+            body: `A new <strong>${escapeHtml(String(sanitized.rating))}/5</strong> rating was submitted for <strong>${escapeHtml(sanitized.targetType)}</strong> ID: ${escapeHtml(String(sanitized.targetId))}.`,
+            footerNote: "Log in to the dashboard to view the full rating and comment.",
+          });
           await sendSystemEmail({
             to: recipient.email,
             subject: `New ${sanitized.targetType} rating received`,
-            html: `<p>A new <strong>${sanitized.rating}/5</strong> rating was submitted for <strong>${sanitized.targetType}</strong> ID: ${sanitized.targetId}.</p>`,
+            html,
           });
         }
       }

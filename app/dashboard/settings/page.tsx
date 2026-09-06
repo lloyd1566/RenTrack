@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
+import { optimizeAvatar } from "@/lib/image-upload";
 import { calculateProfileCompleteness, type UserProfile } from "@/lib/profile";
 import { toast } from "sonner";
 
@@ -145,8 +146,9 @@ export default function SettingsPage() {
     if (!file) return;
     setIsUploadingAvatar(true);
     try {
+      const optimizedFile = await optimizeAvatar(file);
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("file", optimizedFile);
       formData.append("type", "avatar");
       const res = await fetch("/api/auth/upload", { method: "POST", body: formData, credentials: "include" });
       const result = await res.json();

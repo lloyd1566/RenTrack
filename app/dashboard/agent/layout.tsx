@@ -35,7 +35,7 @@ function getTabFromHash() {
 }
 
 export default function AgentLayout({ children }: { children: React.ReactNode }) {
-  const { user, logout, isAuthenticated, isLoading } = useAuth();
+  const { user, logout, isAuthenticated, isLoading, refreshUser } = useAuth();
   const router = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
@@ -106,25 +106,61 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
   }, [user]);
 
   useEffect(() => {
+    if (!user?.id) return;
+    refreshUser();
+    const interval = window.setInterval(() => {
+      void refreshUser();
+    }, 60_000);
+    return () => window.clearInterval(interval);
+  }, [user?.id, refreshUser]);
+
+  useEffect(() => {
+    if (!user) return;
     refreshCounts();
-    const interval = window.setInterval(refreshCounts, 30000);
-    const handleUpdated = () => refreshCounts();
-    window.addEventListener("renttrack-notifications-updated", handleUpdated);
-    window.addEventListener("focus", handleUpdated);
-    return () => {
-      window.clearInterval(interval);
-      window.removeEventListener("renttrack-notifications-updated", handleUpdated);
-      window.removeEventListener("focus", handleUpdated);
+    const handleUpdated = () => {
+      void refreshCounts();
     };
-  }, [refreshCounts]);
+    const handleProfileUpdated = () => {
+      void refreshUser();
+      setTimeout(() => refreshCounts(), 300);
+    };
+    window.addEventListener("renttrack-notifications-updated", handleUpdated);
+    window.addEventListener("renttrack-profile-updated", handleProfileUpdated);
+    return () => {
+      window.removeEventListener("renttrack-notifications-updated", handleUpdated);
+      window.removeEventListener("renttrack-profile-updated", handleProfileUpdated);
+    };
+  }, [user, refreshCounts, refreshUser]);
 
   const handleLogout = async () => {
     setLogoutLoading(true);
-    await logout();
-    router.push("/");
+    logout();
+    router.push("/login");
   };
 
   const unreadCount = notifications.filter((n) => !n.read).length;
+
+  const handleOpenNotifications = async () => {
+    const nextOpen = !showNotifications;
+    setShowNotifications(nextOpen);
+
+    if (!nextOpen || !user) return;
+
+    try {
+      await refreshUser();
+      await markAllNotificationsRead(user.id);
+      setNotifications((current) => current.map((notification) => ({ ...notification, read: true })));
+      window.dispatchEvent(new Event("renttrack-notifications-updated"));
+    } catch (err) {
+      console.error("Failed to refresh user or mark notifications as read:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (!user || !isAuthenticated) {
+      router.push("/login");
+    }
+  }, [user, isAuthenticated, router]);
 
   if (isLoading) {
     return (
@@ -163,15 +199,12 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
               )}
             </button>
           </div>
-          <button onClick={() => setShowLogoutModal(true)} className="p-2 rounded-lg hover:bg-surface-secondary text-red-600">
-            <LogOut className="h-5 w-5" />
-          </button>
         </div>
       </div>
 
       <div className="flex h-screen w-full">
         {/* Sidebar */}
-        <div className={cn("hidden lg:flex flex-col border-r border-border bg-surface transition-all self-start", sidebarOpen ? "w-56" : "w-16")}>
+        <div className={cn("hidden lg:flex flex-col border-r border-border bg-surface transition-all h-full", sidebarOpen ? "w-56" : "w-16")}>
           <div className="p-4 border-b border-border">
             <Link href="/dashboard/agent" className="flex items-center gap-2">
               <div className="h-8 w-8 rounded-full overflow-hidden">
@@ -216,6 +249,15 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
               );
             })}
           </nav>
+          <div className="mt-auto p-3">
+            <button
+              onClick={() => setShowLogoutModal(true)}
+              className="w-full flex items-center gap-2 px-2.5 py-2 rounded-md text-sm font-medium text-red-600 hover:bg-red-50 transition-colors"
+            >
+              <LogOut className="h-4 w-4 shrink-0" />
+              {sidebarOpen && <span className="truncate">Logout</span>}
+            </button>
+          </div>
           </div>
 
         {/* Mobile sidebar */}
@@ -248,7 +290,7 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
                     <X className="h-4 w-4" />
                   </button>
                 </div>
-                <nav className="overflow-y-auto p-3 space-y-0.5">
+          <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
                   {navItems.map((item) => {
                     const Icon = item.icon;
                     const isActive = activeTab === item.tab;
@@ -293,6 +335,15 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
                     {sidebarOpen && <span className="truncate">Messages</span>}
                   </button>
                 </div>
+                <div className="p-3 border-t border-border">
+                  <button
+                    onClick={() => setShowLogoutModal(true)}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-base font-medium text-red-600 hover:bg-red-50 transition-colors"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    {sidebarOpen && <span className="truncate">Logout</span>}
+                  </button>
+                </div>
               </motion.div>
             </motion.div>
           )}
@@ -327,7 +378,7 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
               </div>
               <div className="relative">
                 <button
-                  onClick={() => setShowNotifications(!showNotifications)}
+                  onClick={handleOpenNotifications}
                   className="relative p-2 rounded-lg hover:bg-surface-secondary transition-colors text-text-secondary hover:text-foreground"
                 >
                   <Bell className="h-5 w-5" />
@@ -372,6 +423,7 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
                                 if (!n.read) {
                                   await markNotificationRead(n.id);
                                   setNotifications((current) => current.map((notification) => notification.id === n.id ? { ...notification, read: true } : notification));
+                                  window.dispatchEvent(new Event("renttrack-notifications-updated"));
                                 }
                                 setShowNotifications(false);
                               }}
@@ -393,9 +445,15 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
               <div className="relative">
                 <button
                   onClick={() => setShowUserMenu(!showUserMenu)}
-                  className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-surface-secondary transition-all"
+                  className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-surface-secondary transition-all relative"
                 >
-                  <Avatar src={user.avatarUrl} fallback={user.name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)} size="sm" />
+                  <div className="relative">
+                    <Avatar src={user.avatarUrl} fallback={user.name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2)} size="sm" />
+                    <span className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-surface ${user.idVerificationStatus === "approved" ? "bg-green-500" : user.idVerificationStatus === "rejected" ? "bg-red-500" : user.idVerificationStatus === "pending" ? "bg-yellow-500" : "bg-slate-400"}`} title={user.idVerificationStatus === "approved" ? "Verified" : user.idVerificationStatus === "rejected" ? "Rejected" : user.idVerificationStatus === "pending" ? "Pending" : "Unverified"} />
+                  </div>
+                  <span className="text-[10px] font-medium text-text-secondary hidden sm:block">
+                    {user.idVerificationStatus === "approved" ? "Verified" : user.idVerificationStatus === "rejected" ? "Rejected" : user.idVerificationStatus === "pending" ? "Pending" : "Unverified"}
+                  </span>
                   <span className="hidden sm:block text-sm font-medium text-foreground">{user.name.split(' ')[0]}</span>
                   <ChevronDown className={`h-4 w-4 text-text-secondary transition-transform duration-200 ${showUserMenu ? 'rotate-180' : ''}`} />
                 </button>
@@ -418,13 +476,6 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
                         >
                           <User className="h-4 w-4" />
                           My Profile
-                        </button>
-                        <button
-                          onClick={() => { setShowUserMenu(false); setShowLogoutModal(true); }}
-                          className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-red-600 hover:bg-red-50 w-full transition-colors"
-                        >
-                          <LogOut className="h-4 w-4" />
-                          Logout
                         </button>
                       </div>
                     </motion.div>

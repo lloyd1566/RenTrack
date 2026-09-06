@@ -7,7 +7,7 @@ import {
   CreditCard, FileText, BarChart3, FileSpreadsheet, RefreshCw,
   CheckCircle2, Send as SendIcon, UserPlus, User,
   Eye, Download, Printer, ChevronRight, X, Loader2, Plus, Camera, Users, Trash2,
-  Shield, ShieldOff,
+  Shield, ShieldOff, LogOut,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -28,8 +28,9 @@ import { toast } from "sonner";
 import MessagingModal from "@/components/messaging-modal";
 import ProfilePanel from "@/components/profile-panel";
 import CreateTenantModal from "@/components/create-tenant-modal";
+import ReceiptModal from "@/components/receipt-modal";
 
-type Step = "overview" | "properties" | "units" | "assignments" | "agents" | "create-tenant" | "contracts" | "occupancy" | "payments" | "receivables" | "reports" | "profile";
+type Step = "overview" | "properties" | "units" | "assignments" | "agents" | "create-tenant" | "contracts" | "occupancy" | "payments" | "receivables" | "reports" | "profile" | "move-out-requests";
 
 const flowSteps: { key: Step; label: string; icon: React.ElementType }[] = [
   { key: "overview", label: "Overview", icon: LayoutDashboard },
@@ -43,6 +44,7 @@ const flowSteps: { key: Step; label: string; icon: React.ElementType }[] = [
   { key: "payments", label: "Payments", icon: CreditCard },
   { key: "receivables", label: "Receivables", icon: CreditCard },
   { key: "reports", label: "Receipts & Reports", icon: BarChart3 },
+  { key: "move-out-requests", label: "Move-Out Requests", icon: LogOut },
   { key: "profile", label: "My Profile", icon: User },
 ];
 
@@ -56,6 +58,7 @@ export default function OwnerDashboard() {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<any>(null);
   const [isMessagingOpen, setIsMessagingOpen] = useState(false);
+  const [moveOutRequests, setMoveOutRequests] = useState<any[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showCreateProperty, setShowCreateProperty] = useState(false);
   const [createStep, setCreateStep] = useState(1);
@@ -94,6 +97,12 @@ export default function OwnerDashboard() {
       setTenants(tenantsData);
       setPayments(paymentsData);
       setConversations(convs);
+
+      const moveOutRes = await fetch("/api/move-out");
+      const moveOutData = await moveOutRes.json();
+      if (moveOutData.success) {
+        setMoveOutRequests(moveOutData.requests || []);
+      }
     } catch (err) {
       console.error("Owner dashboard load error:", err);
     } finally {
@@ -161,22 +170,24 @@ export default function OwnerDashboard() {
     contractEnd: string;
     password: string;
   }) => {
-    if (!formData.name || !formData.email || !formData.password || !formData.propertyName || !formData.unitNumber) {
-      toast.error("Name, email, password, property, and unit are required");
+    if (!formData.name || !formData.email || !formData.password) {
+      toast.error("Name, email, and password are required");
       return;
     }
     setCreateTenantSubmitting(true);
     try {
-      const res = await fetch("/api/auth/signup", {
+      const res = await fetch("/api/auth/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
+        credentials: "include",
         body: JSON.stringify({ name: formData.name, email: formData.email, phone: formData.phone, address: formData.address, password: formData.password, role: "tenant" }),
       });
       const data = await res.json();
       if (data.success) {
-        await fetch("/api/data/tenants", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ name: formData.name, email: formData.email, phone: formData.phone, address: formData.address, propertyName: formData.propertyName, unitNumber: formData.unitNumber, rentAmount: Number(formData.rentAmount) || 0, contractStart: formData.contractStart || undefined, contractEnd: formData.contractEnd || undefined, assignmentStatus: "confirmed" }) });
-        toast.success("Tenant account created successfully!");
+        await fetch("/api/data/tenants", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ id: data.user?.id, name: formData.name, email: formData.email, phone: formData.phone, address: formData.address }) });
+        toast.success(data.emailSent ? "Tenant account created and login credentials emailed" : "Tenant account created, but the credentials email could not be sent");
         setShowCreateTenantModal(false);
+        loadData();
       } else {
         toast.error(data.error || "Failed to create tenant account");
       }
@@ -711,10 +722,77 @@ export default function OwnerDashboard() {
               </motion.div>
             )}
 
-            {/* AGENTS */}
-            {activeTab === "agents" && (
-              <OwnerAgentsPage />
-            )}
+             {/* MOVE-OUT REQUESTS */}
+             {activeTab === "move-out-requests" && (
+               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+                 <div>
+                   <h1 className="text-3xl font-bold text-foreground">Move-Out Requests</h1>
+                   <p className="text-base text-text-secondary mt-1">Review tenant requests to end their tenancy</p>
+                 </div>
+                 <Card>
+                   <CardHeader>
+                     <CardTitle className="text-lg">Pending Requests</CardTitle>
+                     <CardDescription>Tenants who have submitted move-out requests</CardDescription>
+                   </CardHeader>
+                   <CardContent className="p-6">
+                     <div className="space-y-3">
+                       {moveOutRequests.filter(r => r.status === "pending").length === 0 ? (
+                         <div className="text-center py-12">
+                           <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-3" />
+                           <p className="text-text-secondary font-medium">No pending move-out requests</p>
+                         </div>
+                       ) : (
+                         moveOutRequests.filter(r => r.status === "pending").map((request) => (
+                           <div key={request.id} className="flex items-center justify-between p-4 rounded-xl border border-red-200 bg-red-50">
+                             <div>
+                               <p className="font-medium text-foreground">{request.tenant_name}</p>
+                               <p className="text-xs text-text-secondary">{request.property_name} • Unit {request.unit_id}</p>
+                               <p className="text-xs text-text-tertiary mt-1">{request.reason}</p>
+                               <p className="text-[10px] text-text-tertiary">{formatDate(request.created_at)}</p>
+                             </div>
+                             <div className="flex items-center gap-2">
+                               <Button size="sm" onClick={async () => {
+                                 const res = await fetch(`/api/move-out/${request.id}`, {
+                                   method: "PATCH",
+                                   headers: { "Content-Type": "application/json" },
+                                   body: JSON.stringify({ status: "approved" }),
+                                 });
+                                 const data = await res.json();
+                                 if (data.success) {
+                                   toast.success("Move-out request approved");
+                                   loadData();
+                                 } else {
+                                   toast.error(data.error || "Failed to approve");
+                                 }
+                               }} className="bg-green-600 hover:bg-green-700 text-white">Approve</Button>
+                               <Button size="sm" variant="outline" onClick={async () => {
+                                 const res = await fetch(`/api/move-out/${request.id}`, {
+                                   method: "PATCH",
+                                   headers: { "Content-Type": "application/json" },
+                                   body: JSON.stringify({ status: "rejected" }),
+                                 });
+                                 const data = await res.json();
+                                 if (data.success) {
+                                   toast.success("Move-out request rejected");
+                                   loadData();
+                                 } else {
+                                   toast.error(data.error || "Failed to reject");
+                                 }
+                               }} className="text-red-600 border-red-200 hover:bg-red-50">Reject</Button>
+                             </div>
+                           </div>
+                         ))
+                       )}
+                     </div>
+                   </CardContent>
+                 </Card>
+               </motion.div>
+             )}
+
+             {/* AGENTS */}
+             {activeTab === "agents" && (
+               <OwnerAgentsPage />
+             )}
 
             {/* CREATE TENANT */}
             {activeTab === "create-tenant" && (
@@ -737,14 +815,14 @@ export default function OwnerDashboard() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-3">
-                      {tenants.filter(t => t.createdBy === user?.id).length === 0 ? (
+                      {tenants.length === 0 ? (
                         <div className="text-center py-12">
                           <Users className="h-12 w-12 text-text-tertiary mx-auto mb-3" />
                           <p className="text-text-secondary font-medium">No tenants yet</p>
                            <p className="text-xs text-text-tertiary mt-1">Click &quot;Create Tenant&quot; to register a new tenant</p>
                         </div>
                       ) : (
-                        tenants.filter(t => t.createdBy === user?.id).map((tenant) => (
+                        tenants.map((tenant) => (
                           <div key={tenant.id} className="flex items-center justify-between p-4 rounded-xl border border-border hover:bg-surface-secondary transition-colors">
                             <div className="flex items-center gap-3">
                               <Avatar src={tenant.avatarUrl} fallback={getInitials(tenant.name)} size="sm" />
@@ -1302,99 +1380,13 @@ export default function OwnerDashboard() {
                    </div>
                  </div>
                </div>
-             )}
-            {viewingReceipt && (
-              <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-                <div className="absolute inset-0 bg-black/50" onClick={() => setViewingReceipt(null)} />
-                <div className="relative w-full max-w-2xl rounded-2xl border border-border bg-white shadow-2xl max-h-[90vh] overflow-y-auto">
-                  <div className="p-6 border-b border-border flex items-center justify-between">
-                    <div>
-                      <h3 className="text-lg font-semibold text-foreground">Payment Receipt</h3>
-                      <p className="text-sm text-text-secondary">{viewingReceipt.tenantName} • {formatDate(viewingReceipt.paymentDate)}</p>
-                    </div>
-                    <button onClick={() => setViewingReceipt(null)} className="h-8 w-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-foreground hover:bg-surface-secondary transition-colors">
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                  <div className="p-6 space-y-4">
-                    {payments.filter(p => p.receiptUrl).length === 0 ? (
-                      <div className="text-center py-12 text-text-secondary">
-                        <FileText className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                        <p className="font-medium">No receipts uploaded yet</p>
-                        <p className="text-xs mt-1">Receipts will appear here once tenants upload payment proofs</p>
-                      </div>
-                    ) : (
-                      <>
-                        <div className="grid grid-cols-3 gap-2 mb-2">
-                          {payments.filter(p => p.receiptUrl).map((p) => (
-                            <button
-                              key={p.id}
-                              onClick={() => setViewingReceipt(p)}
-                              className={`p-2 rounded-lg border text-left transition-colors ${viewingReceipt.id === p.id ? "border-blue-500 bg-blue-50" : "border-border hover:bg-surface-secondary"}`}
-                            >
-                              <p className="text-xs font-medium truncate">{p.tenantName}</p>
-                              <p className="text-[10px] text-text-secondary">{formatDate(p.paymentDate)}</p>
-                            </button>
-                          ))}
-                        </div>
-                        {viewingReceipt.receiptUrl ? (
-                          <img src={viewingReceipt.receiptUrl} alt="Receipt" className="w-full h-auto max-h-80 object-contain rounded-xl border border-border" />
-                        ) : (
-                          <div className="text-center py-8 text-text-secondary">No receipt image for this payment</div>
-                        )}
-                        <div className="flex items-center justify-between">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              const receiptPayments = payments.filter(p => p.receiptUrl);
-                              const currentIndex = receiptPayments.findIndex(p => p.id === viewingReceipt.id);
-                              if (currentIndex > 0) setViewingReceipt(receiptPayments[currentIndex - 1]);
-                            }}
-                            disabled={payments.filter(p => p.receiptUrl).findIndex(p => p.id === viewingReceipt.id) === 0}
-                          >
-                            Previous
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              const receiptPayments = payments.filter(p => p.receiptUrl);
-                              const currentIndex = receiptPayments.findIndex(p => p.id === viewingReceipt.id);
-                              if (currentIndex < receiptPayments.length - 1) setViewingReceipt(receiptPayments[currentIndex + 1]);
-                            }}
-                            disabled={payments.filter(p => p.receiptUrl).findIndex(p => p.id === viewingReceipt.id) === payments.filter(p => p.receiptUrl).length - 1}
-                          >
-                            Next
-                          </Button>
-                        </div>
-                      </>
-                    )}
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="p-4 rounded-xl bg-surface-secondary">
-                        <p className="text-xs text-text-secondary mb-1">Amount Paid</p>
-                        <p className="text-lg font-semibold text-foreground">{formatCurrency(viewingReceipt.amountPaid || 0)}</p>
-                      </div>
-                      <div className="p-4 rounded-xl bg-surface-secondary">
-                        <p className="text-xs text-text-secondary mb-1">Balance</p>
-                        <p className="text-lg font-semibold text-foreground">{formatCurrency(viewingReceipt.balance || 0)}</p>
-                      </div>
-                      <div className="p-4 rounded-xl bg-surface-secondary">
-                        <p className="text-xs text-text-secondary mb-1">Status</p>
-                        <Badge variant={viewingReceipt.status === "paid" ? "success" : viewingReceipt.status === "pending" ? "warning" : "outline"} className="capitalize">{viewingReceipt.status}</Badge>
-                      </div>
-                      <div className="p-4 rounded-xl bg-surface-secondary">
-                        <p className="text-xs text-text-secondary mb-1">Payment ID</p>
-                        <p className="text-sm font-mono text-foreground">{viewingReceipt.id}</p>
-                      </div>
-                    </div>
-                  </div>
-                  <div className="p-6 border-t border-border">
-                    <Button variant="outline" onClick={() => setViewingReceipt(null)} className="w-full">Close</Button>
-                  </div>
-                </div>
-              </div>
-            )}
+              )}
+              <ReceiptModal
+                isOpen={!!viewingReceipt}
+                onClose={() => setViewingReceipt(null)}
+                receiptUrl={viewingReceipt?.receiptUrl || null}
+                payment={viewingReceipt || undefined}
+              />
 
             {/* Rental Income Report Modal */}
             {viewingReport === "rental" && (

@@ -3,7 +3,16 @@ import { getAdminSupabase } from "@/lib/db";
 import { requireRole, validateApiRequest, withRateLimit, getClientIp } from "@/lib/api-security";
 import { logAudit } from "@/lib/db";
 
-const ALLOWED_FIELDS = ["name", "email", "phone", "address"];
+const ALLOWED_FIELDS = ["name", "email", "phone", "address", "idVerificationStatus"];
+
+function camelToSnake(obj: Record<string, any>): Record<string, any> {
+  const out: Record<string, any> = {};
+  for (const [key, val] of Object.entries(obj)) {
+    const snake = key.replace(/[A-Z]/g, (m) => `_${m.toLowerCase()}`);
+    out[snake] = val;
+  }
+  return out;
+}
 
 export async function PATCH(request: NextRequest) {
   try {
@@ -32,12 +41,13 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ success: false, error: "No valid fields to update" }, { status: 400 });
     }
 
-    const { error } = await getAdminSupabase().from("users").update(updates).eq("id", userId);
+    const snakeUpdates = camelToSnake(updates);
+    const { data: updatedUser, error } = await getAdminSupabase().from("users").update(snakeUpdates).eq("id", userId).select().single();
     if (error) throw error;
 
     await logAudit(auth.userId, "user_updated", { targetUserId: userId, fields: Object.keys(updates) }, auth.ip, auth.userAgent);
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, user: updatedUser });
   } catch (error) {
     console.error("Update user error:", error);
     return NextResponse.json({ success: false, error: "Failed to update user" }, { status: 500 });

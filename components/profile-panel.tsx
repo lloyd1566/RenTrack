@@ -13,6 +13,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useAuth } from "@/lib/auth";
+import { optimizeAvatar } from "@/lib/image-upload";
 import { toast } from "sonner";
 
 type Tab = "general" | "edit-profile";
@@ -139,8 +140,9 @@ export default function ProfilePanel() {
     if (!file) return;
     setIsUploadingAvatar(true);
     try {
+      const optimizedFile = await optimizeAvatar(file);
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("file", optimizedFile);
       formData.append("type", "avatar");
       const res = await fetch("/api/auth/upload", { method: "POST", body: formData, credentials: "include" });
       const result = await res.json();

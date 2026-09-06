@@ -55,7 +55,7 @@ function mapUserRow(u: any): any {
   return toCamelCaseKeys(u);
 }
 
-function snakeToCamel(obj: Record<string, any>): Record<string, any> {
+export function snakeToCamel(obj: Record<string, any>): Record<string, any> {
   const out: Record<string, any> = {};
   for (const key of Object.keys(obj)) {
     const camel = key.replace(/_([a-z])/g, (_, letter) => letter.toUpperCase());
@@ -114,6 +114,9 @@ export async function initDatabase() {
   statements.push(`ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_url TEXT`);
   statements.push(`ALTER TABLE users ADD COLUMN IF NOT EXISTS id_verification_url TEXT`);
   statements.push(`ALTER TABLE users ADD COLUMN IF NOT EXISTS id_verification_status TEXT DEFAULT 'pending' CHECK (id_verification_status IN ('pending', 'approved', 'rejected'))`);
+  statements.push(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMPTZ`);
+  statements.push(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ`);
+  statements.push(`ALTER TABLE users ADD COLUMN IF NOT EXISTS is_online BOOLEAN DEFAULT FALSE`);
 
   statements.push(`CREATE TABLE IF NOT EXISTS uploads (
     id TEXT PRIMARY KEY,
@@ -183,6 +186,19 @@ export async function initDatabase() {
 
   statements.push(`ALTER TABLE tenants ADD COLUMN IF NOT EXISTS assignment_status TEXT DEFAULT '' CHECK (assignment_status IN ('', 'pending', 'confirmed', 'rejected'))`);
 
+  statements.push(`CREATE TABLE IF NOT EXISTS move_out_requests (
+    id TEXT PRIMARY KEY,
+    tenant_id TEXT REFERENCES tenants(id) ON DELETE CASCADE,
+    tenant_name TEXT,
+    unit_id TEXT,
+    property_name TEXT,
+    reason TEXT,
+    status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+    reviewed_by TEXT REFERENCES users(id),
+    reviewed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+
   statements.push(`CREATE TABLE IF NOT EXISTS payments (
     id TEXT PRIMARY KEY,
     tenant_id TEXT REFERENCES tenants(id),
@@ -195,7 +211,7 @@ export async function initDatabase() {
     payment_date DATE,
     due_date DATE,
     status TEXT DEFAULT 'pending' CHECK (status IN ('paid', 'pending', 'overdue', 'partial')),
-    payment_method TEXT CHECK (payment_method IN ('cash', 'bank_transfer', 'gcash', 'credit_card', 'other')),
+    payment_method TEXT CHECK (payment_method IN ('cash', 'upload_receipt')),
     payment_method_note TEXT,
     bank_name TEXT,
     account_number TEXT,
@@ -308,7 +324,7 @@ export async function initDatabase() {
   )`);
 
   statements.push(`ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_payment_method_check`);
-  statements.push(`ALTER TABLE payments ADD CONSTRAINT payments_payment_method_check CHECK (payment_method IN ('cash', 'bank_transfer', 'gcash', 'credit_card', 'other'))`);
+  statements.push(`ALTER TABLE payments ADD CONSTRAINT payments_payment_method_check CHECK (payment_method IN ('cash', 'upload_receipt'))`);
   statements.push(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS payment_method_note TEXT`);
   statements.push(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS bank_name TEXT`);
   statements.push(`ALTER TABLE payments ADD COLUMN IF NOT EXISTS account_number TEXT`);
@@ -322,7 +338,10 @@ export async function initDatabase() {
   statements.push(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS agent_id TEXT`);
   statements.push(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS agent_name TEXT`);
   statements.push(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS reply_text TEXT`);
+  statements.push(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS reply_token TEXT`);
   statements.push(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS replied_at TIMESTAMPTZ`);
+  statements.push(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS visitor_reply TEXT`);
+  statements.push(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS visitor_replied_at TIMESTAMPTZ`);
   statements.push(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'new' CHECK (status IN ('new', 'read', 'replied'))`);
 
   for (const sqlText of statements) {
@@ -331,6 +350,12 @@ export async function initDatabase() {
     } catch (err) {
       console.error("initDatabase statement failed:", sqlText, err);
     }
+  }
+
+  try {
+    await getAdminSupabase().rpc("exec_sql", { sql: "NOTIFY pgrst, 'reload schema'" });
+  } catch (err) {
+    console.error("Failed to reload PostgREST schema:", err);
   }
 
   console.log("✅ Database tables initialized");
@@ -474,6 +499,22 @@ export async function verifyLoginOtp(userId: string, otp: string) {
   return { success: true };
 }
 
+export async function updateUserPresence(userId: string, options: { markLogin?: boolean } = {}) {
+  const nowIso = new Date().toISOString();
+  const isOnline = options.markLogin !== false;
+  const payload: Record<string, unknown> = {
+    last_seen_at: nowIso,
+    is_online: isOnline,
+  };
+
+  if (options.markLogin) {
+    payload.last_login_at = nowIso;
+  }
+
+  const { error } = await getAdminSupabase().from("users").update(payload).eq("id", userId);
+  if (error) console.error("User presence update error:", error);
+}
+
 export async function logAudit(userId: string, action: string, details?: Record<string, any>, ipAddress?: string, userAgent?: string) {
   const id = `audit_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   const { error } = await getAdminSupabase().from("audit_logs").insert({
@@ -596,26 +637,96 @@ export async function createUnit(data: any) {
   return { id, ...data, status: data.status || "vacant" };
 }
 
+export async function clearTenantUnitAssignment(tenantId: string, tenantName?: string | null, forcedUnitId?: string | null) {
+  const client = getAdminSupabase();
+  const targetUnitIds = new Set<string>();
+
+  if (forcedUnitId) targetUnitIds.add(forcedUnitId);
+
+  const { data: currentTenant, error: currentTenantError } = await client
+    .from("tenants")
+    .select("unit_id, name")
+    .eq("id", tenantId)
+    .maybeSingle();
+
+  if (currentTenantError) throw currentTenantError;
+  if (currentTenant?.unit_id) targetUnitIds.add(currentTenant.unit_id);
+
+  const { data: staleUnits, error: staleUnitsError } = await client
+    .from("units")
+    .select("id, tenant_id, tenant_name")
+    .order("id");
+
+  if (staleUnitsError) throw staleUnitsError;
+
+  const normalizedTenantName = (tenantName ?? currentTenant?.name ?? "").trim();
+  for (const unit of staleUnits || []) {
+    const matchesTenantId = unit.tenant_id === tenantId;
+    const matchesTenantName = normalizedTenantName && unit.tenant_name === normalizedTenantName;
+    if (matchesTenantId || matchesTenantName) {
+      targetUnitIds.add(unit.id);
+    }
+  }
+
+  if (targetUnitIds.size === 0) {
+    const { error } = await client.from("tenants").update({
+      unit_id: null,
+      unit_number: null,
+      property_name: null,
+      assignment_status: "",
+      status: "inactive",
+      rent_amount: 0,
+    }).eq("id", tenantId);
+    if (error) throw error;
+    return;
+  }
+
+  for (const unitId of Array.from(targetUnitIds)) {
+    const { error } = await client.from("units").update({
+      status: "vacant",
+      tenant_id: null,
+      tenant_name: null,
+    }).eq("id", unitId);
+    if (error) throw error;
+  }
+
+  const { error: tenantResetError } = await client.from("tenants").update({
+    unit_id: null,
+    unit_number: null,
+    property_name: null,
+    assignment_status: "",
+    status: "inactive",
+    rent_amount: 0,
+  }).eq("id", tenantId);
+
+  if (tenantResetError) throw tenantResetError;
+}
+
 export async function syncTenantUnit(tenantId: string, unitId: string | null, assignmentStatus: string) {
   const client = getAdminSupabase();
   const { data: currentTenant, error: tenantError } = await client
     .from("tenants")
-    .select("unit_id")
+    .select("unit_id, name")
     .eq("id", tenantId)
     .maybeSingle();
   if (tenantError) throw tenantError;
 
+  const shouldClearUnit = !unitId || assignmentStatus !== "confirmed";
+
   if (currentTenant?.unit_id && currentTenant.unit_id !== unitId) {
-    const { error } = await client.from("units").update({ status: "vacant", tenant_id: null, tenant_name: null }).eq("id", currentTenant.unit_id);
-    if (error) throw error;
+    await clearTenantUnitAssignment(tenantId, currentTenant.name, currentTenant.unit_id);
   }
 
-  if (!unitId) return;
+  if (shouldClearUnit) {
+    await clearTenantUnitAssignment(tenantId, currentTenant?.name, currentTenant?.unit_id ?? unitId);
+    return;
+  }
+
   const { data: tenant } = await client.from("tenants").select("name").eq("id", tenantId).maybeSingle();
   const { error } = await client.from("units").update({
-    status: assignmentStatus === "confirmed" ? "occupied" : "vacant",
-    tenant_id: assignmentStatus === "confirmed" ? tenantId : null,
-    tenant_name: assignmentStatus === "confirmed" ? tenant?.name || null : null,
+    status: "occupied",
+    tenant_id: tenantId,
+    tenant_name: tenant?.name || null,
   }).eq("id", unitId);
   if (error) throw error;
 }
@@ -638,9 +749,10 @@ export async function getTenants() {
   if (tenantsError) throw tenantsError;
 
   const tenantMap = new Map((tenantRecords || []).map((t: any) => [t.id, t]));
+  const tenantEmailMap = new Map((tenantRecords || []).filter((t: any) => t.email).map((t: any) => [String(t.email).toLowerCase(), t]));
 
   return (users || []).map((u: any) => {
-    const tr = tenantMap.get(u.id);
+    const tr = tenantMap.get(u.id) || tenantEmailMap.get(String(u.email || "").toLowerCase());
     return {
       id: u.id,
       name: u.name,
@@ -668,7 +780,7 @@ export async function getTenants() {
 }
 
 export async function createTenant(data: any, userId: string) {
-  const id = `ten_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+  const id = data.id || `ten_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   const { error } = await getAdminSupabase().from("tenants").insert({
     id,
     name: data.name,
@@ -699,6 +811,35 @@ export async function deleteTenant(userId: string) {
   if (userError) throw userError;
 }
 
+export async function resetTenantPayments(tenantId: string) {
+  const { data: tenantRecord, error: tenantLookupError } = await getAdminSupabase()
+    .from("tenants")
+    .select("name, unit_id")
+    .eq("id", tenantId)
+    .maybeSingle();
+
+  if (tenantLookupError) throw tenantLookupError;
+
+  const { error } = await getAdminSupabase().from("payments").delete().eq("tenant_id", tenantId);
+  if (error) throw error;
+
+  const { error: tenantError } = await getAdminSupabase()
+    .from("tenants")
+    .update({
+      rent_amount: 0,
+      status: "inactive",
+      unit_id: null,
+      property_name: null,
+      unit_number: null,
+      assignment_status: "",
+    })
+    .eq("id", tenantId);
+
+  if (tenantError) throw tenantError;
+
+  await clearTenantUnitAssignment(tenantId, tenantRecord?.name ?? null, tenantRecord?.unit_id ?? null);
+}
+
 export async function getPayments() {
   const { data, error } = await getAdminSupabase().from("payments").select("*").order("created_at", { ascending: false });
   if (error) throw error;
@@ -715,6 +856,21 @@ export async function getPaymentsForUser(userId: string, role?: string) {
   return (data || []).map((row: any) => snakeToCamel(row));
 }
 
+export async function resetAgentData(agentId: string) {
+  const adminClient = getAdminSupabase();
+  const operations = [
+    adminClient.from("chat_messages").delete().eq("agent_id", agentId),
+    adminClient.from("messages").delete().or(`sender_id.eq.${agentId},receiver_id.eq.${agentId}`),
+    adminClient.from("notifications").delete().eq("user_id", agentId),
+    adminClient.from("payments").delete().eq("created_by", agentId),
+    adminClient.from("tenants").delete().eq("created_by", agentId),
+    adminClient.from("properties").update({ agent_id: null }).eq("agent_id", agentId),
+  ];
+  const results = await Promise.all(operations);
+  const failure = results.find((result) => result.error);
+  if (failure?.error) throw failure.error;
+}
+
 export async function createPayment(data: any, userId: string) {
   const id = data.id || `pay_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   const basePayload: Record<string, any> = {
@@ -729,7 +885,7 @@ export async function createPayment(data: any, userId: string) {
     payment_date: data.paymentDate || null,
     due_date: data.dueDate || null,
     status: data.status || "pending",
-    payment_method: data.paymentMethod || "other",
+    payment_method: data.paymentMethod || "cash",
     payment_method_note: data.paymentMethodNote || null,
     bank_name: data.bankName || null,
     account_number: data.accountNumber || null,
@@ -1025,7 +1181,7 @@ export async function getConversations(userId: string) {
     const otherUser = await findUserById(otherId);
     if (!otherUser) continue;
     const unreadCount = (received || []).filter((m: any) => m.sender_id === otherId && !m.read).length;
-    conversations.push({ userId, otherUser, lastMessage: snakeToCamel(msg), unreadCount });
+    conversations.push({ userId: otherId, otherUser, lastMessage: snakeToCamel(msg), unreadCount });
   }
   return conversations;
 }

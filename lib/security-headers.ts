@@ -1,12 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
 
-// Allowed origins for CORS
-const allowedOrigins = process.env.ALLOWED_ORIGINS?.split(",").map((o) => o.trim()) || [
-  process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000",
-];
+// Allowed origins for CORS. Keep this explicit in production to avoid open cross-origin access.
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || "")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean)
+  .concat(process.env.NEXT_PUBLIC_APP_URL || process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000")
+  .filter((origin, index, values) => values.indexOf(origin) === index);
 
 // CSRF token storage (in production, use Redis or database)
 const csrfStore = new Map<string, { token: string; exp: number }>();
+
+export function isAllowedOrigin(origin: string | null): boolean {
+  if (!origin) return false;
+  const normalized = origin.replace(/\/$/, "");
+  return allowedOrigins.some((allowed) => allowed.replace(/\/$/, "") === normalized);
+}
 
 export function generateCsrfToken(sessionId: string): string {
   const token = `${sessionId}_${Date.now()}_${Math.random().toString(36).substring(2, 15)}`;
@@ -26,13 +35,16 @@ export function validateCsrfToken(sessionId: string, token: string): boolean {
 
 export function withCorsHeaders(request: NextRequest, response: NextResponse): NextResponse {
   const origin = request.headers.get("origin");
-  if (origin && allowedOrigins.includes(origin)) {
+  response.headers.set("Vary", "Origin");
+
+  if (origin && isAllowedOrigin(origin)) {
     response.headers.set("Access-Control-Allow-Origin", origin);
     response.headers.set("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
     response.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization, X-CSRF-Token");
     response.headers.set("Access-Control-Allow-Credentials", "true");
     response.headers.set("Access-Control-Max-Age", "86400");
   }
+
   return response;
 }
 
@@ -44,6 +56,7 @@ export function handleCorsPreflight(): NextResponse {
 export function sanitizeString(input: string, maxLength = 1000): string {
   if (typeof input !== "string") return "";
   return input
+    .replace(/[\u0000-\u001F\u007F]/g, "")
     .replace(/[<>]/g, "")
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -100,10 +113,12 @@ export function withSecurityHeaders(response: NextResponse): NextResponse {
   response.headers.set("X-Frame-Options", "DENY");
   response.headers.set("X-XSS-Protection", "1; mode=block");
   response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
-  response.headers.set("Permissions-Policy", "geolocation=(), microphone=(self), camera=(self)");
+  response.headers.set("Permissions-Policy", "geolocation=(), microphone=(), camera=()");
+  response.headers.set("Cross-Origin-Opener-Policy", "same-origin");
+  response.headers.set("Cross-Origin-Resource-Policy", "same-origin");
   response.headers.set(
     "Content-Security-Policy",
-    "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self'; frame-ancestors 'none';"
+    "default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; font-src 'self' data:; connect-src 'self' https:; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self';"
   );
   response.headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
   // Preserve an explicit cache policy (for example, public listing images)

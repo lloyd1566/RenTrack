@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title desc">
+  <title id="title">Admin profile</title>
+  <desc id="desc">A neutral administrator avatar with a shield</desc>
+  <circle cx="64" cy="64" r="64" fill="#e8eef7"/>
+  <path d="M64 17 101 31v28c0 25-15 42-37 52C42 101 27 84 27 59V31l37-14Z" fill="#3568a8"/>
+  <circle cx="64" cy="49" r="14" fill="#fff"/>
+  <path d="M39 83c3-14 13-21 25-21s22 7 25 21H39Z" fill="#fff"/>
+  <path d="m54 74 7 7 14-17" fill="none" stroke="#3568a8" stroke-linecap="round" stroke-linejoin="round" stroke-width="5"/>
+</svg>

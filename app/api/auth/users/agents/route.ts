@@ -15,6 +15,11 @@ export async function GET(request: NextRequest) {
       phone: u.phone || "",
       role: u.role,
       idVerificationStatus: u.idVerificationStatus || "pending",
+      idVerificationUrl: u.idVerificationUrl || null,
+      lastLoginAt: u.lastLoginAt || u.last_login_at || null,
+      lastSeenAt: u.lastSeenAt || u.last_seen_at || null,
+      isOnline: Boolean(u.isOnline ?? u.is_online ?? false),
+      createdAt: u.createdAt || u.created_at || null,
     }));
     const response = NextResponse.json({ success: true, users: safeAgents });
     return withSecurityHeaders(withCorsHeaders(request, response));

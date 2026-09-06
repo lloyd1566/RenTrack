@@ -223,6 +223,22 @@ CREATE TABLE IF NOT EXISTS chat_messages (
 ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS reply_text TEXT;
 ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS replied_at TIMESTAMPTZ;
 ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'new' CHECK (status IN ('new', 'read', 'replied'));
+ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS visitor_reply TEXT;
+ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS visitor_replied_at TIMESTAMPTZ;
+ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS reply_token TEXT;
+
+CREATE TABLE IF NOT EXISTS move_out_requests (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT REFERENCES tenants(id) ON DELETE CASCADE,
+  tenant_name TEXT,
+  unit_id TEXT,
+  property_name TEXT,
+  reason TEXT,
+  status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  reviewed_by TEXT REFERENCES users(id),
+  reviewed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
 
 CREATE TABLE IF NOT EXISTS messages (
   id TEXT PRIMARY KEY,

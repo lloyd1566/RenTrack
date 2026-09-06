@@ -17,12 +17,11 @@ import { useAuth } from "@/lib/auth";
 import { calculateProfileCompleteness, type UserProfile } from "@/lib/profile";
 import { toast } from "sonner";
 
-type Tab = "general" | "edit-profile" | "security";
+type Tab = "general" | "edit-profile";
 
 const tabs: { id: Tab; label: string; icon: typeof User }[] = [
   { id: "general", label: "Overview", icon: User },
   { id: "edit-profile", label: "Edit Profile", icon: Edit3 },
-  { id: "security", label: "Security", icon: Key },
 ];
 
 const statCardsDef = [
@@ -75,7 +74,6 @@ export default function TenantSettingsPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isUploadingId, setIsUploadingId] = useState(false);
-  const [hoveredStat, setHoveredStat] = useState<string | null>(null);
   const [showIdPreview, setShowIdPreview] = useState(false);
   const userIdRef = useRef(user?.id || null);
   const didSyncRef = useRef(false);
@@ -319,22 +317,19 @@ export default function TenantSettingsPage() {
               key={stat.label}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.3, delay: 0.1 + i * 0.05 }}
-              whileHover={{ y: -4, transition: { duration: 0.2 } }}
-              onHoverStart={() => setHoveredStat(stat.label)}
-              onHoverEnd={() => setHoveredStat(null)}
-            >
-              <Card className="border-gray-200 hover:shadow-xl transition-all duration-300 h-full">
-                <CardContent className="p-6">
-                  <div className="flex items-center justify-between mb-3">
-                    <div className={cn("h-10 w-10 rounded-xl flex items-center justify-center", stat.bg)}>
-                      <stat.icon className={cn("h-5 w-5 bg-gradient-to-br bg-clip-text text-transparent", `text-[${stat.color}]`)} style={{ backgroundImage: `linear-gradient(to bottom right, var(--tw-gradient-stops))` }} />
-                    </div>
-                  <motion.div
-                    animate={{ scale: hoveredStat === stat.label ? 1.1 : 1 }}
-                    className={cn("h-2 w-2 rounded-full bg-gradient-to-r", stat.color)}
-                  />
-                </div>
+               transition={{ duration: 0.3, delay: 0.1 + i * 0.05 }}
+               whileHover={{ y: -4, transition: { duration: 0.2 } }}
+             >
+               <Card className="border-gray-200 hover:shadow-xl transition-all duration-300 h-full">
+                 <CardContent className="p-6">
+                   <div className="flex items-center justify-between mb-3">
+                     <div className={cn("h-10 w-10 rounded-xl flex items-center justify-center", stat.bg)}>
+                       <stat.icon className={cn("h-5 w-5 bg-gradient-to-br bg-clip-text text-transparent", `text-[${stat.color}]`)} style={{ backgroundImage: `linear-gradient(to bottom right, var(--tw-gradient-stops))` }} />
+                     </div>
+                   <motion.div
+                     className={cn("h-2 w-2 rounded-full bg-gradient-to-r", stat.color)}
+                   />
+                 </div>
                  <p className="text-2xl font-bold text-gray-900">{displayValue}</p>
                  <p className="text-xs text-gray-500 mt-1">{stat.label}</p>
                </CardContent>
@@ -352,7 +347,7 @@ export default function TenantSettingsPage() {
       >
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as Tab)} className="space-y-6">
           <TabsList className="bg-white border border-gray-200 p-1.5 rounded-2xl shadow-sm">
-            <div className="grid grid-cols-3 gap-1 w-full">
+            <div className="grid grid-cols-2 gap-1 w-full">
               {tabs.map((tab) => {
                 const Icon = tab.icon;
                 return (
@@ -420,11 +415,11 @@ export default function TenantSettingsPage() {
                         </label>
                         <p className="text-sm font-medium text-gray-900 group-hover:text-blue-600 transition-colors">{item.value}</p>
                       </motion.div>
-                      ))}
-                    </div>
-                </CardContent>
-              </Card>
-            </motion.div>
+                       ))}
+                     </div>
+                 </CardContent>
+               </Card>
+             </motion.div>
 
             {/* ID Verification Card */}
             <motion.div
@@ -584,79 +579,78 @@ export default function TenantSettingsPage() {
                           />
                         </motion.div>
                       ))}
-                    </div>
-                    <div className="flex gap-3 pt-4 border-t border-gray-100">
-                      <Button type="submit" className="flex-1 h-11 bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/25" disabled={isSaving}>
-                        <Save className="h-4 w-4 mr-2" />
-                        {isSaving ? "Saving..." : "Save Changes"}
-                      </Button>
-                    </div>
-                  </form>
-                </CardContent>
-              </Card>
-            </motion.div>
-          </TabsContent>
+                     </div>
+                     <div className="flex gap-3 pt-4 border-t border-gray-100">
+                       <Button type="submit" className="flex-1 h-11 bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/25" disabled={isSaving}>
+                         <Save className="h-4 w-4 mr-2" />
+                         {isSaving ? "Saving..." : "Save Changes"}
+                       </Button>
+                     </div>
+                   </form>
+                 </CardContent>
+               </Card>
 
-          {/* Security Tab */}
-          <TabsContent value="security">
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4 }}
-            >
-              <Card className="border-gray-200 shadow-lg">
-                <CardHeader>
-                  <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-blue-50 flex items-center justify-center">
-                      <Key className="h-5 w-5 text-blue-600" />
-                    </div>
-                    <div>
-                      <CardTitle>Change Password</CardTitle>
-                      <CardDescription>Update your password to keep your account secure</CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardContent>
-                  <form onSubmit={handleChangePassword} className="space-y-5 max-w-md">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">Current Password</label>
-                      <div className="relative">
-                        <Input
-                          type={showPassword ? "text" : "password"}
-                          value={currentPassword}
-                          onChange={(e) => setCurrentPassword(e.target.value)}
-                          placeholder="Enter current password"
-                          className="h-11 rounded-xl border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 pr-10"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowPassword(!showPassword)}
-                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
-                        >
-                          {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                        </button>
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1.5">New Password</label>
-                      <Input
-                        type={showPassword ? "text" : "password"}
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        placeholder="Enter new password"
-                        className="h-11 rounded-xl border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10"
-                      />
-                      <p className="text-xs text-gray-500 mt-1.5">Must be at least 6 characters</p>
-                    </div>
-                    <Button type="submit" className="w-full h-11 bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/25" disabled={isSaving}>
-                      <Key className="h-4 w-4 mr-2" />
-                      {isSaving ? "Updating..." : "Update Password"}
-                    </Button>
-                  </form>
-                </CardContent>
-              </Card>
-            </motion.div>
-          </TabsContent>
+               {/* Change Password Section */}
+               <motion.div
+                 initial={{ opacity: 0, y: 20 }}
+                 animate={{ opacity: 1, y: 0 }}
+                 transition={{ duration: 0.4, delay: 0.1 }}
+                 className="mt-6"
+               >
+                 <Card className="border-gray-200 shadow-lg">
+                   <CardHeader>
+                     <div className="flex items-center gap-3">
+                       <div className="h-10 w-10 rounded-xl bg-blue-50 flex items-center justify-center">
+                         <Key className="h-5 w-5 text-blue-600" />
+                       </div>
+                       <div>
+                         <CardTitle>Change Password</CardTitle>
+                         <CardDescription>Update your password to keep your account secure</CardDescription>
+                       </div>
+                     </div>
+                   </CardHeader>
+                   <CardContent>
+                     <form onSubmit={handleChangePassword} className="space-y-5 max-w-md">
+                       <div>
+                         <label className="block text-sm font-medium text-gray-700 mb-1.5">Current Password</label>
+                         <div className="relative">
+                           <Input
+                             type={showPassword ? "text" : "password"}
+                             value={currentPassword}
+                             onChange={(e) => setCurrentPassword(e.target.value)}
+                             placeholder="Enter current password"
+                             className="h-11 rounded-xl border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10 pr-10"
+                           />
+                           <button
+                             type="button"
+                             onClick={() => setShowPassword(!showPassword)}
+                             className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                           >
+                             {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                           </button>
+                         </div>
+                       </div>
+                       <div>
+                         <label className="block text-sm font-medium text-gray-700 mb-1.5">New Password</label>
+                         <Input
+                           type={showPassword ? "text" : "password"}
+                           value={newPassword}
+                           onChange={(e) => setNewPassword(e.target.value)}
+                           placeholder="Enter new password"
+                           className="h-11 rounded-xl border-gray-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/10"
+                         />
+                         <p className="text-xs text-gray-500 mt-1.5">Must be at least 6 characters</p>
+                       </div>
+                       <Button type="submit" className="w-full h-11 bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-500/25" disabled={isSaving}>
+                         <Key className="h-4 w-4 mr-2" />
+                         {isSaving ? "Updating..." : "Update Password"}
+                       </Button>
+                     </form>
+                   </CardContent>
+                 </Card>
+               </motion.div>
+             </motion.div>
+           </TabsContent>
         </Tabs>
       </motion.div>
     </motion.div>

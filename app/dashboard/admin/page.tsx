@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
-import { DropdownMenu, DropdownItem } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { cn, formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import {
@@ -230,15 +230,16 @@ export default function AdminDashboard() {
     }
     setIsCreatingTenant(true);
     try {
-      const res = await fetch("/api/auth/signup", {
+      const res = await fetch("/api/auth/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...formData, role: "tenant" }),
+        credentials: "include",
+        body: JSON.stringify({ name: formData.name, email: formData.email, phone: formData.phone, address: formData.address, password: formData.password, role: "tenant" }),
       });
       const data = await res.json();
       if (data.success) {
-        await fetch("/api/data/tenants", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ name: formData.name, email: formData.email, phone: formData.phone, address: formData.address, propertyName: formData.propertyName, unitNumber: formData.unitNumber, rentAmount: Number(formData.rentAmount) || 0, contractStart: formData.contractStart || undefined, contractEnd: formData.contractEnd || undefined, assignmentStatus: "confirmed" }) });
-        toast.success("Tenant account created successfully!");
+        await fetch("/api/data/tenants", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ id: data.user?.id, name: formData.name, email: formData.email, phone: formData.phone, address: formData.address }) });
+        toast.success(data.emailSent ? "Tenant account created and login credentials emailed" : "Tenant account created, but the credentials email could not be sent");
         setShowCreateTenant(false);
         loadData();
       } else {
@@ -541,20 +542,20 @@ export default function AdminDashboard() {
                       </TableCell>
                       <TableCell className="text-text-secondary text-xs">{u.createdAt ? formatDate(u.createdAt) : "N/A"}</TableCell>
                       <TableCell className="text-right">
-                        <DropdownMenu
-                          align="end"
-                          trigger={
-                            <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
-                              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-gray-500"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
-                              </Button>
-                            </motion.div>
-                          }
-                        >
-                          <DropdownItem icon={<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-blue-500"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>} onClick={() => handleEditUser(u)}>Edit</DropdownItem>
-                          <DropdownItem icon={<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-amber-500"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>} onClick={() => setResettingPassword(u)}>Reset password</DropdownItem>
-                          <DropdownItem icon={<Trash2 className="h-4 w-4 text-red-500" />} onClick={() => handleDeleteUser(u.id)} className="text-red-600">Delete</DropdownItem>
-                        </DropdownMenu>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <motion.div whileHover={{ scale: 1.1 }} whileTap={{ scale: 0.9 }}>
+                            <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-gray-500"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg>
+                            </Button>
+                          </motion.div>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" sideOffset={4}>
+                          <DropdownMenuItem icon={<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-blue-500"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>} onSelect={() => handleEditUser(u)}>Edit</DropdownMenuItem>
+                          <DropdownMenuItem icon={<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 text-amber-500"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>} onSelect={() => setResettingPassword(u)}>Reset password</DropdownMenuItem>
+                          <DropdownMenuItem icon={<Trash2 className="h-4 w-4 text-red-500" />} onSelect={() => handleDeleteUser(u.id)} className="text-red-600">Delete</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
                       </TableCell>
                      </motion.tr>
                    ))}

@@ -5,10 +5,10 @@ import { motion, AnimatePresence } from "framer-motion";
 import { createPortal } from "react-dom";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { X, ChevronDown, Loader2, Bell, Home, CreditCard, FileText, Building2, LifeBuoy, Info, Newspaper } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { X, ChevronDown, Loader2, Bell, Home, CreditCard, FileText, Building2, LifeBuoy, Info, Newspaper, Users, Settings } from "lucide-react";
+import { cn, formatDate } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
-import { getNotifications, getUnreadMessageCount, markAllNotificationsRead, Notification } from "@/lib/data";
+import { getNotifications, getUnreadMessageCount, markAllNotificationsRead, markNotificationRead, Notification } from "@/lib/data";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
 
@@ -157,17 +157,7 @@ export default function TenantNavbar() {
       <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
         <div className="flex items-center justify-between h-16">
           <Link href="/dashboard/tenant" className="flex items-center gap-2.5 shrink-0 group">
-            <motion.div
-              className="h-9 w-9 rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center shadow-md relative overflow-hidden"
-              whileHover={{ scale: 1.08, rotate: 5 }}
-              whileTap={{ scale: 0.95 }}
-              transition={{ type: "spring", stiffness: 400, damping: 25 }}
-            >
-              <motion.div
-                className="absolute inset-0 bg-gradient-to-tr from-blue-400 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-              />
-              <span className="text-white font-bold text-sm relative z-10">RT</span>
-            </motion.div>
+            <img src="/images/landing/logo.png" alt="RentTrack" className="h-9 w-9 rounded-xl object-contain shadow-md" />
             <motion.span
               className="text-lg font-bold text-gray-900 dark:text-white hidden sm:inline"
               initial={{ opacity: 0, x: -10 }}
@@ -300,15 +290,38 @@ export default function TenantNavbar() {
                       initial={{ opacity: 0, y: 8, scale: 0.96 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                      className="absolute right-16 top-14 z-50 w-72 rounded-xl border border-gray-200 bg-white p-2 shadow-xl dark:border-gray-700 dark:bg-gray-800"
+                      className="absolute right-16 top-14 z-50 w-80 sm:w-96 rounded-2xl border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800 overflow-hidden"
                     >
-                      <p className="border-b border-gray-100 px-3 py-2 text-sm font-semibold text-gray-900 dark:border-gray-700 dark:text-white">Notifications</p>
-                      {notifications.length === 0 ? <p className="px-3 py-5 text-center text-xs text-gray-500">No notifications yet</p> : notifications.slice(0, 5).map((notification) => (
-                        <div key={notification.id} className={cn("rounded-lg px-3 py-2", !notification.read && "bg-blue-50 dark:bg-blue-900/20")}>
-                          <p className="text-xs font-semibold text-gray-900 dark:text-white">{notification.title}</p>
-                          <p className="truncate text-[11px] text-gray-500 dark:text-gray-400">{notification.message}</p>
-                        </div>
-                      ))}
+                      <div className="p-4 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                        <h3 className="font-semibold text-gray-900 dark:text-white">Notifications</h3>
+                        {notifications.some((n) => !n.read) && (
+                          <button onClick={async () => { if (!user) return; await markAllNotificationsRead(user.id); getNotifications(user.id).then(setNotifications).catch(() => {}); }} className="text-xs text-blue-600 hover:text-blue-700">Mark all read</button>
+                        )}
+                      </div>
+                      <div className="max-h-80 overflow-y-auto">
+                        {notifications.length === 0 ? (
+                          <p className="px-3 py-8 text-center text-xs text-gray-500">No notifications yet</p>
+                        ) : (
+                          notifications.map((n) => (
+                            <button key={n.id} onClick={async () => { if (!user) return; await markNotificationRead(n.id); getNotifications(user.id).then(setNotifications).catch(() => {}); }} className={cn("w-full text-left p-4 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors dark:border-gray-700", !n.read && "bg-blue-50 dark:bg-blue-900/10")}>
+                              <div className="flex gap-3">
+                                <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg shrink-0", n.type === "payment" && "bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400", n.type === "tenant" && "bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400", n.type === "property" && "bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400", n.type === "system" && "bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400")}>
+                                  {n.type === "payment" && <CreditCard className="h-4 w-4" />}
+                                  {n.type === "tenant" && <Users className="h-4 w-4" />}
+                                  {n.type === "property" && <Home className="h-4 w-4" />}
+                                  {n.type === "system" && <Settings className="h-4 w-4" />}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-gray-900 dark:text-white">{n.title}</p>
+                                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">{n.message}</p>
+                                  <p className="text-[10px] text-gray-400 dark:text-gray-500 mt-1">{formatDate(n.createdAt)}</p>
+                                </div>
+                                {!n.read && <div className="h-2 w-2 rounded-full bg-blue-500 mt-1.5 shrink-0" />}
+                              </div>
+                            </button>
+                          ))
+                        )}
+                      </div>
                     </motion.div>
                   )}
                 </AnimatePresence>

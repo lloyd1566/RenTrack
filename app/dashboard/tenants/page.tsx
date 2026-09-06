@@ -129,7 +129,7 @@ export default function TenantsPage() {
       });
       const result = await res.json();
       if (result.success) {
-        toast.success("Account created successfully");
+        toast.success(result.emailSent ? "Account created and credentials emailed" : "Account created, but the credentials email could not be sent");
         setCreateForm({ name: "", email: "", password: "", phone: "", address: "", role: "tenant" });
         setShowCreateTenant(false);
         const records = await getTenants(user);

@@ -40,7 +40,7 @@ export async function POST(request: NextRequest) {
     };
 
     const response = NextResponse.json({ success: true, skipOtp: true, userId: user.id, user: safeUser });
-    regenerateSession(response, user.id, getClientIp(request));
+    regenerateSession(response, user.id);
 
     try {
       await logAudit(user.id, "login_success", { email: user.email, role: user.role }, getClientIp(request), request.headers.get("user-agent") || "unknown");

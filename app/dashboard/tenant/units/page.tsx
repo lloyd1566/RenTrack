@@ -19,12 +19,14 @@ export default function TenantUnitsPage() {
   const [units, setUnits] = useState<Unit[]>([]);
   const [properties, setProperties] = useState<Property[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    setIsLoading(true);
     Promise.all([
       getUnits().then(setUnits).catch(() => setUnits([])),
       getProperties().then(setProperties).catch(() => setProperties([])),
-    ]);
+    ]).finally(() => setIsLoading(false));
   }, []);
 
   const filteredUnits = units.filter((u) =>
@@ -73,7 +75,15 @@ export default function TenantUnitsPage() {
           </div>
         </motion.div>
 
-        {vacantUnits.length === 0 ? (
+        {isLoading ? (
+          <Card className="border-gray-200">
+            <CardContent className="p-12 text-center">
+              <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-2 border-blue-200 border-t-blue-600" />
+              <p className="text-gray-600 font-medium">Loading units...</p>
+              <p className="text-gray-500 text-sm mt-1">Checking available rental spaces</p>
+            </CardContent>
+          </Card>
+        ) : vacantUnits.length === 0 ? (
           <Card className="border-gray-200">
             <CardContent className="p-12 text-center">
               <Home className="h-12 w-12 text-gray-300 mx-auto mb-3" />

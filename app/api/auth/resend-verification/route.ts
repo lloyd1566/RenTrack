@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { findUserByEmail, createLoginOtp, initDatabase, findOrCreateAdmin } from "@/lib/db";
+import { findUserByEmail, findUserById, createLoginOtp, initDatabase, findOrCreateAdmin } from "@/lib/db";
 import { sendEmail, getSiteUrl } from "@/lib/mail";
 import { withSecurityHeaders, withCorsHeaders, validateApiRequest, getClientIp } from "@/lib/api-security";
 import { checkVerifyRateLimit, MAX_VERIFY_ATTEMPTS } from "@/lib/auth-security";
@@ -12,13 +12,29 @@ export async function POST(request: NextRequest) {
     const validation = validateApiRequest(request);
     if (validation) return validation;
 
-    const { email } = await request.json();
-    if (!email) {
-      return NextResponse.json({ success: false, error: "Email is required" }, { status: 400 });
+    const { email, userId } = await request.json();
+    if (!email && !userId) {
+      return NextResponse.json({ success: false, error: "Email or User ID is required" }, { status: 400 });
     }
 
     const ip = getClientIp(request);
-    const rateLimitKey = `resend_verify:${ip}:${email.toLowerCase()}`;
+
+    let user;
+    if (userId) {
+      user = await findUserById(userId);
+    } else if (email) {
+      user = await findUserByEmail(String(email).toLowerCase().trim());
+    }
+
+    if (!user) {
+      return NextResponse.json({ success: false, error: "No account found" }, { status: 404 });
+    }
+
+    if (user.emailVerified) {
+      return NextResponse.json({ success: false, error: "Email is already verified" }, { status: 400 });
+    }
+
+    const rateLimitKey = `resend_verify:${ip}:${user.email.toLowerCase()}`;
     const rateLimit = checkVerifyRateLimit(rateLimitKey);
 
     if (!rateLimit.allowed) {
@@ -29,15 +45,6 @@ export async function POST(request: NextRequest) {
         locked: true,
         retryAfter: rateLimit.lockedUntil,
       }, { status: 429 });
-    }
-
-    const user = await findUserByEmail(email);
-    if (!user) {
-      return NextResponse.json({ success: false, error: "No account found with this email" }, { status: 404 });
-    }
-
-    if (user.emailVerified) {
-      return NextResponse.json({ success: false, error: "Email is already verified" }, { status: 400 });
     }
 
     const otp = await createLoginOtp(user.id, 15);

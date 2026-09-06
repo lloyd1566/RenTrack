@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createComplaint, getComplaints, getComplaintById, updateComplaintStatus, createNotification, getAdminSupabase } from "@/lib/db";
 import { requireAuth, validateApiRequest, withSecurityHeaders, withCorsHeaders, sanitizeObject, getClientIp } from "@/lib/api-security";
 import { logAudit } from "@/lib/db";
-import { sendSystemEmail, isSmtpConfigured } from "@/lib/mail";
+import { sendSystemEmail, isSmtpConfigured, createRentTrackEmailTemplate, escapeHtml } from "@/lib/mail";
 
 export async function POST(request: NextRequest) {
   try {
@@ -41,10 +41,15 @@ export async function POST(request: NextRequest) {
         const users = await (await import("@/lib/db")).getAllUsers();
         const recipients = users.filter((u: any) => (u.role === "owner" || u.role === "admin" || u.role === "agent") && u.email);
         for (const recipient of recipients) {
+          const html = createRentTrackEmailTemplate({
+            title: "New Complaint",
+            body: `A new complaint has been submitted.<br /><br /><strong>Subject:</strong> ${escapeHtml(sanitized.subject)}<br /><strong>Priority:</strong> ${escapeHtml(sanitized.priority || "medium")}<br /><br /><strong>Message:</strong><br />${escapeHtml(sanitized.message)}`,
+            footerNote: "Please review and take action in the admin dashboard.",
+          });
           await sendSystemEmail({
             to: recipient.email,
             subject: `New Complaint: ${sanitized.subject}`,
-            html: `<p>A new complaint has been submitted.</p><p><strong>Subject:</strong> ${sanitized.subject}</p><p><strong>Priority:</strong> ${sanitized.priority || "medium"}</p><p><strong>Message:</strong> ${sanitized.message}</p>`,
+            html,
           });
         }
       }

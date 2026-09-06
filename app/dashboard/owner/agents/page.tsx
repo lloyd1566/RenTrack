@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, UserPlus, Mail, Phone, MapPin, X, Eye, Trash2, MessageSquare, Pencil } from "lucide-react";
+import { Users, UserPlus, Mail, Phone, MapPin, X, Eye, EyeOff, Trash2, MessageSquare, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";
@@ -22,6 +22,16 @@ const staggerContainer = {
   hidden: {},
   visible: { transition: { staggerChildren: 0.08, delayChildren: 0.1 } },
 };
+
+function getPasswordErrors(password: string) {
+  const errors: string[] = [];
+  if (password.length < 8) errors.push("at least 8 characters");
+  if (!/[A-Z]/.test(password)) errors.push("one uppercase letter");
+  if (!/[a-z]/.test(password)) errors.push("one lowercase letter");
+  if (!/[0-9]/.test(password)) errors.push("one number");
+  if (!/[^A-Za-z0-9]/.test(password)) errors.push("one special character");
+  return errors;
+}
 
 export default function OwnerAgentsPage() {
   const [agents, setAgents] = useState<UserRecord[]>([]);
@@ -49,10 +59,9 @@ export default function OwnerAgentsPage() {
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [showAgentPassword, setShowAgentPassword] = useState(false);
 
   const loadData = useCallback(async () => {
-    setIsRefreshing(true);
     try {
       const agentRecords = await getAgents();
       setAgents(agentRecords);
@@ -70,8 +79,6 @@ export default function OwnerAgentsPage() {
       setAgentStats(stats);
     } catch (err) {
       console.error("Agents page load error:", err);
-    } finally {
-      setIsRefreshing(false);
     }
   }, []);
 
@@ -81,11 +88,13 @@ export default function OwnerAgentsPage() {
 
   const openRegister = () => {
     setAgentForm({ name: "", email: "", password: "", phone: "", address: "", experience: "", aboutMe: "", gender: "", birthdate: "", country: "", languages: "", hobbies: "" });
+    setShowAgentPassword(false);
     setIsRegisterOpen(true);
   };
 
   const closeRegister = () => {
     setIsRegisterOpen(false);
+    setShowAgentPassword(false);
     setAgentForm({ name: "", email: "", password: "", phone: "", address: "", experience: "", aboutMe: "", gender: "", birthdate: "", country: "", languages: "", hobbies: "" });
   };
 
@@ -93,6 +102,11 @@ export default function OwnerAgentsPage() {
     e.preventDefault();
     if (!agentForm.name || !agentForm.email || !agentForm.password) {
       toast.error("Name, email, and password are required");
+      return;
+    }
+    const passwordErrors = getPasswordErrors(agentForm.password);
+    if (passwordErrors.length > 0) {
+      toast.error(`Password must contain ${passwordErrors.join(", ")}`);
       return;
     }
     setIsSubmitting(true);
@@ -163,9 +177,6 @@ export default function OwnerAgentsPage() {
           <p className="text-text-secondary text-sm mt-1">Manage agents for your properties</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={loadData} disabled={isRefreshing}>
-            {isRefreshing ? "Refreshing..." : "Refresh"}
-          </Button>
           <Button onClick={openRegister}>
             <UserPlus className="h-4 w-4 mr-1.5" />
             Register Agent
@@ -188,7 +199,7 @@ export default function OwnerAgentsPage() {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 10 }}
               transition={{ duration: 0.25, ease: [0.21, 0.47, 0.32, 0.98] }}
-              className="relative w-full max-w-4xl rounded-3xl border border-border bg-white shadow-2xl flex flex-col max-h-[90vh]"
+              className="relative w-full max-w-2xl max-h-[90vh] rounded-3xl border border-border bg-white shadow-2xl flex flex-col overflow-hidden"
             >
               <div className="flex items-center justify-between p-4 border-b border-border">
                 <div>
@@ -202,33 +213,38 @@ export default function OwnerAgentsPage() {
                   <X className="h-4 w-4" />
                 </button>
               </div>
-              <form onSubmit={handleRegister} className="p-4 space-y-2">
+              <form onSubmit={handleRegister} className="max-h-[calc(90vh-90px)] overflow-y-auto p-4 space-y-2">
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                  <div>
+                  <div className="min-w-0">
                     <label className="text-[10px] font-medium text-text-secondary mb-0.5 block">Full Name *</label>
                     <Input placeholder="e.g. Juan Dela Cruz" value={agentForm.name} onChange={(e) => setAgentForm({ ...agentForm, name: e.target.value })} required />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <label className="text-[10px] font-medium text-text-secondary mb-0.5 block">Email *</label>
                     <Input placeholder="agent@example.com" type="email" value={agentForm.email} onChange={(e) => setAgentForm({ ...agentForm, email: e.target.value })} required />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <label className="text-[10px] font-medium text-text-secondary mb-0.5 block">Password *</label>
-                    <Input placeholder="Min. 8 chars" type="password" value={agentForm.password} onChange={(e) => setAgentForm({ ...agentForm, password: e.target.value })} required />
+                    <div className="relative">
+                      <Input placeholder="8+ chars, uppercase, number, symbol" type={showAgentPassword ? "text" : "password"} minLength={8} value={agentForm.password} onChange={(e) => setAgentForm({ ...agentForm, password: e.target.value })} className="pr-10" required />
+                      <button type="button" onClick={() => setShowAgentPassword((visible) => !visible)} className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-tertiary hover:text-text-secondary" aria-label={showAgentPassword ? "Hide password" : "Show password"}>
+                        {showAgentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <label className="text-[10px] font-medium text-text-secondary mb-0.5 block">Phone</label>
                     <Input placeholder="e.g. 09123456789" value={agentForm.phone} onChange={(e) => setAgentForm({ ...agentForm, phone: e.target.value })} />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <label className="text-[10px] font-medium text-text-secondary mb-0.5 block">Address</label>
                     <Input placeholder="e.g. Manila, Philippines" value={agentForm.address} onChange={(e) => setAgentForm({ ...agentForm, address: e.target.value })} />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <label className="text-[10px] font-medium text-text-secondary mb-0.5 block">Experience</label>
                     <Input placeholder="e.g. 2 Years" value={agentForm.experience} onChange={(e) => setAgentForm({ ...agentForm, experience: e.target.value })} />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <label className="text-[10px] font-medium text-text-secondary mb-0.5 block">Gender</label>
                     <Select value={agentForm.gender} onChange={(e) => setAgentForm({ ...agentForm, gender: e.target.value })}>
                       <option value="">Select gender</option>
@@ -237,44 +253,13 @@ export default function OwnerAgentsPage() {
                       <option value="Other">Other</option>
                     </Select>
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <label className="text-[10px] font-medium text-text-secondary mb-0.5 block">Birthdate</label>
                     <Input type="date" value={agentForm.birthdate} onChange={(e) => setAgentForm({ ...agentForm, birthdate: e.target.value })} />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <label className="text-[10px] font-medium text-text-secondary mb-0.5 block">Country</label>
                     <Input placeholder="e.g. Philippines" value={agentForm.country} onChange={(e) => setAgentForm({ ...agentForm, country: e.target.value })} />
-                  </div>
-                  <div className="lg:col-span-2">
-                    <label className="text-[10px] font-medium text-text-secondary mb-0.5 block">Languages</label>
-                    <Select value={agentForm.languages} onChange={(e) => setAgentForm({ ...agentForm, languages: e.target.value })}>
-                      <option value="">Select language</option>
-                      <option value="English">English</option>
-                      <option value="Filipino">Filipino</option>
-                      <option value="Cebuano">Cebuano</option>
-                      <option value="Ilocano">Ilocano</option>
-                      <option value="Other">Other</option>
-                    </Select>
-                  </div>
-                  <div className="lg:col-span-2">
-                    <label className="text-[10px] font-medium text-text-secondary mb-0.5 block">Hobbies</label>
-                    <Select value={agentForm.hobbies} onChange={(e) => setAgentForm({ ...agentForm, hobbies: e.target.value })}>
-                      <option value="">Select hobby</option>
-                      <option value="Basketball">Basketball</option>
-                      <option value="Reading">Reading</option>
-                      <option value="Traveling">Traveling</option>
-                      <option value="Cooking">Cooking</option>
-                      <option value="Other">Other</option>
-                    </Select>
-                  </div>
-                  <div className="lg:col-span-3">
-                    <label className="text-[10px] font-medium text-text-secondary mb-0.5 block">About Me</label>
-                    <textarea
-                      placeholder="Brief introduction about the agent..."
-                      value={agentForm.aboutMe}
-                      onChange={(e) => setAgentForm({ ...agentForm, aboutMe: e.target.value })}
-                      className="w-full h-16 px-2.5 py-1.5 rounded-lg border border-border bg-white text-xs resize-none focus:outline-none focus:ring-2 focus:ring-primary-500/20 focus:border-primary-400"
-                    />
                   </div>
                 </div>
                 <div className="flex gap-2 pt-1">

@@ -26,6 +26,7 @@ import { useAuth } from "@/lib/auth";
 import { useRouter, usePathname } from "next/navigation";
 import { cn, getInitials } from "@/lib/utils";
 import { Avatar } from "@/components/ui/avatar";
+import IncomingCallOverlay from "@/components/incoming-call-overlay";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { getNotifications, markNotificationRead, markAllNotificationsRead, getUnreadMessageCount, Notification } from "@/lib/data";
@@ -314,12 +315,12 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                           </div>
                         ) : (
                           notifications.map((n) => (
-                            <button
-                              key={n.id}
-                              onClick={() => {
-                                markNotificationRead(n.id);
-                                getNotifications(user.id).then(setNotifications);
-                              }}
+                              <button
+                                key={n.id}
+                                onClick={async () => {
+                                  await markNotificationRead(n.id);
+                                  getNotifications(user.id).then(setNotifications).catch(() => {});
+                                }}
                               className={cn(
                                 "w-full text-left p-4 border-b border-border last:border-0 hover:bg-surface-secondary transition-colors",
                                 !n.read && "bg-primary-50/50 dark:bg-primary-900/10"
@@ -355,17 +356,17 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                       </div>
                       {notifications.length > 0 && (
                         <div className="p-3 border-t border-border">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="w-full text-xs"
-                            onClick={() => {
-                              markAllNotificationsRead(user.id);
-                              getNotifications(user.id).then(setNotifications);
-                            }}
-                          >
-                            Mark all as read
-                          </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="w-full text-xs"
+                              onClick={async () => {
+                                await markAllNotificationsRead(user.id);
+                                getNotifications(user.id).then(setNotifications).catch(() => {});
+                              }}
+                            >
+                              Mark all as read
+                            </Button>
                         </div>
                       )}
                     </motion.div>
@@ -451,6 +452,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <>{children}</>
         )}
 
+       <IncomingCallOverlay />
+
        {showLogoutModal && createPortal(
         <div className="fixed inset-0 z-[9999] flex items-center justify-center">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowLogoutModal(false)} />
@@ -467,7 +470,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
               <p className="text-sm text-text-secondary mb-6">{logoutLoading ? "Please wait while we securely log you out." : "Are you sure you want to log out of your account?"}</p>
               <div className="flex w-full gap-2">
                 <Button variant="outline" className="flex-1" onClick={() => setShowLogoutModal(false)} disabled={logoutLoading}>Cancel</Button>
-                <Button className="flex-1 bg-red-600 hover:bg-red-700 text-white" disabled={logoutLoading} onClick={async () => { setLogoutLoading(true); await logout(); router.push("/"); }}>Log Out</Button>
+                <Button className="flex-1 bg-red-600 hover:bg-red-700 text-white" disabled={logoutLoading} onClick={async () => { setLogoutLoading(true); logout(); router.push("/"); }}>Log Out</Button>
               </div>
             </div>
           </div>

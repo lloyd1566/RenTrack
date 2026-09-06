@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, UserPlus } from "lucide-react";
+import { X, UserPlus, Eye, EyeOff, Mail, Phone, MapPin, Home, Calendar, DollarSign, Lock, CheckCircle2, AlertCircle, User } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 
@@ -25,6 +25,7 @@ interface CreateTenantModalProps {
 }
 
 export default function CreateTenantModal({ isOpen, onClose, onSubmit, submitting }: CreateTenantModalProps) {
+  const [showPassword, setShowPassword] = useState(false);
   const [form, setForm] = useState({
     name: "",
     email: "",
@@ -42,6 +43,7 @@ export default function CreateTenantModal({ isOpen, onClose, onSubmit, submittin
     e.preventDefault();
     await onSubmit(form);
     setForm({ name: "", email: "", phone: "", address: "", propertyName: "", unitNumber: "", rentAmount: "", contractStart: "", contractEnd: "", password: "" });
+    setShowPassword(false);
   };
 
   return (
@@ -53,89 +55,243 @@ export default function CreateTenantModal({ isOpen, onClose, onSubmit, submittin
           exit={{ opacity: 0 }}
           className="fixed inset-0 z-[9999] flex items-center justify-center p-4"
         >
-          <div className="absolute inset-0 bg-black/50" onClick={onClose} />
+          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
           <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.95 }}
-            className="relative w-[520px] h-[520px] rounded-2xl border border-border bg-white shadow-2xl overflow-hidden"
+            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            transition={{ type: "spring", damping: 25, stiffness: 300 }}
+            className="relative w-full max-w-2xl max-h-[90vh] rounded-3xl border border-gray-200 bg-white shadow-2xl overflow-hidden"
           >
-            <div className="p-5 border-b border-border flex items-center justify-between">
-              <div>
-                <h3 className="text-lg font-semibold text-foreground">Create Tenant</h3>
-                <p className="text-xs text-text-secondary">Add tenant, rental, and account information</p>
+            {/* Header with gradient */}
+            <div className="relative bg-gradient-to-br from-blue-600 to-blue-700 px-6 py-5">
+              <div className="absolute inset-0 bg-grid-white/10 [mask-image:linear-gradient(0deg,transparent,rgba(255,255,255,0.5))]"></div>
+              <div className="relative flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-xl bg-white/20 p-2.5 backdrop-blur-sm">
+                    <UserPlus className="h-5 w-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-semibold text-white">Create New Tenant</h3>
+                    <p className="text-xs text-blue-100 mt-0.5">Set up tenant account and rental details</p>
+                  </div>
+                </div>
+                <button
+                  onClick={onClose}
+                  className="rounded-lg bg-white/10 p-2 text-white/80 hover:bg-white/20 hover:text-white transition-all"
+                  aria-label="Close modal"
+                >
+                  <X className="h-4 w-4" />
+                </button>
               </div>
-              <button onClick={onClose} className="h-8 w-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-foreground hover:bg-surface-secondary transition-colors">
-                <X className="h-4 w-4" />
-              </button>
             </div>
-            <form onSubmit={handleSubmit} className="p-5 space-y-4 overflow-y-auto h-[calc(100%-140px)]">
-              <div>
-                <h4 className="text-xs font-semibold text-blue-600 mb-2 uppercase tracking-wider">Tenant Information</h4>
-                <div className="grid grid-cols-2 gap-2.5">
-                  <div>
-                    <label className="block text-xs font-medium text-foreground mb-1">Full Name *</label>
-                    <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Juan Dela Cruz" required />
+
+            <form onSubmit={handleSubmit} className="max-h-[calc(90vh-140px)] overflow-y-auto">
+              <div className="p-6 space-y-6">
+                {/* Personal Information Section */}
+                <div className="rounded-2xl border border-gray-100 bg-gray-50/50 p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="rounded-lg bg-blue-100 p-1.5">
+                      <User className="h-4 w-4 text-blue-600" />
+                    </div>
+                    <h4 className="text-sm font-semibold text-gray-900">Personal Information</h4>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="col-span-2 sm:col-span-1">
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-700 mb-1.5">
+                        <User className="h-3 w-3 text-gray-400" />
+                        Full Name <span className="text-red-500">*</span>
+                      </label>
+                      <Input
+                        value={form.name}
+                        onChange={(e) => setForm({ ...form, name: e.target.value })}
+                        placeholder="Juan Dela Cruz"
+                        required
+                        className="h-10 rounded-xl border-gray-200 bg-white focus:border-blue-500 focus:ring-blue-500/20"
+                      />
+                    </div>
+                    <div className="col-span-2 sm:col-span-1">
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-700 mb-1.5">
+                        <Mail className="h-3 w-3 text-gray-400" />
+                        Email Address <span className="text-red-500">*</span>
+                      </label>
+                      <Input
+                        type="email"
+                        value={form.email}
+                        onChange={(e) => setForm({ ...form, email: e.target.value })}
+                        placeholder="juan@example.com"
+                        required
+                        className="h-10 rounded-xl border-gray-200 bg-white focus:border-blue-500 focus:ring-blue-500/20"
+                      />
+                    </div>
+                    <div className="col-span-2 sm:col-span-1">
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-700 mb-1.5">
+                        <Phone className="h-3 w-3 text-gray-400" />
+                        Phone Number
+                      </label>
+                      <Input
+                        value={form.phone}
+                        onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                        placeholder="+63 XXX XXX XXXX"
+                        className="h-10 rounded-xl border-gray-200 bg-white focus:border-blue-500 focus:ring-blue-500/20"
+                      />
+                    </div>
+                    <div className="col-span-2 sm:col-span-1">
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-700 mb-1.5">
+                        <MapPin className="h-3 w-3 text-gray-400" />
+                        Address
+                      </label>
+                      <Input
+                        value={form.address}
+                        onChange={(e) => setForm({ ...form, address: e.target.value })}
+                        placeholder="Tenant address"
+                        className="h-10 rounded-xl border-gray-200 bg-white focus:border-blue-500 focus:ring-blue-500/20"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Rental Details Section */}
+                <div className="rounded-2xl border border-gray-100 bg-gray-50/50 p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="rounded-lg bg-emerald-100 p-1.5">
+                      <Home className="h-4 w-4 text-emerald-600" />
+                    </div>
+                    <h4 className="text-sm font-semibold text-gray-900">Rental Details</h4>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-700 mb-1.5">
+                        <Home className="h-3 w-3 text-gray-400" />
+                        Property Name
+                      </label>
+                      <Input
+                        value={form.propertyName}
+                        onChange={(e) => setForm({ ...form, propertyName: e.target.value })}
+                        placeholder="e.g., Sunset Residences"
+                        className="h-10 rounded-xl border-gray-200 bg-white focus:border-blue-500 focus:ring-blue-500/20"
+                      />
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-700 mb-1.5">
+                        <Home className="h-3 w-3 text-gray-400" />
+                        Unit Number
+                      </label>
+                      <Input
+                        value={form.unitNumber}
+                        onChange={(e) => setForm({ ...form, unitNumber: e.target.value })}
+                        placeholder="e.g., Unit 4B"
+                        className="h-10 rounded-xl border-gray-200 bg-white focus:border-blue-500 focus:ring-blue-500/20"
+                      />
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-700 mb-1.5">
+                        <DollarSign className="h-3 w-3 text-gray-400" />
+                        Monthly Rent (₱)
+                      </label>
+                      <Input
+                        type="number"
+                        value={form.rentAmount}
+                        onChange={(e) => setForm({ ...form, rentAmount: e.target.value })}
+                        placeholder="15000"
+                        className="h-10 rounded-xl border-gray-200 bg-white focus:border-blue-500 focus:ring-blue-500/20"
+                      />
+                    </div>
+                    <div>
+                      <label className="flex items-center gap-1.5 text-xs font-medium text-gray-700 mb-1.5">
+                        <Calendar className="h-3 w-3 text-gray-400" />
+                        Contract End Date
+                      </label>
+                      <Input
+                        type="date"
+                        value={form.contractEnd}
+                        onChange={(e) => setForm({ ...form, contractEnd: e.target.value })}
+                        className="h-10 rounded-xl border-gray-200 bg-white focus:border-blue-500 focus:ring-blue-500/20"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Account Security Section */}
+                <div className="rounded-2xl border border-gray-100 bg-gray-50/50 p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="rounded-lg bg-purple-100 p-1.5">
+                      <Lock className="h-4 w-4 text-purple-600" />
+                    </div>
+                    <h4 className="text-sm font-semibold text-gray-900">Account Security</h4>
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-foreground mb-1">Email *</label>
-                    <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="juan@example.com" required />
+                    <label className="flex items-center gap-1.5 text-xs font-medium text-gray-700 mb-1.5">
+                      <Lock className="h-3 w-3 text-gray-400" />
+                      Initial Password <span className="text-red-500">*</span>
+                    </label>
+                    <div className="relative">
+                      <Input
+                        type={showPassword ? "text" : "password"}
+                        value={form.password}
+                        onChange={(e) => setForm({ ...form, password: e.target.value })}
+                        placeholder="Min. 8 characters"
+                        required
+                        className="h-10 rounded-xl border-gray-200 bg-white pr-10 focus:border-blue-500 focus:ring-blue-500/20"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((visible) => !visible)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                        aria-label={showPassword ? "Hide password" : "Show password"}
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                    <p className="mt-1.5 text-xs text-gray-500">Tenant will be required to change this on first login</p>
                   </div>
-                  <div>
-                    <label className="block text-xs font-medium text-foreground mb-1">Phone</label>
-                    <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+63 XXX XXX XXXX" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-foreground mb-1">Address</label>
-                    <Input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} placeholder="Tenant address" />
+                </div>
+
+                {/* Info Banner */}
+                <div className="rounded-xl bg-blue-50 border border-blue-100 p-4">
+                  <div className="flex gap-3">
+                    <AlertCircle className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-xs font-medium text-blue-900">Account Creation Notice</p>
+                      <p className="text-xs text-blue-700 mt-1">
+                        A verification email will be sent to the tenant&#39;s email address. They must verify their account before accessing the dashboard.
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
-              <div>
-                <h4 className="text-xs font-semibold text-blue-600 mb-2 uppercase tracking-wider">Rental Information</h4>
-                <div className="grid grid-cols-2 gap-2.5">
-                  <div>
-                    <label className="block text-xs font-medium text-foreground mb-1">Property Name *</label>
-                    <Input value={form.propertyName} onChange={(e) => setForm({ ...form, propertyName: e.target.value })} placeholder="Property name" required />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-foreground mb-1">Unit Number *</label>
-                    <Input value={form.unitNumber} onChange={(e) => setForm({ ...form, unitNumber: e.target.value })} placeholder="Rental unit / room" required />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-foreground mb-1">Monthly Rent</label>
-                    <Input type="number" value={form.rentAmount} onChange={(e) => setForm({ ...form, rentAmount: e.target.value })} placeholder="Monthly rent" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-foreground mb-1">Contract Start</label>
-                    <Input type="date" value={form.contractStart} onChange={(e) => setForm({ ...form, contractStart: e.target.value })} />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-medium text-foreground mb-1">Contract End</label>
-                    <Input type="date" value={form.contractEnd} onChange={(e) => setForm({ ...form, contractEnd: e.target.value })} />
-                  </div>
+
+              {/* Footer */}
+              <div className="sticky bottom-0 border-t border-gray-100 bg-white px-6 py-4">
+                <div className="flex items-center justify-end gap-3">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={onClose}
+                    disabled={submitting}
+                    className="h-10 rounded-xl text-sm font-medium text-gray-700 hover:bg-gray-100"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    disabled={submitting}
+                    className="h-10 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium shadow-sm"
+                  >
+                    {submitting ? (
+                      <span className="flex items-center gap-2">
+                        <span className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        Creating Account...
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4" />
+                        Create Tenant Account
+                      </span>
+                    )}
+                  </Button>
                 </div>
               </div>
-              <div>
-                <h4 className="text-xs font-semibold text-blue-600 mb-2 uppercase tracking-wider">Account Information</h4>
-                <div>
-                  <label className="block text-xs font-medium text-foreground mb-1">Password *</label>
-                  <Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder="Min. 8 characters" required />
-                </div>
-              </div>
-              <Button type="submit" disabled={submitting} className="w-full">
-                {submitting ? (
-                  <span className="flex items-center gap-2">
-                    <span className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    Creating...
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-2">
-                    <UserPlus className="h-4 w-4" />
-                    Create Tenant Account
-                  </span>
-                )}
-              </Button>
             </form>
           </motion.div>
         </motion.div>

@@ -91,7 +91,15 @@ export async function POST(request: NextRequest) {
                             </td>
                           </tr>
                         </table>
-                        <p style="color: #4b5563; line-height: 1.7; margin: 0; font-size: 14px;">This code will expire in 15 minutes. If you did not create an account, please ignore this email.</p>
+                        <p style="color: #4b5563; line-height: 1.7; margin: 0 0 24px; font-size: 14px;">This code will expire in 15 minutes. If you did not create an account, please ignore this email.</p>
+                        <table cellpadding="0" cellspacing="0" border="0" style="margin: 0 0 28px; width: 100%;">
+                          <tr>
+                            <td align="center">
+                              <a href="${origin}/verify-otp?email=${encodeURIComponent(user.email)}" style="display: inline-block; padding: 12px 32px; background: #2563eb; color: #ffffff; text-decoration: none; border-radius: 10px; font-weight: 600; font-size: 14px;">Verify Email</a>
+                            </td>
+                          </tr>
+                        </table>
+                        <p style="color: #6b7280; line-height: 1.7; margin: 0; font-size: 13px;">Or copy this link into your browser:<br/>${origin}/verify-otp?email=${encodeURIComponent(user.email)}</p>
                       </td>
                     </tr>
                     <tr>

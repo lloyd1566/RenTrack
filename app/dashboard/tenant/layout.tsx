@@ -7,9 +7,7 @@ import { ChevronDown, User, LogOut, X, Loader2 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
-import { getNotifications, Notification } from "@/lib/data";
 import { Avatar } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import TenantNavbar from "@/components/tenant-navbar";
 
@@ -17,24 +15,14 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
   const { user, logout, isAuthenticated, isLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
-  const [showUserMenu, setShowUserMenu] = useState(false);
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
-  const [notifications, setNotifications] = useState<Notification[]>([]);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push("/");
     }
   }, [isLoading, isAuthenticated, router]);
-
-  useEffect(() => {
-    if (user) {
-      getNotifications(user.id).then(setNotifications);
-    }
-  }, [user]);
-
-  const unreadCount = notifications.filter((n) => !n.read).length;
 
   if (isLoading) {
     return (
@@ -90,10 +78,10 @@ export default function TenantLayout({ children }: { children: React.ReactNode }
                 )}
               </div>
               <h3 className="text-xl font-semibold text-gray-900 mb-2">{logoutLoading ? "Logging out..." : "Log Out"}</h3>
-              <p className="text-sm text-gray-500 mb-6">{logoutLoading ? "Please wait while we securely log you out." : "Are you sure you want to log out of your account?"}</p>
+              <p className="text-sm text-gray-500 mb-6">Are you sure you want to log out of your account?</p>
               <div className="flex w-full gap-3">
                 <Button variant="outline" className="flex-1" onClick={() => setShowLogoutModal(false)} disabled={logoutLoading}>Cancel</Button>
-                <Button className="flex-1 bg-red-600 hover:bg-red-700 text-white" disabled={logoutLoading} onClick={async () => { setLogoutLoading(true); await logout(); router.push("/"); }}>Log Out</Button>
+                <Button className="flex-1 bg-red-600 hover:bg-red-700 text-white" disabled={logoutLoading} onClick={async () => { setLogoutLoading(true); logout(); router.push("/"); }}>Log Out</Button>
               </div>
             </div>
           </div>

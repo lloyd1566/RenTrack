@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAdminSupabase, initDatabase } from "@/lib/db";
-import { sendSystemEmail } from "@/lib/mail";
+import { sendSystemEmail, createRentTrackEmailTemplate, escapeHtml } from "@/lib/mail";
 
 export async function POST(request: NextRequest) {
   try {
@@ -61,13 +61,13 @@ export async function POST(request: NextRequest) {
 
     if (agentEmails.length > 0 && senderEmail) {
       const subject = `New chat message from ${senderName}`;
-      const html = `
-        <h2>New Chat Message</h2>
-        <p><strong>From:</strong> ${senderName} (${senderEmail})${senderPhone ? `<br/><strong>Phone:</strong> ${senderPhone}` : ""}</p>
-        <p><strong>Property:</strong> ${propertyId || "General inquiry"}</p>
-        <p><strong>Message:</strong></p>
-        <p>${text.replace(/</g, "&lt;").replace(/>/g, "&gt;")}</p>
-      `;
+      const safeText = (text || "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const body = `New Chat Message<br /><br /><strong>From:</strong> ${escapeHtml(senderName)} (${escapeHtml(senderEmail)})${senderPhone ? `<br /><strong>Phone:</strong> ${escapeHtml(senderPhone)}` : ""}<br /><strong>Property:</strong> ${escapeHtml(propertyId || "General inquiry")}<br /><br /><strong>Message:</strong><br />${safeText}`;
+      const html = createRentTrackEmailTemplate({
+        title: "New Inquiry",
+        body,
+        footerNote: "An agent will respond to this inquiry shortly.",
+      });
       const textBody = `New Chat Message\nFrom: ${senderName} (${senderEmail})${senderPhone ? `\nPhone: ${senderPhone}` : ""}\nProperty: ${propertyId || "General inquiry"}\nMessage: ${text}`;
 
       for (const email of agentEmails) {

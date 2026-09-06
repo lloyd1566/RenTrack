@@ -79,6 +79,9 @@ export interface UserRecord {
   avatarUrl?: string;
   idVerificationUrl?: string;
   idVerificationStatus?: string;
+  isOnline?: boolean;
+  lastLoginAt?: string | null;
+  lastSeenAt?: string | null;
   experience?: string;
   aboutMe?: string;
   gender?: string;
@@ -100,7 +103,7 @@ export interface Payment {
   paymentDate: string;
   dueDate: string;
   status: "paid" | "pending" | "overdue" | "partial";
-  paymentMethod: "cash" | "bank_transfer" | "credit_card" | "gcash" | "other";
+  paymentMethod: "cash" | "upload_receipt";
   paymentMethodNote?: string;
   bankName?: string;
   accountNumber?: string;
@@ -141,8 +144,12 @@ export interface AuditLog {
 // ─── API Helper ────────────────────────────────────────────────────────────
 
 async function apiGet(url: string) {
-  const res = await fetch(url, { credentials: "include" });
-  return res.json();
+  try {
+    const res = await fetch(url, { credentials: "include" });
+    return await res.json();
+  } catch {
+    return { success: false, error: "Request unavailable" };
+  }
 }
 
 async function apiPost(url: string, body: any) {
@@ -191,7 +198,7 @@ export async function getProperties(_user?: any): Promise<Property[]> {
   return result.success ? result.properties : [];
 }
 
-export async function addProperty(data: Omit<Property, "id" | "createdAt" | "createdBy">, userId: string): Promise<Property> {
+export async function addProperty(data: Omit<Property, "id" | "createdAt" | "createdBy">, _userId: string): Promise<Property> {
   const result = await apiPost("/api/data/properties", data);
   return result.property || result;
 }
@@ -235,7 +242,7 @@ export async function getTenants(_user?: any): Promise<TenantRecord[]> {
   return result.success ? result.tenants : [];
 }
 
-export async function addTenant(data: Omit<TenantRecord, "id" | "createdAt" | "createdBy">, userId: string): Promise<TenantRecord> {
+export async function addTenant(data: Omit<TenantRecord, "id" | "createdAt" | "createdBy">, _userId: string): Promise<TenantRecord> {
   const result = await apiPost("/api/data/tenants", data);
   return result.tenant;
 }
@@ -249,7 +256,7 @@ export async function updateTenantAssignment(tenantId: string, data: {
   return result.tenant || null;
 }
 
-export async function updateTenantVerification(tenantId: string, status: "approved" | "rejected" | "pending", comment?: string): Promise<TenantRecord | null> {
+export async function updateTenantVerification(tenantId: string, status: "approved" | "rejected" | "pending", _comment?: string): Promise<TenantRecord | null> {
   const result = await apiPatch("/api/data/tenants", { tenantId, idVerificationStatus: status });
   return result.tenant || null;
 }
@@ -292,14 +299,22 @@ export async function updatePayment(id: string, data: Partial<Payment>): Promise
 export async function verifyPayment(payment: Payment, verifiedBy: string, status: "paid" | "rejected"): Promise<Payment | null> {
   const updateData: any = { verifiedBy, verifiedAt: new Date().toISOString() };
   if (status === "paid") {
-    const newBalance = Math.max(0, payment.amountDue - payment.amountPaid);
+    const amountDue = Number(payment.amountDue || 0);
+    const amountPaid = Number(payment.amountPaid || 0);
+    const newBalance = Math.max(0, amountDue - amountPaid);
+    const isFullyPaid = amountDue > 0 ? amountPaid >= amountDue : amountPaid > 0;
     updateData.balance = newBalance;
-    updateData.status = "paid";
+    updateData.status = isFullyPaid ? "paid" : "partial";
   } else {
     updateData.status = "pending";
   }
   const result = await apiPatch("/api/data/payments", { id: payment.id, data: updateData });
   return result.payment || null;
+}
+
+export async function resetTenantPayments(tenantId: string): Promise<boolean> {
+  const result = await apiDelete("/api/data/payments/reset", { tenantId });
+  return Boolean(result?.success);
 }
 
 export interface MonthlyTrend {
@@ -318,8 +333,7 @@ export async function getPaymentTrends(_user?: any): Promise<MonthlyTrend[]> {
 
 export async function getNotifications(userId?: string): Promise<Notification[]> {
   const url = userId ? `/api/data/notifications?userId=${userId}&_t=${Date.now()}` : `/api/data/notifications?_t=${Date.now()}`;
-  const res = await fetch(url, { credentials: "include", cache: "no-store" });
-  const result = await res.json();
+  const result = await apiGet(url);
   return result.success ? result.notifications : [];
 }
 
@@ -328,15 +342,10 @@ export async function addNotification(data: Omit<Notification, "id" | "createdAt
   return result.notification;
 }
 
-export async function notifyAdmins(data: Omit<Notification, "id" | "createdAt" | "userId">): Promise<void> {
-  const result = await apiGet("/api/auth/users");
-  if (result.success && result.users) {
-    const adminUsers = result.users.filter((u: any) => u.role === "admin" || u.role === "owner");
-    await Promise.all(
-      adminUsers.map((admin: any) =>
-        addNotification({ ...data, userId: admin.id })
-      )
-    );
+export async function notifyAdmins(data: Omit<Notification, "id" | "createdAt" | "userId"> & { recipientRole?: string }): Promise<void> {
+  const result = await apiPost("/api/notifications/send-to-admins", data);
+  if (!result.success) {
+    throw new Error(result.error || "Failed to send notification");
   }
 }
 
@@ -350,8 +359,7 @@ export async function markAllNotificationsRead(userId: string): Promise<void> {
 }
 
 export async function getUnreadCount(userId: string): Promise<number> {
-  const res = await fetch(`/api/data/notifications?userId=${userId}&count=true&_t=${Date.now()}`, { credentials: "include", cache: "no-store" });
-  const result = await res.json();
+  const result = await apiGet(`/api/data/notifications?userId=${userId}&count=true&_t=${Date.now()}`);
   return result.success ? result.count : 0;
 }
 
@@ -430,7 +438,7 @@ export async function registerAgent(data: {
   country?: string;
   languages?: string;
   hobbies?: string;
-}): Promise<UserRecord> {
+}): Promise<UserRecord & { needsOtp?: boolean; devOtp?: string }> {
   const result = await apiPost("/api/auth/signup", { ...data, role: "agent" });
   if (result && result.success) {
     return {
@@ -448,7 +456,9 @@ export async function registerAgent(data: {
       country: data.country,
       languages: data.languages,
       hobbies: data.hobbies,
-    } as UserRecord;
+      needsOtp: result.needsOtp,
+      devOtp: result.devOtp,
+    } as UserRecord & { needsOtp?: boolean; devOtp?: string };
   }
   throw new Error(result?.error || result?.message || "Failed to register agent");
 }
@@ -557,6 +567,34 @@ export async function getTotalReceivables(user?: any): Promise<number> {
 export async function getTotalCollected(user?: any): Promise<number> {
   const payments = await getPayments(user);
   return payments.filter((p) => p.status === "paid").reduce((sum, p) => sum + p.amountPaid, 0);
+}
+
+export function getTenantPaymentSummary(payments: Payment[], tenantId: string) {
+  const tenantPayments = payments.filter((payment) => payment.tenantId === tenantId);
+  const totalPaid = tenantPayments
+    .filter((payment) => payment.status === "paid")
+    .reduce((sum, payment) => sum + (payment.amountPaid || 0), 0);
+
+  const pendingOrOverduePayments = tenantPayments.filter((payment) => {
+    if (!(payment.amountPaid > 0)) return false;
+    return ["pending", "overdue", "partial"].includes(payment.status || "pending");
+  });
+
+  const outstanding = tenantPayments
+    .filter((payment) => ["pending", "overdue", "partial"].includes(payment.status || "pending"))
+    .reduce((sum, payment) => sum + Math.max(0, payment.balance || 0), 0);
+
+  const waitingForConfirmation = pendingOrOverduePayments.length > 0
+    ? [...pendingOrOverduePayments].sort((a, b) => new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime())[0]
+    : null;
+
+  return {
+    totalPaid,
+    outstanding,
+    hasAwaitingConfirmation: Boolean(waitingForConfirmation),
+    waitingForConfirmation,
+    hasConfirmedPayment: tenantPayments.some((payment) => payment.status === "paid" && payment.amountPaid > 0),
+  };
 }
 
 export function getOccupancyRate(_propertyId: string): number {
@@ -700,9 +738,14 @@ export async function updateUserRole(userId: string, role: string): Promise<bool
   return result.success;
 }
 
-export async function updateUser(userId: string, data: Partial<Pick<UserRecord, "name" | "email" | "phone" | "address">>): Promise<UserRecord | null> {
+export async function updateUser(userId: string, data: Partial<Pick<UserRecord, "name" | "email" | "phone" | "address" | "idVerificationStatus">>): Promise<UserRecord | null> {
   const result = await apiPatch("/api/auth/users/patch", { userId, data });
   return result.success ? (result.user || data as any) : null;
+}
+
+export async function resetAgentData(userId: string): Promise<boolean> {
+  const result = await apiPost("/api/auth/users/reset", { userId });
+  return result.success;
 }
 
 export async function getAgentStats(userId: string): Promise<{ properties: number; tenants: number; payments: number }> {
@@ -731,11 +774,18 @@ export interface ChatInquiry {
   replyText?: string;
   repliedAt?: string;
   agentName?: string;
+  visitorReply?: string;
+  visitorRepliedAt?: string;
+  agentId?: string;
 }
 
 export async function getInquiries(): Promise<ChatInquiry[]> {
-  const result = await apiGet("/api/chat/inquiries");
-  return result.success ? result.inquiries : [];
+  try {
+    const result = await apiGet("/api/chat/inquiries");
+    return result.success ? result.inquiries : [];
+  } catch {
+    return [];
+  }
 }
 
 export async function getUnreadInquiryCount(): Promise<number> {
@@ -744,10 +794,11 @@ export async function getUnreadInquiryCount(): Promise<number> {
   return (result.inquiries || []).filter((inq: any) => inq.status === "new").length;
 }
 
-export async function updateInquiryStatus(id: string, status: string, replyText?: string): Promise<void> {
+export async function updateInquiryStatus(id: string, status: string, replyText?: string): Promise<{ success: boolean; emailSent?: boolean }> {
   const result = await apiPatch(`/api/chat/inquiries`, { id, status, replyText });
   if (!result.success) throw new Error(result.error || "Failed to update inquiry");
   if (typeof window !== "undefined") {
     window.dispatchEvent(new Event("renttrack-notifications-updated"));
   }
+  return result;
 }

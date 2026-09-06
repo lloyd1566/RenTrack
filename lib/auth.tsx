@@ -61,8 +61,13 @@ async function apiCall(url: string, body: Record<string, unknown>) {
 }
 
 async function apiGet(url: string) {
-  const res = await fetch(url, { credentials: "include" });
-  return res.json();
+  try {
+    const res = await fetch(url, { credentials: "include" });
+    const data = await res.json();
+    return { ...data, status: res.status };
+  } catch {
+    return { success: false, transient: true, status: 0 };
+  }
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -85,15 +90,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (result.success) {
           setUserState(result.user);
           localStorage.setItem(SESSION_KEY, JSON.stringify(result.user));
-        } else {
+        } else if (result.status === 401) {
           setUserState(null);
           localStorage.removeItem(SESSION_KEY);
         }
+      } catch {
+        setUserState(null);
+        localStorage.removeItem(SESSION_KEY);
       } finally {
         setIsLoading(false);
       }
     })();
   }, [setUser]);
+
+  useEffect(() => {
+    if (!user) return;
+
+    const heartbeat = window.setInterval(() => {
+      void apiGet("/api/auth/me").catch(() => undefined);
+    }, 60_000);
+
+    return () => window.clearInterval(heartbeat);
+  }, [user]);
 
   const signup = useCallback(
     async (name: string, email: string, password: string, role: UserRole, phone?: string, paymentPin?: string, address?: string): Promise<boolean> => {
@@ -177,17 +195,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (result.success) {
         setUserState(result.user);
         localStorage.setItem(SESSION_KEY, JSON.stringify(result.user));
-        window.dispatchEvent(new Event("renttrack-profile-updated"));
-        profileChannel?.postMessage({ type: "profile-updated", userId: result.user?.id });
-      } else {
+      } else if (result.status === 401) {
         setUserState(null);
         localStorage.removeItem(SESSION_KEY);
       }
     } catch {
-      setUserState(null);
-      localStorage.removeItem(SESSION_KEY);
     }
-  }, [setUser, profileChannel]);
+  }, [setUser]);
 
   useEffect(() => {
     if (!profileChannel) return;

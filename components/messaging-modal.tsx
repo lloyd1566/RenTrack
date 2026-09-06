@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { X, Send, User, Image as ImageIcon, Mic, Square, Phone, Video, MoreVertical, Home } from "lucide-react";
+import { motion, AnimatePresence, useDragControls } from "framer-motion";
+import { X, Send, User, Image as ImageIcon, Mic, Square, Phone, Video, Home } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { getInitials, getTimeAgo } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
@@ -30,7 +30,9 @@ const roleColors: Record<string, string> = {
   tenant: "bg-amber-100 text-amber-700 border-amber-200",
 };
 
-export default function MessagingModal({ isOpen, onClose, otherUser, properties = [] }: MessagingModalProps) {
+const EMPTY_PROPERTIES: MessagingModalProps["properties"] = [];
+
+export default function MessagingModal({ isOpen, onClose, otherUser, properties = EMPTY_PROPERTIES }: MessagingModalProps) {
   const { user } = useAuth();
   const [messages, setMessages] = useState<Message[]>([]);
   const [newMessage, setNewMessage] = useState("");
@@ -44,6 +46,8 @@ export default function MessagingModal({ isOpen, onClose, otherUser, properties 
   const [isRecording, setIsRecording] = useState(false);
   const [recordingTime, setRecordingTime] = useState(0);
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
+  const [recordingError, setRecordingError] = useState<string | null>(null);
+  const [checkingMicrophone, setCheckingMicrophone] = useState(false);
   const [showPropertyPicker, setShowPropertyPicker] = useState(false);
   const [loadedProperties, setLoadedProperties] = useState<MessagingModalProps["properties"]>(properties);
   const audioPreviewUrl = audioBlob ? URL.createObjectURL(audioBlob) : null;
@@ -53,6 +57,7 @@ export default function MessagingModal({ isOpen, onClose, otherUser, properties 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const recordingTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const dragControls = useDragControls();
   const availableProperties = loadedProperties || [];
 
   useEffect(() => {
@@ -85,6 +90,7 @@ export default function MessagingModal({ isOpen, onClose, otherUser, properties 
       setAudioBlob(null);
       setIsRecording(false);
       setRecordingTime(0);
+      setRecordingError(null);
       getMessages(otherUser.id)
         .then((msgs) => {
           setMessages(msgs);
@@ -171,7 +177,12 @@ export default function MessagingModal({ isOpen, onClose, otherUser, properties 
   };
 
   const startRecording = async () => {
+    setRecordingError(null);
+    setCheckingMicrophone(true);
     try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        throw new Error("Microphone recording requires HTTPS or localhost.");
+      }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus") 
         ? "audio/webm;codecs=opus" 
@@ -207,9 +218,14 @@ export default function MessagingModal({ isOpen, onClose, otherUser, properties 
         });
       }, 1000);
     } catch (err) {
-      console.error("Microphone access error:", err);
-      const message = err instanceof Error ? err.message : "Microphone access denied or not available";
+      const errorName = err instanceof DOMException ? err.name : "";
+      const message = errorName === "NotAllowedError" || errorName === "SecurityError"
+        ? "Microphone permission was denied. Allow microphone access in your browser settings, then try again."
+        : err instanceof Error ? err.message : "Microphone access denied or not available";
+      setRecordingError(message);
       toast.error(message);
+    } finally {
+      setCheckingMicrophone(false);
     }
   };
 
@@ -296,26 +312,37 @@ export default function MessagingModal({ isOpen, onClose, otherUser, properties 
   if (!isOpen || !otherUser.id) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4">
+    <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center p-0 sm:p-4">
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="absolute inset-0 bg-black/40"
-        onClick={onClose}
+        className="pointer-events-none absolute inset-0 bg-black/40"
       />
       <motion.div
         initial={{ opacity: 0, scale: 0.95, y: 10 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 10 }}
         transition={{ duration: 0.25, ease: [0.21, 0.47, 0.32, 0.98] }}
-        className="relative w-full h-full sm:h-[600px] sm:max-w-lg sm:rounded-3xl bg-white sm:shadow-2xl flex flex-col overflow-hidden"
+        drag
+        dragControls={dragControls}
+        dragListener={false}
+        dragMomentum={false}
+        dragElastic={0.05}
+        className="pointer-events-auto relative w-full h-full sm:h-[600px] sm:max-w-lg sm:rounded-3xl bg-white sm:shadow-2xl flex flex-col overflow-hidden"
       >
         {/* Header - Messenger style */}
-        <div className="flex items-center gap-3 p-3 bg-[#0084ff] text-white shrink-0">
+        <div
+          className="flex cursor-move select-none touch-none items-center gap-3 p-3 bg-[#0084ff] text-white shrink-0"
+          onPointerDown={(event) => {
+            if (!(event.target as HTMLElement).closest("button")) dragControls.start(event);
+          }}
+        >
           <button
+            type="button"
             onClick={onClose}
-            className="sm:hidden h-9 w-9 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors"
+            className="h-9 w-9 flex items-center justify-center rounded-full hover:bg-white/20 transition-colors"
+            aria-label="Close message"
           >
             <X className="h-5 w-5 text-white" />
           </button>
@@ -325,7 +352,25 @@ export default function MessagingModal({ isOpen, onClose, otherUser, properties 
             <p className="text-xs text-white/80 capitalize">{otherUser.role}</p>
           </div>
           <div className="flex items-center gap-1">
-            <button onClick={() => toast.info("Audio calling is coming soon")} className="h-9 w-9 hidden sm:flex items-center justify-center rounded-full hover:bg-white/20 transition-colors">
+            <button
+              onClick={async () => {
+                try {
+                  const roomName = `RentTrack-Audio-${[user?.id || "user", otherUser.id].sort().join("-")}`;
+                  const roomUrl = `https://meet.jit.si/${encodeURIComponent(roomName)}#config.startWithAudioMuted=false&config.startWithVideoMuted=true`;
+                  await sendMessage({
+                    receiverId: otherUser.id,
+                    subject: "Audio call request",
+                    body: `${user?.name || "A user"} started an audio call. Join here: ${roomUrl}`,
+                  });
+                  window.open(roomUrl, "_blank", "noopener,noreferrer");
+                  toast.success("Audio room opened and link sent");
+                } catch {
+                  toast.error("Could not start the audio call");
+                }
+              }}
+              className="h-9 w-9 hidden sm:flex items-center justify-center rounded-full hover:bg-white/20 transition-colors"
+              aria-label="Start audio call"
+            >
               <Phone className="h-4 w-4 text-white" />
             </button>
             <button
@@ -344,9 +389,6 @@ export default function MessagingModal({ isOpen, onClose, otherUser, properties 
               aria-label="Request video call"
             >
               <Video className="h-4 w-4 text-white" />
-            </button>
-            <button onClick={() => toast.info("More options coming soon")} className="h-9 w-9 hidden sm:flex items-center justify-center rounded-full hover:bg-white/20 transition-colors">
-              <MoreVertical className="h-4 w-4 text-white" />
             </button>
           </div>
         </div>
@@ -457,6 +499,14 @@ export default function MessagingModal({ isOpen, onClose, otherUser, properties 
 
         {/* Recording Indicator */}
         <AnimatePresence>
+          {recordingError && !isRecording && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="flex items-center justify-between gap-3 border-t border-amber-100 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              <span>{recordingError} Check the browser microphone icon near the address bar, allow access, then retry.</span>
+              <button type="button" onClick={() => void startRecording()} disabled={checkingMicrophone} className="shrink-0 rounded-lg bg-amber-600 px-2.5 py-1.5 font-semibold text-white hover:bg-amber-700 disabled:opacity-50">
+                {checkingMicrophone ? "Checking..." : "Retry"}
+              </button>
+            </motion.div>
+          )}
           {isRecording && (
             <motion.div
               initial={{ opacity: 0, y: 10 }}

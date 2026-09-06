@@ -53,7 +53,7 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
     <head>
-      <link rel="icon" href="/images/favicon/favicon.ico" sizes="any" />
+      <link rel="icon" href="/images/favicon.ico" sizes="any" />
       <link rel="apple-touch-icon" href="/images/landing/logo.png" />
       </head>
       <body className="min-h-full flex flex-col">

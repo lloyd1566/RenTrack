@@ -9,6 +9,7 @@ import { FileText, Eye, Download, X } from "lucide-react";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { getPayments, Payment } from "@/lib/data";
+import ReceiptModal from "@/components/receipt-modal";
 
 const fadeInUp = {
   hidden: { opacity: 0, y: 20 },
@@ -18,7 +19,7 @@ const fadeInUp = {
 export default function TenantHistoryPage() {
   const { user } = useAuth();
   const [payments, setPayments] = useState<Payment[]>([]);
-  const [viewingReceipt, setViewingReceipt] = useState<string | null>(null);
+  const [viewingReceipt, setViewingReceipt] = useState<Payment | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -96,7 +97,7 @@ export default function TenantHistoryPage() {
                             <div className="flex items-center justify-end gap-2">
                               {payment.receiptUrl && (
                                 <>
-                                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setViewingReceipt(payment.receiptUrl!)} aria-label="View receipt">
+                                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setViewingReceipt(payment)} aria-label="View receipt">
                                     <Eye className="h-4 w-4" />
                                   </Button>
                                   <a href={payment.receiptUrl} download={`renttrack-receipt-${payment.id}.svg`} aria-label="Download receipt" className="inline-flex h-8 w-8 items-center justify-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-blue-600">
@@ -118,21 +119,12 @@ export default function TenantHistoryPage() {
       </div>
 
       {/* Receipt Viewer */}
-      {viewingReceipt && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setViewingReceipt(null)}>
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="relative max-w-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <button onClick={() => setViewingReceipt(null)} className="absolute -top-3 -right-3 z-10 h-8 w-8 rounded-full bg-white shadow-lg flex items-center justify-center">
-              <X className="h-4 w-4" />
-            </button>
-            <img src={viewingReceipt} alt="Receipt" className="w-full h-auto rounded-lg shadow-2xl" />
-          </motion.div>
-        </div>
-      )}
+      <ReceiptModal
+        isOpen={!!viewingReceipt}
+        onClose={() => setViewingReceipt(null)}
+        receiptUrl={viewingReceipt?.receiptUrl || null}
+        payment={viewingReceipt || undefined}
+      />
     </div>
   );
 }

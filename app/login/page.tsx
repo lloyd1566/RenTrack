@@ -30,8 +30,8 @@ const FormCard = ({ title, subtitle, children }: { title: string; subtitle?: str
       transition={{ duration: 0.5, ease: "easeOut" }}
       className="rounded-3xl border border-border bg-surface/95 p-6 pb-5 shadow-xl shadow-black/4"
     >
-      <h2 className="text-2xl font-bold text-text-primary tracking-tight">{title}</h2>
-      {subtitle && <p className="mt-1.5 text-sm text-text-secondary leading-relaxed">{subtitle}</p>}
+      <h2 className="text-2xl font-bold text-text-primary tracking-tight text-center">{title}</h2>
+      {subtitle && <p className="mt-1.5 text-sm text-text-secondary leading-relaxed text-center">{subtitle}</p>}
 
         <div className="mt-4">{children}</div>
     </motion.div>
@@ -81,6 +81,10 @@ export default function LoginPage() {
           router.push("/dashboard");
         }
       } else {
+        if (data.needsVerification) {
+          router.push(`/verify-otp?email=${encodeURIComponent(data.email || email)}`);
+          return;
+        }
         toast.error(data.error || "Login failed");
       }
     } catch { toast.error("An error occurred. Please try again."); }
@@ -171,8 +175,8 @@ export default function LoginPage() {
             transition={{ duration: 0.45, ease: [0.21, 0.47, 0.32, 0.98] }}
           >
             <FormCard
-              title="Welcome back"
-              subtitle="Sign in to manage your rentals, track payments, and connect with tenants."
+              title="RentTrack"
+              subtitle="Property management made simple. Sign in to access your dashboard."
             >
               <form onSubmit={handleLogin} className="space-y-4">
                 <div>

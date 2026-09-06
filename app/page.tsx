@@ -72,12 +72,13 @@ export default function LandingPage() {
   const [scrolled, setScrolled] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<any | null>(null);
   const [showContactModal, setShowContactModal] = useState(false);
-  const [contactForm, setContactForm] = useState({ name: "", email: "", message: "" });
+  const [contactForm, setContactForm] = useState({ name: "", email: "", phone: "", message: "" });
   const [contactSending, setContactSending] = useState(false);
   const [propertyAgent, setPropertyAgent] = useState<any | null>(null);
   const [chatOpen, setChatOpen] = useState(false);
-  const [chatUser, setChatUser] = useState({ name: "", email: "" });
+  const [chatUser, setChatUser] = useState({ name: "", email: "", phone: "" });
   const [chatMessages, setChatMessages] = useState<any[]>([]);
+  const [searchTerm, setSearchTerm] = useState("");
   const [chatInput, setChatInput] = useState("");
   const [chatSending, setChatSending] = useState(false);
   const [chatStarting, setChatStarting] = useState(false);
@@ -239,8 +240,46 @@ export default function LandingPage() {
     }
   }, [chatInput]);
 
-  const displayUnits = units.slice(0, 6);
-  const displayProperties = properties.slice(0, 6);
+  const filteredProperties = (searchTerm.trim()
+    ? properties.filter((property: any) => {
+        const haystack = [
+          property.name,
+          property.location,
+          property.address,
+          property.city,
+          property.province,
+          property.type,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return haystack.includes(searchTerm.trim().toLowerCase());
+      })
+    : properties
+  );
+
+  const filteredUnits = (searchTerm.trim()
+    ? units.filter((unit: any) => {
+        const propertyName = unit.propertyName || unit.property_name || "";
+        const location = unit.location || unit.propertyLocation || "";
+        const haystack = [
+          unit.unitNumber,
+          unit.unit_number,
+          propertyName,
+          location,
+          unit.status,
+          unit.type,
+        ]
+          .filter(Boolean)
+          .join(" ")
+          .toLowerCase();
+        return haystack.includes(searchTerm.trim().toLowerCase());
+      })
+    : units
+  );
+
+  const displayUnits = filteredUnits.slice(0, 6);
+  const displayProperties = filteredProperties.slice(0, 6);
 
   return (
     <main className="relative min-h-screen bg-white text-gray-900 overflow-x-hidden pt-16">
@@ -292,14 +331,14 @@ export default function LandingPage() {
       </nav>
 
        {/* â”€â”€â”€ Hero â”€â”€â”€ */}
-         <section className="relative min-h-[420px] sm:min-h-[480px] flex items-center justify-center overflow-hidden">
+       <section className="relative flex min-h-[380px] items-center justify-center overflow-hidden sm:min-h-[440px]">
          <motion.div
            className="absolute inset-0"
            animate={{ scale: [1, 1.05, 1] }}
            transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
          >
-          <div className="absolute inset-0 bg-cover bg-center opacity-55" style={{ backgroundImage: "url('/images/favicon/Butuan City.webp')" }} />
-          <div className="absolute inset-0 bg-gradient-to-r from-blue-950/90 via-blue-900/75 to-blue-900/20" />
+           <div className="absolute inset-0 bg-cover bg-center opacity-55" style={{ backgroundImage: "url('/images/favicon/Butuan City.webp')" }} />
+           <div className="absolute inset-0 bg-gradient-to-r from-blue-950/90 via-blue-900/80 to-blue-900/30" />
          </motion.div>
          <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-white/10" />
 
@@ -308,20 +347,20 @@ export default function LandingPage() {
              <motion.div
                key={i}
                animate={{
-                 y: [0, -30, 0],
-                 x: [0, 15, 0],
-                 opacity: [0.1, 0.6, 0.1],
+                 y: [0, -28, 0],
+                 x: [0, 12, 0],
+                 opacity: [0.08, 0.45, 0.08],
                }}
                transition={{
-                 duration: 5 + i * 0.4,
+                 duration: 5 + i * 0.35,
                  repeat: Infinity,
                  ease: "easeInOut",
-                 delay: i * 0.2,
+                 delay: i * 0.18,
                }}
                className="absolute rounded-full bg-white"
                style={{
                  left: `${10 + i * 4.5}%`,
-                 top: `${20 + (i % 5) * 18}%`,
+                 top: `${18 + (i % 5) * 18}%`,
                  width: `${2 + (i % 3)}px`,
                  height: `${2 + (i % 3)}px`,
                }}
@@ -341,173 +380,150 @@ export default function LandingPage() {
            <motion.div animate={{ x: [0, 10, 0], y: [0, -10, 0] }} transition={{ duration: 7, repeat: Infinity, ease: "linear" }} className="absolute bottom-0 right-1/3 h-32 w-32 rounded-full bg-white/5 blur-xl" />
          </div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.2 }}
-          className="relative z-10 mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-8 text-center"
-        >
-          <div className="mx-auto max-w-2xl">
-            <motion.div
-              initial={{ opacity: 0, y: 20, scale: 0.9 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              transition={{ duration: 0.7, delay: 0.3 }}
-              className="inline-flex items-center gap-2 rounded-full bg-white/10 backdrop-blur-md border border-white/20 px-3 py-1 text-xs font-medium text-white mb-4"
-            >
+         <motion.div
+           initial={{ opacity: 0, y: 22 }}
+           animate={{ opacity: 1, y: 0 }}
+           transition={{ duration: 0.75, delay: 0.15 }}
+           className="relative z-10 mx-auto max-w-4xl px-4 py-8 text-center sm:px-6 lg:px-8"
+         >
+           <div className="mx-auto max-w-2xl">
+             <motion.div
+               initial={{ opacity: 0, y: 18, scale: 0.95 }}
+               animate={{ opacity: 1, y: 0, scale: 1 }}
+               transition={{ duration: 0.55, delay: 0.25 }}
+               className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-md"
+             >
               <motion.div
-                animate={{ rotate: 360, scale: [1, 1.2, 1] }}
-                transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                initial={{ opacity: 0, y: 4, scale: 0.9 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ duration: 0.45, delay: 0.25, ease: "easeOut" }}
               >
-                <Home className="h-3.5 w-3.5" />
-              </motion.div>
+                 <Home className="h-3.5 w-3.5" />
+               </motion.div>
               <motion.span
-                animate={{ opacity: [0.8, 1, 0.8] }}
-                transition={{ duration: 2, repeat: Infinity }}
+                initial={{ opacity: 0, x: -4 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.45, delay: 0.35, ease: "easeOut" }}
               >
-                Find your next home
-              </motion.span>
-            </motion.div>
-            <motion.h1
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, delay: 0.4 }}
-              className="text-xl sm:text-2xl md:text-3xl font-bold text-white leading-tight mb-3 tracking-tight"
-            >
-              <span className="inline-block">Rental Property Marketplace</span>
-            </motion.h1>
-            <motion.p
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, delay: 0.5 }}
-              className="text-xs sm:text-sm text-white/90 mb-4 max-w-2xl mx-auto leading-relaxed"
-            >
-              Find verified apartments, condos & houses for rent in Cebu, Manila, Butuan, and Davao.
-            </motion.p>
+                 Find your next home
+               </motion.span>
+             </motion.div>
 
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.7, delay: 0.6 }}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="inline-flex"
-            >
-              <motion.a
-                href="#properties"
-                className="inline-flex h-9 px-5 text-sm font-semibold text-blue-700 bg-white hover:bg-blue-50 rounded-lg items-center justify-center gap-2 shadow-xl transition-colors relative overflow-hidden"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-              >
-                <motion.span
-                  className="absolute inset-0 bg-gradient-to-r from-blue-200/40 to-transparent"
-                  animate={{ x: ["-100%", "100%"] }}
-                  transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
-                />
-                <span className="relative z-10 inline-flex items-center gap-2">
-                  Browse Properties
-                  <motion.div animate={{ x: [0, 4, 0] }} transition={{ duration: 1.5, repeat: Infinity }}>
-                    <ChevronRight className="h-4 w-4" />
-                  </motion.div>
-                </span>
-              </motion.a>
-            </motion.div>
+             <motion.h1
+               initial={{ opacity: 0, y: 24 }}
+               animate={{ opacity: 1, y: 0 }}
+               transition={{ duration: 0.65, delay: 0.35 }}
+               className="mb-3 text-3xl font-black tracking-[-0.04em] text-white sm:text-4xl md:text-5xl"
+             >
+               <span className="inline-block">Rental Property Marketplace</span>
+             </motion.h1>
 
-            {/* Map visualization */}
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.8, delay: 0.8 }}
-              className="mt-8 relative mx-auto max-w-3xl"
-            >
-              <div className="relative rounded-2xl overflow-hidden border border-white/10 bg-white/5 backdrop-blur-sm">
-                <div className="absolute inset-0 opacity-30" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.15) 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
-                <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 200" preserveAspectRatio="none">
-                  <motion.path
-                    d="M 60 90 Q 120 20 200 50"
-                    fill="none"
-                    stroke="rgba(255,255,255,0.4)"
-                    strokeWidth="2"
-                    strokeDasharray="8 5"
-                    initial={{ pathLength: 0 }}
-                    animate={{ pathLength: 1 }}
-                    transition={{ duration: 2, delay: 1, repeat: Infinity, repeatType: "reverse" }}
-                  />
-                  <motion.path
-                    d="M 200 50 Q 260 90 340 80"
-                    fill="none"
-                    stroke="rgba(255,255,255,0.4)"
-                    strokeWidth="2"
-                    strokeDasharray="8 5"
-                    initial={{ pathLength: 0 }}
-                    animate={{ pathLength: 1 }}
-                    transition={{ duration: 2, delay: 1.3, repeat: Infinity, repeatType: "reverse" }}
-                  />
-                  <motion.path
-                    d="M 60 90 Q 100 140 160 120"
-                    fill="none"
-                    stroke="rgba(255,255,255,0.4)"
-                    strokeWidth="2"
-                    strokeDasharray="8 5"
-                    initial={{ pathLength: 0 }}
-                    animate={{ pathLength: 1 }}
-                    transition={{ duration: 2, delay: 1.6, repeat: Infinity, repeatType: "reverse" }}
-                  />
-                </svg>
-                {[
-                  { name: "Cebu", x: "15%", y: "60%", delay: 0.9 },
-                  { name: "Butuan", x: "40%", y: "28%", delay: 1.1 },
-                  { name: "Davao", x: "68%", y: "72%", delay: 1.3 },
-                  { name: "Manila", x: "85%", y: "36%", delay: 1.5 },
-                ].map((city) => (
-                  <motion.div
-                    key={city.name}
-                    initial={{ opacity: 0, scale: 0 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ duration: 0.5, delay: city.delay }}
-                    className="absolute"
-                    style={{ left: city.x, top: city.y, transform: "translate(-50%, -50%)" }}
-                  >
-                    <motion.div
-                      animate={{ scale: [1, 2.2, 1], opacity: [0.6, 0, 0.6] }}
-                      transition={{ duration: 2.5, repeat: Infinity, ease: "easeOut" }}
-                      className="absolute rounded-full bg-blue-400/60"
-                      style={{ width: 44, height: 44, marginLeft: -22, marginTop: -22 }}
-                    />
-                    <motion.div
-                      animate={{ y: [0, -5, 0] }}
-                      transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
-                      className="relative flex flex-col items-center"
-                    >
-                      <div className="h-4 w-4 rounded-full bg-blue-400 shadow-lg shadow-blue-500/60 ring-2 ring-white/30" />
-                      <span className="mt-1.5 text-xs sm:text-sm font-bold text-white drop-shadow-md whitespace-nowrap">
-                        {city.name}
-                      </span>
-                    </motion.div>
-                  </motion.div>
-                ))}
-              </div>
-              <motion.p
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 2 }}
-                className="mt-3 text-xs sm:text-sm text-white/70 font-medium"
-              >
-                Active cities: Cebu • Manila • Butuan • Davao
-              </motion.p>
-            </motion.div>
-          </div>
+             <motion.p
+               initial={{ opacity: 0, y: 24 }}
+               animate={{ opacity: 1, y: 0 }}
+               transition={{ duration: 0.65, delay: 0.45 }}
+               className="mx-auto mb-5 max-w-xl text-sm leading-relaxed text-white/85 sm:text-base"
+             >
+               Find verified apartments, condos & houses for rent in Cebu, Manila, Butuan, and Davao.
+             </motion.p>
+
+             <motion.div
+               initial={{ opacity: 0, y: 24 }}
+               animate={{ opacity: 1, y: 0 }}
+               transition={{ duration: 0.6, delay: 0.55 }}
+               whileHover={{ scale: 1.03 }}
+               whileTap={{ scale: 0.98 }}
+               className="inline-flex"
+             >
+               <motion.a
+                 href="#properties"
+                 className="relative inline-flex h-11 items-center justify-center gap-2 overflow-hidden rounded-xl bg-white px-5 text-sm font-semibold text-blue-700 shadow-xl transition-colors hover:bg-blue-50"
+                 whileHover={{ scale: 1.03 }}
+                 whileTap={{ scale: 0.98 }}
+               >
+                 <motion.span
+                   className="absolute inset-0 bg-gradient-to-r from-blue-200/40 to-transparent"
+                   animate={{ x: ["-100%", "100%"] }}
+                   transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                 />
+                 <span className="relative z-10 inline-flex items-center gap-2">
+                   Browse Properties
+                   <motion.div animate={{ x: [0, 4, 0] }} transition={{ duration: 1.5, repeat: Infinity }}>
+                     <ChevronRight className="h-4 w-4" />
+                   </motion.div>
+                 </span>
+               </motion.a>
+             </motion.div>
+
+             <motion.div
+               initial={{ opacity: 0, y: 24 }}
+               animate={{ opacity: 1, y: 0 }}
+               transition={{ duration: 0.7, delay: 0.7 }}
+               className="relative mx-auto mt-8 max-w-3xl"
+             >
+               <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm">
+                 <div className="absolute inset-0 opacity-30" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.15) 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
+                 <svg className="absolute inset-0 h-full w-full" viewBox="0 0 400 200" preserveAspectRatio="none">
+                   <motion.path d="M 60 90 Q 120 20 200 50" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2" strokeDasharray="8 5" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 2, delay: 1, repeat: Infinity, repeatType: "reverse" }} />
+                   <motion.path d="M 200 50 Q 260 90 340 80" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2" strokeDasharray="8 5" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 2, delay: 1.3, repeat: Infinity, repeatType: "reverse" }} />
+                   <motion.path d="M 60 90 Q 100 140 160 120" fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="2" strokeDasharray="8 5" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 2, delay: 1.6, repeat: Infinity, repeatType: "reverse" }} />
+                 </svg>
+                 {[
+                   { name: "Cebu", x: "15%", y: "60%", delay: 0.9 },
+                   { name: "Butuan", x: "40%", y: "28%", delay: 1.1 },
+                   { name: "Davao", x: "68%", y: "72%", delay: 1.3 },
+                   { name: "Manila", x: "85%", y: "36%", delay: 1.5 },
+                 ].map((city) => (
+                   <motion.div
+                     key={city.name}
+                     initial={{ opacity: 0, scale: 0 }}
+                     animate={{ opacity: 1, scale: 1 }}
+                     transition={{ duration: 0.5, delay: city.delay }}
+                     className="absolute"
+                     style={{ left: city.x, top: city.y, transform: "translate(-50%, -50%)" }}
+                   >
+                     <motion.div animate={{ scale: [1, 2.2, 1], opacity: [0.6, 0, 0.6] }} transition={{ duration: 2.5, repeat: Infinity, ease: "easeOut" }} className="absolute rounded-full bg-blue-400/60" style={{ width: 44, height: 44, marginLeft: -22, marginTop: -22 }} />
+                     <motion.div animate={{ y: [0, -5, 0] }} transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }} className="relative flex flex-col items-center">
+                       <div className="h-4 w-4 rounded-full bg-blue-400 shadow-lg shadow-blue-500/60 ring-2 ring-white/30" />
+                       <span className="mt-1.5 whitespace-nowrap text-xs font-bold text-white drop-shadow-md sm:text-sm">{city.name}</span>
+                     </motion.div>
+                   </motion.div>
+                 ))}
+               </div>
+               <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 2 }} className="mt-3 text-xs font-medium text-white/70 sm:text-sm">
+                 Active cities: Cebu • Manila • Butuan • Davao
+               </motion.p>
+             </motion.div>
+           </div>
          </motion.div>
        </section>
 
        {/* Properties for Rent Near You */}
-      <motion.section id="properties" className="py-12 bg-white" initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} transition={{ duration: 0.6 }}>
+      <motion.section id="properties" className="bg-white py-12 sm:py-14" initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} transition={{ duration: 0.6 }}>
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-10">
-            <span className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-1.5 text-sm font-medium text-blue-600 mb-4">
+          <div className="mb-8 text-center">
+            <span className="mb-4 inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-1.5 text-sm font-medium text-blue-600">
               <MapPin className="h-4 w-4" />Available Now
             </span>
-            <h2 className="text-3xl font-bold text-gray-900">Properties for Rent Near You</h2>
-            <p className="mt-3 text-gray-600 max-w-2xl mx-auto">Browse verified houses and condominium units. New units are added regularly.</p>
+            <h2 className="text-3xl font-bold tracking-[-0.04em] text-gray-900 sm:text-4xl">Properties for Rent Near You</h2>
+            <p className="mx-auto mt-3 max-w-2xl text-sm text-gray-600 sm:text-base">Browse verified houses and condominium units. New units are added regularly.</p>
+          </div>
+
+          <div className="mb-6 max-w-2xl mx-auto">
+            <div className="relative group">
+              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600 shadow-sm ring-1 ring-blue-100">
+                  <Search className="h-4 w-4" />
+                </div>
+              </div>
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search by location, city, property name, or unit..."
+                className="w-full rounded-2xl border border-slate-200 bg-white/95 px-16 py-3.5 text-sm text-slate-900 shadow-[0_10px_30px_rgba(37,99,235,0.08)] outline-none transition-all duration-200 placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:shadow-[0_12px_35px_rgba(37,99,235,0.12)] focus:ring-4 focus:ring-blue-100"
+              />
+            </div>
           </div>
 
           {displayProperties.length === 0 && displayUnits.length === 0 ? (
@@ -528,69 +544,61 @@ export default function LandingPage() {
               {displayProperties.length > 0 && (
                 <div>
                   <h3 className="text-xl font-semibold text-gray-900 mb-4">Properties</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
                     {displayProperties.map((property: any, i: number) => {
                       const img = property.imageUrl || property.image_url || unitImages[i % unitImages.length];
                       const location = property.location || "Cebu, Manila, Butuan, Davao";
                       const propertyType = property.type === "condominium" ? "Condominium" : "House";
                       return (
-                 <motion.div
-                  key={property.id}
-                  initial={{ opacity: 0, y: 30 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  viewport={{ once: true }}
-                  transition={{ duration: 0.5, delay: i * 0.1 }}
-                  whileHover={{ y: -8 }}
-                  className="group relative bg-white rounded-xl overflow-hidden hover:shadow-2xl transition-all duration-300"
-                >
-                  <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-500/0 via-blue-500/0 to-blue-500/0 opacity-0 group-hover:opacity-100 group-hover:from-blue-500/5 group-hover:via-blue-500/5 group-hover:to-blue-500/5 transition-opacity duration-500 pointer-events-none" />
-                  <div className="relative h-48 overflow-hidden bg-gradient-to-br from-blue-100 to-indigo-100">
-                    <motion.div
-                      className="relative h-full w-full"
-                      whileHover={{ scale: 1.05 }}
-                      transition={{ duration: 0.5, ease: "easeOut" }}
-                    >
-                      <img
-                        src={img}
-                        alt={property.name}
-                        className="w-full h-full object-cover"
-                        loading="lazy"
-                        onError={(e) => {
-                          const target = e.currentTarget;
-                          target.onerror = null;
-                          target.src = unitImages[i % unitImages.length];
-                        }}
-                      />
-                    </motion.div>
-                    <div className="absolute top-3 right-3">
-                    <motion.span
-                      initial={{ scale: 0 }}
-                      whileInView={{ scale: 1 }}
-                      viewport={{ once: true }}
-                      transition={{ duration: 0.3, delay: i * 0.1 + 0.2 }}
-                      className="inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium text-blue-700 bg-blue-100 capitalize"
-                    >
-                      {propertyType}
-                    </motion.span>
-                  </div>
-                </div>
-                <div className="relative p-5">
-                  <h3 className="text-xl font-semibold text-gray-900 mb-1 group-hover:text-blue-700 transition-colors">{property.name}</h3>
-                  <p className="text-sm text-gray-600 mb-3 flex items-center gap-1">
-                    <MapPin className="h-3.5 w-3.5 shrink-0" />{location}
-                  </p>
-                   <div className="flex items-center justify-between pt-3 border-t border-gray-100 text-xs text-gray-500">
-                      <span className="flex items-center gap-1"><Home className="h-3.5 w-3.5" />{property.units || 0} Units</span>
-                      <motion.button
-                        whileHover={{ x: 4 }}
-                        onClick={() => setSelectedProperty(property)}
-                        className="text-blue-600 font-medium"
-                      >
-                        View Details →
-                      </motion.button>
-                    </div>
-                  </div>
-                </motion.div>
+                        <motion.div
+                          key={property.id}
+                          initial={{ opacity: 0, y: 24 }}
+                          whileInView={{ opacity: 1, y: 0 }}
+                          viewport={{ once: true }}
+                          transition={{ duration: 0.5, delay: i * 0.09 }}
+                          whileHover={{ y: -6 }}
+                          className="group relative overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-300 hover:shadow-xl"
+                        >
+                          <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-blue-500/0 via-blue-500/0 to-blue-500/0 opacity-0 transition-opacity duration-500 group-hover:from-blue-500/5 group-hover:via-blue-500/5 group-hover:to-blue-500/5 group-hover:opacity-100" />
+                          <div className="relative h-40 overflow-hidden bg-gradient-to-br from-blue-100 to-indigo-100">
+                            <motion.div className="relative h-full w-full" whileHover={{ scale: 1.04 }} transition={{ duration: 0.45, ease: "easeOut" }}>
+                              <img
+                                src={img}
+                                alt={property.name}
+                                className="h-full w-full object-cover"
+                                loading="lazy"
+                                onError={(e) => {
+                                  const target = e.currentTarget;
+                                  target.onerror = null;
+                                  target.src = unitImages[i % unitImages.length];
+                                }}
+                              />
+                            </motion.div>
+                            <div className="absolute right-3 top-3">
+                              <motion.span
+                                initial={{ scale: 0 }}
+                                whileInView={{ scale: 1 }}
+                                viewport={{ once: true }}
+                                transition={{ duration: 0.25, delay: i * 0.09 + 0.12 }}
+                                className="inline-flex rounded-full bg-blue-100 px-2.5 py-0.5 text-[10px] font-medium capitalize text-blue-700"
+                              >
+                                {propertyType}
+                              </motion.span>
+                            </div>
+                          </div>
+                          <div className="relative p-4">
+                            <h3 className="mb-1 text-lg font-semibold text-gray-900 transition-colors group-hover:text-blue-700">{property.name}</h3>
+                            <p className="mb-3 flex items-center gap-1 text-sm text-gray-600">
+                              <MapPin className="h-3.5 w-3.5 shrink-0" />{location}
+                            </p>
+                            <div className="flex items-center justify-between border-t border-gray-100 pt-3 text-xs text-gray-500">
+                              <span className="flex items-center gap-1"><Home className="h-3.5 w-3.5" />{property.units || 0} Units</span>
+                              <motion.button whileHover={{ x: 4 }} onClick={() => setSelectedProperty(property)} className="font-medium text-blue-600">
+                                View Details →
+                              </motion.button>
+                            </div>
+                          </div>
+                        </motion.div>
                       );
                     })}
                   </div>
@@ -600,7 +608,7 @@ export default function LandingPage() {
               {displayUnits.length > 0 && (
                 <div>
                   <h3 className="text-xl font-semibold text-gray-900 mb-4">Units</h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
                     {displayUnits.map((unit: any, i: number) => {
                       const status = unit.status || "vacant";
                       const isOccupied = status === "occupied";
@@ -610,66 +618,58 @@ export default function LandingPage() {
                       const rent = rentAmount ? `₱${Number(rentAmount).toLocaleString()}` : "₱0";
                       const propName = unit.propertyName || unit.property_name || unit.propertyId || unit.property_id || "—";
                       return (
-                         <motion.div
-                           key={unit.id}
-                           initial={{ opacity: 0, y: 30 }}
-                           whileInView={{ opacity: 1, y: 0 }}
-                           viewport={{ once: true }}
-                           transition={{ duration: 0.5, delay: i * 0.1 }}
-                           whileHover={{ y: -8 }}
-                           className="group relative bg-white rounded-xl overflow-hidden hover:shadow-2xl transition-all duration-300"
-                         >
-                           <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-blue-500/0 via-blue-500/0 to-blue-500/0 opacity-0 group-hover:opacity-100 group-hover:from-blue-500/5 group-hover:via-blue-500/5 group-hover:to-blue-500/5 transition-opacity duration-500 pointer-events-none" />
-                             <div className="relative h-48 overflow-hidden bg-gradient-to-br from-blue-100 to-indigo-100">
-                               <motion.div
-                                 className="relative h-full w-full"
-                                 whileHover={{ scale: 1.05 }}
-                                 transition={{ duration: 0.5, ease: "easeOut" }}
-                               >
-                                 <img
-                                   src={img}
-                                   alt={`${unitNumber} photo`}
-                                   className="w-full h-full object-cover"
-                                   loading="lazy"
-                                   onError={(e) => {
-                                     const target = e.currentTarget;
-                                     target.onerror = null;
-                                     target.src = unitImages[i % unitImages.length];
-                                   }}
-                                 />
-                               </motion.div>
-                               <div className="absolute top-3 right-3">
-                               <motion.span
-                                 initial={{ scale: 0 }}
-                                 whileInView={{ scale: 1 }}
-                                 viewport={{ once: true }}
-                                 transition={{ duration: 0.3, delay: i * 0.1 + 0.2 }}
-                                 className={cn("inline-flex px-2.5 py-0.5 rounded-full text-xs font-medium", isOccupied ? "text-green-700 bg-green-100" : "text-amber-700 bg-amber-100")}
-                               >
-                                 {status.charAt(0).toUpperCase() + status.slice(1)}
-                               </motion.span>
-                             </div>
-                           </div>
-                           <div className="relative p-5">
-                             <div className="flex items-center justify-between mb-2">
-                               <h3 className="text-xl font-semibold text-gray-900">{unitNumber}</h3>
-                               <span className="text-xl font-semibold text-blue-600">{rent}<span className="text-xs text-gray-400">/mo</span></span>
-                             </div>
-                             <p className="text-sm text-gray-600 mb-3 flex items-center gap-1">
-                               <MapPin className="h-3.5 w-3.5 shrink-0" />{propName}
-                             </p>
-                              <div className="flex items-center justify-between pt-3 border-t border-gray-100 text-xs text-gray-500">
-                                <span className="flex items-center gap-1"><Home className="h-3.5 w-3.5" />{isOccupied ? "Occupied" : "Vacant"}</span>
-                                <motion.button
-                                  whileHover={{ x: 4 }}
-                                  onClick={() => setSelectedProperty(unit)}
-                                  className="text-blue-600 font-medium"
-                                >
-                                  View Details →
-                                </motion.button>
-                              </div>
+                        <motion.div
+                          key={unit.id}
+                          initial={{ opacity: 0, y: 24 }}
+                          whileInView={{ opacity: 1, y: 0 }}
+                          viewport={{ once: true }}
+                          transition={{ duration: 0.5, delay: i * 0.09 }}
+                          whileHover={{ y: -6 }}
+                          className="group relative overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-300 hover:shadow-xl"
+                        >
+                          <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-blue-500/0 via-blue-500/0 to-blue-500/0 opacity-0 transition-opacity duration-500 group-hover:from-blue-500/5 group-hover:via-blue-500/5 group-hover:to-blue-500/5 group-hover:opacity-100" />
+                          <div className="relative h-40 overflow-hidden bg-gradient-to-br from-blue-100 to-indigo-100">
+                            <motion.div className="relative h-full w-full" whileHover={{ scale: 1.04 }} transition={{ duration: 0.45, ease: "easeOut" }}>
+                              <img
+                                src={img}
+                                alt={`${unitNumber} photo`}
+                                className="h-full w-full object-cover"
+                                loading="lazy"
+                                onError={(e) => {
+                                  const target = e.currentTarget;
+                                  target.onerror = null;
+                                  target.src = unitImages[i % unitImages.length];
+                                }}
+                              />
+                            </motion.div>
+                            <div className="absolute right-3 top-3">
+                              <motion.span
+                                initial={{ scale: 0 }}
+                                whileInView={{ scale: 1 }}
+                                viewport={{ once: true }}
+                                transition={{ duration: 0.25, delay: i * 0.09 + 0.12 }}
+                                className={cn("inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-medium", isOccupied ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700")}
+                              >
+                                {status.charAt(0).toUpperCase() + status.slice(1)}
+                              </motion.span>
                             </div>
-                          </motion.div>
+                          </div>
+                          <div className="relative p-4">
+                            <div className="mb-2 flex items-center justify-between gap-3">
+                              <h3 className="text-lg font-semibold text-gray-900">{unitNumber}</h3>
+                              <span className="text-base font-semibold text-blue-600">{rent}<span className="text-[10px] text-gray-400">/mo</span></span>
+                            </div>
+                            <p className="mb-3 flex items-center gap-1 text-sm text-gray-600">
+                              <MapPin className="h-3.5 w-3.5 shrink-0" />{propName}
+                            </p>
+                            <div className="flex items-center justify-between border-t border-gray-100 pt-3 text-xs text-gray-500">
+                              <span className="flex items-center gap-1"><Home className="h-3.5 w-3.5" />{isOccupied ? "Occupied" : "Vacant"}</span>
+                              <motion.button whileHover={{ x: 4 }} onClick={() => setSelectedProperty(unit)} className="font-medium text-blue-600">
+                                View Details →
+                              </motion.button>
+                            </div>
+                          </div>
+                        </motion.div>
                       );
                     })}
                   </div>
@@ -681,12 +681,12 @@ export default function LandingPage() {
       </motion.section>
 
       {/* â”€â”€â”€ Be One of Our First Tenants â”€â”€â”€ */}
-      <motion.section className="py-12 bg-blue-600" initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} transition={{ duration: 0.6 }}>
-        <div className="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl sm:text-4xl font-bold text-white leading-tight mb-4">Be One of Our First Tenants</h2>
-          <p className="text-blue-100 mb-8 max-w-2xl mx-auto text-lg">New verified units are being added. Browse available homes or contact us for more information.</p>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-            <a href="#properties" className="inline-flex h-12 px-8 text-lg font-semibold text-blue-700 bg-white hover:bg-blue-50 rounded-xl items-center justify-center gap-2 shadow-xl transition-colors">
+      <motion.section className="bg-blue-600 py-12" initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} transition={{ duration: 0.6 }}>
+        <div className="mx-auto max-w-4xl px-4 text-center sm:px-6 lg:px-8">
+          <h2 className="mb-3 text-3xl font-bold leading-tight tracking-[-0.04em] text-white sm:text-4xl">Be One of Our First Tenants</h2>
+          <p className="mx-auto mb-7 max-w-2xl text-base text-blue-100 sm:text-lg">New verified units are being added. Browse available homes or contact us for more information.</p>
+          <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
+            <a href="#properties" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-white px-7 text-base font-semibold text-blue-700 shadow-xl transition-colors hover:bg-blue-50">
               Browse Properties<ChevronRight className="ml-2 h-4 w-4" />
             </a>
           </div>
@@ -694,47 +694,39 @@ export default function LandingPage() {
       </motion.section>
 
       {/* â”€â”€â”€ How It Works â”€â”€â”€ */}
-      <motion.section id="how-it-works" className="py-16 bg-gray-50" initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} transition={{ duration: 0.6 }}>
+      <motion.section id="how-it-works" className="bg-gray-50 py-14 sm:py-16" initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} transition={{ duration: 0.6 }}>
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <span className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-1.5 text-sm font-medium text-blue-600 mb-4">
+          <div className="mb-10 text-center">
+            <span className="mb-4 inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-1.5 text-sm font-medium text-blue-600">
               <Star className="h-4 w-4" />How It Works
             </span>
-            <h2 className="text-3xl font-bold text-gray-900">Renting Made Simple</h2>
-            <p className="mt-3 text-gray-600 max-w-2xl mx-auto">From browsing to moving in, we make the rental process seamless</p>
+            <h2 className="text-3xl font-bold tracking-[-0.04em] text-gray-900 sm:text-4xl">Renting Made Simple</h2>
+            <p className="mx-auto mt-3 max-w-2xl text-sm text-gray-600 sm:text-base">From browsing to moving in, we make the rental process seamless</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
             {steps.map((step, i) => (
               <motion.div
                 key={i}
-                initial={{ opacity: 0, y: 30 }}
+                initial={{ opacity: 0, y: 24 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: i * 0.15 }}
+                transition={{ duration: 0.5, delay: i * 0.12 }}
                 whileHover={{ y: -8 }}
-                className="bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300"
+                className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-300 hover:shadow-xl"
               >
-                <div className="relative h-52 overflow-hidden bg-gradient-to-br from-blue-100 to-indigo-100">
-                  <motion.div
-                    whileHover={{ scale: 1.08 }}
-                    transition={{ duration: 0.6, ease: "easeOut" }}
-                    className="relative h-full w-full"
-                  >
-                    <img src={step.image} alt={step.title} className="absolute inset-0 w-full h-full object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                <div className="relative h-40 overflow-hidden bg-gradient-to-br from-blue-100 to-indigo-100">
+                  <motion.div whileHover={{ scale: 1.06 }} transition={{ duration: 0.6, ease: "easeOut" }} className="relative h-full w-full">
+                    <img src={step.image} alt={step.title} className="absolute inset-0 h-full w-full object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
                   </motion.div>
                   <div className="absolute inset-0 bg-black/10" />
                 </div>
-                <div className="p-6">
-                  <div className="flex items-center gap-3 mb-3">
-                    <motion.div
-                      animate={{ scale: [1, 1.15, 1] }}
-                      transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: i * 0.3 }}
-                      className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-white text-sm font-bold"
-                    >
+                <div className="p-4">
+                  <div className="mb-3 flex items-center gap-3">
+                    <motion.div animate={{ scale: [1, 1.15, 1] }} transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: i * 0.3 }} className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white">
                       {i + 1}
                     </motion.div>
-                    <h3 className="text-lg font-semibold text-gray-900">{step.title}</h3>
+                    <h3 className="text-base font-semibold text-gray-900">{step.title}</h3>
                   </div>
                   <p className="text-sm text-gray-600">{step.desc}</p>
                 </div>
@@ -828,43 +820,35 @@ export default function LandingPage() {
       </motion.section>
 
       {/* â”€â”€â”€ Features â”€â”€â”€ */}
-      <motion.section id="about" className="py-16 bg-gray-50" initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} transition={{ duration: 0.6 }}>
+      <motion.section id="about" className="bg-gray-50 py-14 sm:py-16" initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} transition={{ duration: 0.6 }}>
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="text-center mb-12">
-            <span className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-1.5 text-sm font-medium text-blue-600 mb-4">
+          <div className="mb-10 text-center">
+            <span className="mb-4 inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-1.5 text-sm font-medium text-blue-600">
               <Shield className="h-4 w-4" />Features
             </span>
-            <h2 className="text-3xl font-bold text-gray-900">Everything You Need to Manage Rentals</h2>
-            <p className="mt-3 text-gray-600 max-w-2xl mx-auto">Powerful tools for property owners, agents, and tenants</p>
+            <h2 className="text-3xl font-bold tracking-[-0.04em] text-gray-900 sm:text-4xl">Everything You Need to Manage Rentals</h2>
+            <p className="mx-auto mt-3 max-w-2xl text-sm text-gray-600 sm:text-base">Powerful tools for property owners, agents, and tenants</p>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-3">
             {features.map((feature, i) => (
               <motion.div
                 key={i}
-                initial={{ opacity: 0, y: 30 }}
+                initial={{ opacity: 0, y: 24 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: i * 0.1 }}
+                transition={{ duration: 0.5, delay: i * 0.09 }}
                 whileHover={{ y: -8 }}
-                className="bg-white rounded-lg overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300"
+                className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-300 hover:shadow-xl"
               >
                 <div className="relative h-40 overflow-hidden bg-gradient-to-br from-blue-100 to-indigo-100">
-                  <motion.div
-                    whileHover={{ scale: 1.08 }}
-                    transition={{ duration: 0.6, ease: "easeOut" }}
-                    className="relative h-full w-full"
-                  >
-                    <img src={feature.image} alt={feature.title} className="absolute inset-0 w-full h-full object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                  <motion.div whileHover={{ scale: 1.06 }} transition={{ duration: 0.6, ease: "easeOut" }} className="relative h-full w-full">
+                    <img src={feature.image} alt={feature.title} className="absolute inset-0 h-full w-full object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
                   </motion.div>
                 </div>
                 <div className="p-4">
-                  <div className="flex items-center gap-2 mb-2">
-                    <motion.div
-                      animate={{ rotate: [0, 360] }}
-                      transition={{ duration: 20, repeat: Infinity, ease: "linear", delay: i * 0.5 }}
-                      className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600"
-                    >
+                  <div className="mb-2 flex items-center gap-2">
+                    <motion.div animate={{ rotate: [0, 360] }} transition={{ duration: 20, repeat: Infinity, ease: "linear", delay: i * 0.5 }} className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
                       <feature.icon className="h-4 w-4" />
                     </motion.div>
                     <h3 className="text-base font-semibold text-gray-900">{feature.title}</h3>
@@ -1180,6 +1164,16 @@ export default function LandingPage() {
                     />
                   </div>
                   <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Cellphone Number</label>
+                    <input
+                      type="tel"
+                      value={contactForm.phone}
+                      onChange={(e) => setContactForm({ ...contactForm, phone: e.target.value })}
+                      className="w-full h-10 px-3 rounded-xl border border-gray-200 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                      placeholder="09XX XXX XXXX"
+                    />
+                  </div>
+                  <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1.5">Message</label>
                     <textarea
                       value={contactForm.message}
@@ -1197,8 +1191,8 @@ export default function LandingPage() {
                 {selectedAgent && (
                   <button
                     onClick={async () => {
-                      if (!contactForm.name || !contactForm.email || !contactForm.message) {
-                        alert("Please fill in all fields");
+                      if (!contactForm.name || !contactForm.email || !contactForm.phone || !contactForm.message) {
+                        alert("Please fill in your name, email, cellphone, and message");
                         return;
                       }
                       setContactSending(true);
@@ -1211,11 +1205,11 @@ export default function LandingPage() {
                             propertyId: selectedProperty?.id || null,
                             senderName: contactForm.name,
                             senderEmail: contactForm.email,
-                            senderPhone: "",
+                            senderPhone: contactForm.phone,
                           }),
                         });
                         setShowSuccessModal(true);
-                        setContactForm({ name: "", email: "", message: "" });
+                        setContactForm({ name: "", email: "", phone: "", message: "" });
                         setSelectedAgent(null);
                       } catch {
                         alert("Failed to send message. Please try again.");
@@ -1286,7 +1280,7 @@ export default function LandingPage() {
                       const agent = agents.find((a) => a.id === e.target.value) || null;
                       setChatSelectedAgent(agent);
                     }}
-                    className="w-full h-9 px-3 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                    className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-700 shadow-sm outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
                   >
                     <option value="">Select an agent</option>
                     {agents.map((agent) => (
@@ -1306,36 +1300,38 @@ export default function LandingPage() {
                     value={chatUser.name}
                     onChange={(e) => setChatUser({ ...chatUser, name: e.target.value })}
                     placeholder="Your name"
-                    className="w-full h-9 px-3 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                    className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-700 shadow-sm outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
                   />
                   <input
                     type="email"
                     value={chatUser.email}
                     onChange={(e) => setChatUser({ ...chatUser, email: e.target.value })}
                     placeholder="Your email"
-                    className="w-full h-9 px-3 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                    className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-700 shadow-sm outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                  />
+                  <input
+                    type="tel"
+                    value={chatUser.phone}
+                    onChange={(e) => setChatUser({ ...chatUser, phone: e.target.value })}
+                    placeholder="Your cellphone number"
+                    className="w-full h-10 px-3 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-700 shadow-sm outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
                   />
                 </div>
               )}
               {chatMessages.map((msg, idx) => (
                 <div key={idx} className={`flex ${msg.sender === "user" ? "justify-end" : "justify-start"}`}>
-                  <div className={`max-w-[80%] rounded-xl px-3 py-2 text-xs ${msg.sender === "user" ? "bg-blue-600 text-white" : "bg-white border border-gray-200 text-gray-800"}`}>
+                  <div className={`max-w-[80%] rounded-xl px-3 py-2 text-xs ${msg.sender === "user" ? "bg-blue-600 text-white" : msg.sender === "system" ? "bg-slate-100 border border-slate-200 text-slate-700" : "bg-white border border-gray-200 text-gray-800"}`}>
                     <p>{msg.text}</p>
                     <p className={`mt-1 text-[10px] ${msg.sender === "user" ? "text-blue-100" : "text-gray-400"}`}>{new Date(msg.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</p>
                   </div>
                 </div>
               ))}
-              {chatSending && (
-                <div className="flex justify-start">
-                  <div className="bg-white border border-gray-200 rounded-xl px-3 py-2 text-xs text-gray-500">Agent is typing...</div>
-                </div>
-              )}
             </div>
              <form onSubmit={async (e) => {
               e.preventDefault();
               if (!chatInput.trim()) return;
-              if (!chatUser.name.trim() || !chatUser.email.trim()) {
-                alert("Please enter your name and email first");
+              if (!chatUser.name.trim() || !chatUser.email.trim() || !chatUser.phone.trim()) {
+                alert("Please enter your name, email, and cellphone number first");
                 return;
               }
               if (!chatSelectedAgent) {
@@ -1343,26 +1339,22 @@ export default function LandingPage() {
                 return;
               }
               const text = chatInput.trim();
+              const confirmationText = "Message received. An agent will reply by email.";
               setChatInput("");
-              setChatMessages((prev) => [...prev, { sender: "user", text, createdAt: new Date().toISOString() }]);
+              setChatMessages((prev) => [...prev, { sender: "user", text, createdAt: new Date().toISOString() }, { sender: "system", text: confirmationText, createdAt: new Date().toISOString() }]);
               setChatSending(true);
               try {
                 const res = await fetch("/api/chat/messages", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ text, propertyId: selectedProperty?.id || null, senderName: chatUser.name, senderEmail: chatUser.email, agentId: chatSelectedAgent.id, agentName: chatSelectedAgent.name }),
+                  body: JSON.stringify({ text, propertyId: selectedProperty?.id || null, senderName: chatUser.name, senderEmail: chatUser.email, senderPhone: chatUser.phone, agentId: chatSelectedAgent.id, agentName: chatSelectedAgent.name }),
                 });
                 const data = await res.json();
-                if (data.success) {
-                  if (data.inquiryId && !chatInquiryIdsRef.current.includes(data.inquiryId)) {
-                    chatInquiryIdsRef.current.push(data.inquiryId);
-                  }
-                  setChatMessages((prev) => [...prev, { sender: "agent", text: data.message || "Thanks for reaching out! An agent will reply by email.", createdAt: new Date().toISOString() }]);
-                } else {
-                  setChatMessages((prev) => [...prev, { sender: "agent", text: "Thanks for reaching out! An agent will reply by email.", createdAt: new Date().toISOString() }]);
+                if (data.success && data.inquiryId && !chatInquiryIdsRef.current.includes(data.inquiryId)) {
+                  chatInquiryIdsRef.current.push(data.inquiryId);
                 }
               } catch {
-                setChatMessages((prev) => [...prev, { sender: "agent", text: "Thanks for reaching out! An agent will reply by email.", createdAt: new Date().toISOString() }]);
+                // Keep the static confirmation message visible without pretending the agent is typing or responding live.
               } finally {
                 setChatSending(false);
               }
@@ -1375,9 +1367,9 @@ export default function LandingPage() {
                   onChange={(e) => setChatInput(e.target.value)}
                   placeholder="Type a message..."
                   aria-label="Chat message"
-                  className="flex-1 h-9 px-3 rounded-lg border border-gray-200 text-xs focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-400"
+                  className="flex-1 h-11 px-3 rounded-xl border border-slate-200 bg-slate-50 text-xs text-slate-700 shadow-sm outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
                 />
-                <button type="submit" disabled={chatSending || !chatInput.trim()} className="h-9 px-3 rounded-lg bg-blue-600 text-white text-xs font-medium disabled:opacity-50 hover:bg-blue-700 transition-colors">
+                <button type="submit" disabled={chatSending || !chatInput.trim()} className="h-11 px-4 rounded-xl bg-blue-600 text-white text-xs font-semibold disabled:opacity-50 hover:bg-blue-700 transition-colors shadow-lg shadow-blue-600/20">
                   Send
                 </button>
               </div>

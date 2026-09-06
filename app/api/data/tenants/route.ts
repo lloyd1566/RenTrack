@@ -13,7 +13,19 @@ export async function GET(request: NextRequest) {
     const auth = await requireAuth(request);
     if (auth instanceof NextResponse) return auth;
 
-    const tenants = await getTenants();
+    let tenants = await getTenants();
+    if (auth.user.role === "agent") {
+      try {
+        const { data: inquiries } = await getAdminSupabase()
+          .from("chat_messages")
+          .select("sender_email")
+          .eq("agent_id", auth.userId);
+        const inquiryEmails = new Set((inquiries || []).map((inquiry: any) => String(inquiry.sender_email || "").toLowerCase()).filter(Boolean));
+        tenants = tenants.filter((tenant) => tenant.createdBy === auth.userId || inquiryEmails.has(String(tenant.email || "").toLowerCase()));
+      } catch {
+        tenants = tenants.filter((tenant) => tenant.createdBy === auth.userId);
+      }
+    }
     return NextResponse.json({ success: true, tenants: tenants.map(t => sanitizeResponse(t)) });
   } catch (error) {
     console.error("Get tenants error:", error);
@@ -34,6 +46,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json();
     const sanitized = sanitizeObject(body, [
+      { key: "id", type: "string", maxLength: 100 },
       { key: "name", type: "string", maxLength: 200 },
       { key: "email", type: "string", maxLength: 200 },
       { key: "phone", type: "string", maxLength: 50 },

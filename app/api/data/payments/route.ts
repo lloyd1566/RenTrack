@@ -1,15 +1,19 @@
+import { readFileSync } from "fs";
+import path from "path";
 import { NextRequest, NextResponse } from "next/server";
 import {
+  getPayments,
   getPaymentsForUser,
   createPayment,
-  updatePayment,
   findUserById,
   getAllUsers,
   getTenants,
   createNotification,
   getUnits,
+  getAdminSupabase,
+  snakeToCamel,
 } from "@/lib/db";
-import { sendEmail, isSmtpConfigured } from "@/lib/mail";
+import { sendEmail, isSmtpConfigured, createRentTrackEmailTemplate } from "@/lib/mail";
 import { formatCurrency } from "@/lib/utils";
 import {
   requireAuth, requireRole, validateApiRequest, withRateLimit,
@@ -19,102 +23,130 @@ import {
 import { logAudit } from "@/lib/db";
 import { randomBytes } from "crypto";
 
-function buildAutomaticReceiptUrl(details: { id: string; amount: number; date: string; method: string; tenant: string; property: string; unit: string; notes: string }) {
+function getReceiptLogoDataUrl(siteUrl?: string) {
+  const localLogoPath = path.join(process.cwd(), "public", "images", "landing", "logo.png");
+
+  try {
+    const logoBuffer = readFileSync(localLogoPath);
+    return `data:image/png;base64,${logoBuffer.toString("base64")}`;
+  } catch {
+    const baseUrl = siteUrl ? siteUrl.replace(/\/$/, "") : "";
+    return baseUrl ? `${baseUrl}/images/landing/logo.png` : "/images/landing/logo.png";
+  }
+}
+
+function buildAutomaticReceiptUrl(details: { id: string; amount: number; date: string; method: string; tenant: string; property: string; unit: string; notes: string }, siteUrl?: string) {
   const escapeXml = (value: string) => value.replace(/[&<>\"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&apos;" }[character] || character));
-  const paymentType = details.notes.toLowerCase().includes("advance") ? "Advance Payment" : "Regular Payment";
-  const statusLabel = "PENDING VERIFICATION";
+  const paymentType = details.notes.toLowerCase().includes("advance") ? "Advance Payment" : details.notes.toLowerCase().includes("outstanding") ? "Outstanding Balance" : "Regular Payment";
   const amountFormatted = formatCurrency(details.amount);
   const dateFormatted = details.date;
   const methodFormatted = details.method.replace(/_/g, " ").replace(/\b\w/g, (match) => match.toUpperCase());
   const now = new Date().toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "numeric" });
 
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="720" height="860" viewBox="0 0 720 860">
-    <rect width="720" height="860" rx="28" fill="#ffffff"/>
-    <rect width="720" height="160" rx="28" fill="#111827"/>
-    <rect y="132" width="720" height="28" fill="#111827"/>
+  const logoHref = getReceiptLogoDataUrl(siteUrl);
 
-    <circle cx="72" cy="64" r="40" fill="#ffffff" opacity="0.08"/>
-    <circle cx="660" cy="72" r="52" fill="#ffffff" opacity="0.06"/>
-    <circle cx="620" cy="40" r="18" fill="#f59e0b" opacity="0.35"/>
-    <circle cx="92" cy="120" r="10" fill="#f59e0b" opacity="0.45"/>
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="820" height="980" viewBox="0 0 820 980">
+    <defs>
+      <linearGradient id="g1" x1="0" x2="1">
+        <stop offset="0%" stop-color="#0f172a"/>
+        <stop offset="50%" stop-color="#1d4ed8"/>
+        <stop offset="100%" stop-color="#0ea5e9"/>
+      </linearGradient>
+      <linearGradient id="g2" x1="0" x2="1">
+        <stop offset="0%" stop-color="#f8fafc"/>
+        <stop offset="100%" stop-color="#eef2ff"/>
+      </linearGradient>
+    </defs>
 
-    <text x="56" y="58" font-family="Arial, sans-serif" font-size="26" font-weight="700" fill="#ffffff">RentTrack</text>
-    <text x="56" y="84" font-family="Arial, sans-serif" font-size="14" font-weight="500" fill="#e5e7eb">Rental Property Management</text>
-    <text x="56" y="106" font-family="Arial, sans-serif" font-size="12" fill="#9ca3af">receipt@renttrack.app • +63 900 000 0000</text>
-    <text x="56" y="124" font-family="Arial, sans-serif" font-size="12" fill="#9ca3af">123 Rizal Ave, Cebu City, Philippines</text>
+    <rect width="820" height="980" fill="#f8fafc"/>
+    <rect x="40" y="40" width="740" height="900" rx="26" fill="#ffffff" stroke="#e2e8f0" stroke-width="1.5"/>
 
-    <text x="664" y="56" text-anchor="end" font-family="Arial, sans-serif" font-size="12" font-weight="700" fill="#fbbf24">${escapeXml(statusLabel)}</text>
-    <rect x="468" y="68" width="236" height="28" rx="14" fill="#fbbf24" opacity="0.18"/>
-    <text x="586" y="86" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="700" fill="#fbbf24">${now}</text>
+    <rect x="40" y="40" width="740" height="150" rx="26" fill="url(#g1)"/>
+    <rect x="70" y="70" width="58" height="58" rx="16" fill="rgba(255,255,255,0.12)"/>
+    <image href="${logoHref}" x="82" y="82" width="34" height="34" preserveAspectRatio="xMidYMid meet"/>
 
-    <rect x="56" y="164" width="608" height="1" fill="#e5e7eb"/>
+    <text x="145" y="98" font-family="Arial, sans-serif" font-size="30" font-weight="700" fill="#ffffff">RentTrack</text>
+    <text x="146" y="122" font-family="Arial, sans-serif" font-size="13" fill="#dbeafe">Official rental payment receipt</text>
 
-    <text x="56" y="196" font-family="Arial, sans-serif" font-size="22" font-weight="700" fill="#111827">Payment Receipt</text>
-    <text x="56" y="218" font-family="Arial, sans-serif" font-size="13" fill="#6b7280">Thank you for your payment. Please keep this receipt for your records.</text>
+    <rect x="566" y="86" width="170" height="40" rx="20" fill="rgba(255,255,255,0.12)" stroke="rgba(255,255,255,0.32)"/>
+    <text x="651" y="111" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" font-weight="700" fill="#fef3c7">Awaiting review</text>
 
-    <rect x="56" y="244" width="608" height="1" fill="#e5e7eb"/>
+    <text x="70" y="238" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#111827">Payment Receipt</text>
+    <text x="70" y="268" font-family="Arial, sans-serif" font-size="13" fill="#64748b">Thank you for your payment. This receipt is issued for record and confirmation.</text>
 
-    <text x="56" y="274" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#374151">Billed To</text>
-    <text x="56" y="298" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#111827">${escapeXml(details.tenant)}</text>
-    <text x="56" y="318" font-family="Arial, sans-serif" font-size="13" fill="#6b7280">${escapeXml(details.property || "Rental property")}</text>
-    <text x="56" y="338" font-family="Arial, sans-serif" font-size="13" fill="#6b7280">Unit ${escapeXml(details.unit || "N/A")}</text>
+    <rect x="70" y="292" width="680" height="130" rx="18" fill="url(#g2)" stroke="#dbeafe"/>
+    <text x="98" y="325" font-family="Arial, sans-serif" font-size="12" letter-spacing="1.2" fill="#64748b">PAID AMOUNT</text>
+    <text x="98" y="382" font-family="Arial, sans-serif" font-size="42" font-weight="700" fill="#0f172a">${escapeXml(amountFormatted)}</text>
+    <rect x="522" y="320" width="190" height="70" rx="14" fill="#0f172a"/>
+    <text x="617" y="346" text-anchor="middle" font-family="Arial, sans-serif" font-size="11" letter-spacing="1.5" fill="#cbd5e1">RECEIPT NO.</text>
+    <text x="617" y="369" text-anchor="middle" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#ffffff">${escapeXml(details.id.slice(0, 12).toUpperCase())}</text>
 
-    <rect x="56" y="356" width="608" height="1" fill="#e5e7eb"/>
+    <rect x="70" y="450" width="680" height="1" fill="#e2e8f0"/>
 
-    <text x="56" y="386" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#374151">Receipt Details</text>
+    <text x="70" y="492" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#334155">Tenant Information</text>
+    <text x="70" y="520" font-family="Arial, sans-serif" font-size="24" font-weight="700" fill="#0f172a">${escapeXml(details.tenant)}</text>
+    <text x="70" y="547" font-family="Arial, sans-serif" font-size="14" fill="#475569">${escapeXml(details.property || "Rental property")}</text>
+    <text x="70" y="572" font-family="Arial, sans-serif" font-size="14" fill="#475569">Unit ${escapeXml(details.unit || "N/A")}</text>
 
-    <rect x="56" y="398" width="608" height="160" rx="18" fill="#f8fafc"/>
-    <rect x="56" y="398" width="608" height="160" rx="18" fill="none" stroke="#e5e7eb" stroke-width="1"/>
+    <text x="420" y="492" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#334155">Payment Details</text>
+    <text x="420" y="525" font-family="Arial, sans-serif" font-size="13" fill="#64748b">Date</text>
+    <text x="420" y="548" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#0f172a">${escapeXml(dateFormatted)}</text>
+    <text x="420" y="580" font-family="Arial, sans-serif" font-size="13" fill="#64748b">Payment Type</text>
+    <text x="420" y="603" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#0f172a">${escapeXml(paymentType)}</text>
+    <text x="420" y="635" font-family="Arial, sans-serif" font-size="13" fill="#64748b">Payment Method</text>
+    <text x="420" y="658" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#0f172a">${escapeXml(methodFormatted)}</text>
 
-    <text x="84" y="428" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">Receipt ID</text>
-    <text x="84" y="452" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#111827">${escapeXml(details.id)}</text>
+    <rect x="70" y="700" width="680" height="152" rx="20" fill="#f8fafc" stroke="#e2e8f0"/>
+    <text x="96" y="734" font-family="Arial, sans-serif" font-size="15" font-weight="700" fill="#334155">Summary</text>
 
-    <text x="340" y="428" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">Date</text>
-    <text x="340" y="452" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#111827">${escapeXml(dateFormatted)}</text>
+    <text x="96" y="770" font-family="Arial, sans-serif" font-size="14" fill="#64748b">Amount Paid</text>
+    <text x="700" y="770" text-anchor="end" font-family="Arial, sans-serif" font-size="18" font-weight="700" fill="#111827">${escapeXml(amountFormatted)}</text>
 
-    <text x="84" y="486" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">Payment Type</text>
-    <text x="84" y="510" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#111827">${escapeXml(paymentType)}</text>
+    <text x="96" y="802" font-family="Arial, sans-serif" font-size="14" fill="#64748b">Notes</text>
+    <text x="700" y="802" text-anchor="end" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#0f172a">${escapeXml(details.notes || "Payment submitted")}</text>
 
-    <text x="340" y="486" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">Payment Method</text>
-    <text x="340" y="510" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#111827">${escapeXml(methodFormatted)}</text>
+    <text x="96" y="834" font-family="Arial, sans-serif" font-size="14" fill="#64748b">Issued on</text>
+    <text x="700" y="834" text-anchor="end" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#0f172a">${escapeXml(now)}</text>
 
-    <text x="84" y="538" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">Status</text>
-    <text x="84" y="562" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#b45309">${escapeXml(statusLabel)}</text>
-
-    <rect x="56" y="580" width="608" height="1" fill="#e5e7eb"/>
-
-    <text x="56" y="612" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#374151">Payment Summary</text>
-
-    <rect x="56" y="624" width="608" height="110" rx="18" fill="#f8fafc"/>
-    <rect x="56" y="624" width="608" height="110" rx="18" fill="none" stroke="#e5e7eb" stroke-width="1"/>
-
-    <text x="84" y="654" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">Amount Paid</text>
-    <text x="664" y="654" text-anchor="end" font-family="Arial, sans-serif" font-size="20" font-weight="700" fill="#111827">${escapeXml(amountFormatted)}</text>
-
-    <text x="84" y="682" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">Balance / Amount Due</text>
-    <text x="664" y="682" text-anchor="end" font-family="Arial, sans-serif" font-size="14" font-weight="700" fill="#6b7280">${escapeXml(amountFormatted)}</text>
-
-    <text x="84" y="714" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">Notes</text>
-    <text x="84" y="734" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">${escapeXml(details.notes || "Payment submitted")}</text>
-
-    <rect x="56" y="754" width="608" height="1" fill="#e5e7eb"/>
-
-    <rect x="56" y="768" width="608" height="64" rx="14" fill="#f8fafc"/>
-    <rect x="56" y="768" width="608" height="64" rx="14" fill="none" stroke="#e5e7eb" stroke-width="1"/>
-    <text x="84" y="794" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">Reference / Verification Code</text>
-    <text x="84" y="816" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#111827">${escapeXml(details.id)}</text>
-    <text x="500" y="794" font-family="Arial, sans-serif" font-size="12" fill="#6b7280">Issued On</text>
-    <text x="500" y="816" font-family="Arial, sans-serif" font-size="13" font-weight="700" fill="#111827">${now}</text>
-
-    <rect x="56" y="844" width="608" height="1" fill="#e5e7eb"/>
-
-    <text x="56" y="866" font-family="Arial, sans-serif" font-size="11" fill="#9ca3af">This payment will be updated after confirmation.</text>
-    <text x="56" y="884" font-family="Arial, sans-serif" font-size="11" fill="#9ca3af">Thank you for using RentTrack. If you have questions, contact support@renttrack.app.</text>
-    <text x="56" y="902" font-family="Arial, sans-serif" font-size="10" fill="#d1d5db">DTI Permit No. 12345 • BIR TIN: 000-000-000</text>
-    <text x="56" y="918" font-family="Arial, sans-serif" font-size="10" fill="#d1d5db">This is a system-generated receipt. Valid without signature.</text>
+    <rect x="70" y="872" width="680" height="1" fill="#e2e8f0"/>
+    <text x="70" y="900" font-family="Arial, sans-serif" font-size="12" fill="#94a3b8">This payment is pending confirmation by the property owner. Once verified, the balance is updated automatically.</text>
+    <text x="70" y="918" font-family="Arial, sans-serif" font-size="12" fill="#94a3b8">Generated by RentTrack • Property management, simplified.</text>
   </svg>`;
 
   return `data:image/svg+xml;base64,${Buffer.from(svg, "utf8").toString("base64")}`;
+}
+
+async function reconcileTenantPaymentLedger(tenantId: string, confirmedPaymentId: string, confirmedAmount: number) {
+  if (!tenantId || !confirmedAmount) return;
+
+  const tenantPayments = (await getPayments())
+    .filter((payment: any) => payment.tenantId === tenantId && payment.id !== confirmedPaymentId)
+    .sort((a: any, b: any) => new Date(a.paymentDate || a.createdAt).getTime() - new Date(b.paymentDate || b.createdAt).getTime());
+
+  let remainingToApply = Number(confirmedAmount || 0);
+
+  for (const payment of tenantPayments) {
+    if (remainingToApply <= 0) break;
+
+    const currentBalance = Math.max(0, Number(payment.balance || 0));
+    if (currentBalance <= 0) continue;
+
+    const appliedAmount = Math.min(remainingToApply, currentBalance);
+    const nextBalance = Math.max(0, currentBalance - appliedAmount);
+    const nextStatus = nextBalance === 0 ? "paid" : (payment.status === "overdue" ? "overdue" : "partial");
+
+    if (appliedAmount > 0) {
+      await getAdminSupabase()
+        .from("payments")
+        .update({
+          balance: nextBalance,
+          status: nextStatus,
+        })
+        .eq("id", payment.id);
+    }
+
+    remainingToApply -= appliedAmount;
+  }
 }
 
 export async function GET(request: NextRequest) {
@@ -159,7 +191,7 @@ export async function POST(request: NextRequest) {
       { key: "paymentDate", type: "string", maxLength: 20 },
       { key: "dueDate", type: "string", maxLength: 20 },
       { key: "status", type: "string", maxLength: 20 },
-      { key: "paymentMethod", type: "string", maxLength: 20 },
+      { key: "paymentMethod", type: "string", maxLength: 30 },
       { key: "paymentMethodNote", type: "string", maxLength: 100 },
       { key: "bankName", type: "string", maxLength: 100 },
       { key: "accountNumber", type: "string", maxLength: 100 },
@@ -168,6 +200,9 @@ export async function POST(request: NextRequest) {
       { key: "cardExpiry", type: "string", maxLength: 7 },
       { key: "gcashNumber", type: "string", maxLength: 20 },
       { key: "gcashName", type: "string", maxLength: 200 },
+      { key: "receiptUrl", type: "string", maxLength: 10000 },
+      { key: "stayStart", type: "string", maxLength: 20 },
+      { key: "stayEnd", type: "string", maxLength: 20 },
       { key: "notes", type: "string", maxLength: 500 },
     ]);
 
@@ -198,6 +233,25 @@ export async function POST(request: NextRequest) {
     const unitId = sanitized.unitId || tenantRecord?.unitId || "";
     const propertyName = sanitized.propertyName || tenantRecord?.propertyName || "";
 
+    let inquiryAgent: any = null;
+    if (targetTenant?.email) {
+      try {
+        const { data: inquiry } = await getAdminSupabase()
+          .from("chat_messages")
+          .select("agent_id, agent_name, created_at")
+          .ilike("sender_email", targetTenant.email)
+          .not("agent_id", "is", null)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (inquiry?.agent_id) {
+          inquiryAgent = await findUserById(inquiry.agent_id);
+        }
+      } catch (err) {
+        console.warn("Could not resolve original inquiry agent:", err);
+      }
+    }
+
     let unitRentAmount = 0;
     if (unitId) {
       const units = await getUnits();
@@ -220,12 +274,12 @@ export async function POST(request: NextRequest) {
       id: paymentId,
       amount: amountPaid,
       date: paymentDate,
-      method: sanitized.paymentMethod || "other",
+      method: sanitized.paymentMethod || "cash",
       tenant: tenantName,
       property: propertyName,
       unit: tenantRecord?.unitNumber || unitId,
       notes: paymentNotes,
-    });
+    }, process.env.NEXT_PUBLIC_SITE_URL);
     const payment = await createPayment({
       id: paymentId,
       tenantId: targetTenantId,
@@ -238,7 +292,7 @@ export async function POST(request: NextRequest) {
       paymentDate,
       dueDate: sanitized.dueDate || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
       status: "pending",
-      paymentMethod: sanitized.paymentMethod || "other",
+      paymentMethod: sanitized.paymentMethod || "cash",
       paymentMethodNote: sanitized.paymentMethodNote || null,
       bankName: sanitized.bankName || null,
       accountNumber: sanitized.accountNumber || null,
@@ -255,8 +309,8 @@ export async function POST(request: NextRequest) {
     try {
       await createNotification({
         userId: targetTenantId,
-        title: "Payment Receipt Submitted",
-        message: `A payment of ${formatCurrency(amountPaid)} was submitted for you. It is pending verification.`,
+        title: "Payment already submitted",
+        message: `You already paid ${formatCurrency(amountPaid)} and it is waiting for the owner to confirm. Once confirmed, your outstanding balance will be updated automatically.`,
         type: "payment"
       });
     } catch (err) {
@@ -277,10 +331,39 @@ export async function POST(request: NextRequest) {
       console.error("Failed to notify agents about payment:", err);
     }
 
+    if (inquiryAgent) {
+      try {
+        await createNotification({
+          userId: inquiryAgent.id,
+          title: "Payment Submitted by Your Inquiry Tenant",
+          message: `${tenantName} submitted ${formatCurrency(amountPaid)} for ${propertyName || "their rental"}. This payment is ready for your review.`,
+          type: "payment",
+        });
+        if (inquiryAgent.email && isSmtpConfigured()) {
+          await sendEmail({
+            to: inquiryAgent.email,
+            subject: `${tenantName} submitted a payment`,
+            html: createRentTrackEmailTemplate({
+              title: "Payment submitted by your inquiry tenant",
+              body: `${tenantName} submitted a payment that is ready for your review.`,
+              messageBlock: `Amount: ${formatCurrency(amountPaid)}\nProperty: ${propertyName || "Not specified"}\nPayment ID: ${payment.id}`,
+              footerNote: "Please sign in to RentTrack to review and verify this payment.",
+            }),
+          });
+        }
+      } catch (err) {
+        console.error("Failed to notify original inquiry agent:", err);
+      }
+    }
+
     try {
       if (targetTenant?.email && isSmtpConfigured()) {
         const subject = "Payment receipt received";
-        const html = `<p>Hi ${tenantName},</p><p>A payment of <strong>${formatCurrency(amountPaid)}</strong> was submitted for you. It is pending verification by our team.</p><p>Receipt ID: <code>${payment.id}</code></p>`;
+        const html = createRentTrackEmailTemplate({
+          title: "Payment Receipt Received",
+          body: `Hi ${tenantName},<br /><br />A payment of <strong>${formatCurrency(amountPaid)}</strong> was submitted for you.<br /><br />Receipt ID: <code>${payment.id}</code><br /><br />It is pending verification by our team.`,
+          footerNote: "If you did not make this payment, please contact support immediately.",
+        });
         await sendEmail({ to: targetTenant.email, subject, html, bcc: process.env.SMTP_USER });
       }
     } catch (err) {
@@ -336,11 +419,48 @@ export async function PATCH(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Payment not found" }, { status: 404 });
     }
     if (sanitized.status === "paid") {
-      const calculatedBalance = Math.max(0, Number(currentPayment.amountDue || 0) - Number(currentPayment.amountPaid || 0));
+      const amountDue = Number(currentPayment.amountDue || 0);
+      const amountPaid = Number(currentPayment.amountPaid || 0);
+      const calculatedBalance = Math.max(0, amountDue - amountPaid);
+      const isFullyPaid = amountDue > 0 ? amountPaid >= amountDue : amountPaid > 0;
       sanitized.balance = calculatedBalance;
-      sanitized.status = "paid";
+      sanitized.status = isFullyPaid ? "paid" : "partial";
+      console.log("[Payment] Confirming payment:", {
+        id: currentPayment.id,
+        amountDue,
+        amountPaid,
+        calculatedBalance,
+        resolvedStatus: sanitized.status,
+        oldBalance: currentPayment.balance,
+      });
     }
-    const payment = await updatePayment(id, sanitized);
+
+    if (sanitized.status === "paid" && currentPayment.amountPaid > 0 && currentPayment.tenantId) {
+      try {
+        await reconcileTenantPaymentLedger(currentPayment.tenantId, currentPayment.id, currentPayment.amountPaid);
+      } catch (err) {
+        console.error("[Payment] Failed to apply payment to pending balances:", err);
+      }
+    }
+
+    const updateData: Record<string, any> = {};
+    for (const [key, value] of Object.entries(sanitized)) {
+      const snakeKey = key.replace(/[A-Z]/g, (m) => `_${m.toLowerCase()}`);
+      updateData[snakeKey] = value;
+    }
+
+    const { data: updatedPayment, error: updateError } = await getAdminSupabase()
+      .from("payments")
+      .update(updateData)
+      .eq("id", id)
+      .select("*")
+      .single();
+
+    if (updateError || !updatedPayment) {
+      return NextResponse.json({ success: false, error: "Payment not found" }, { status: 404 });
+    }
+
+    const payment = snakeToCamel(updatedPayment);
     if (!payment) {
       return NextResponse.json({ success: false, error: "Payment not found" }, { status: 404 });
     }

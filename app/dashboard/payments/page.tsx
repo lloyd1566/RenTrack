@@ -17,6 +17,7 @@ import { useAuth } from "@/lib/auth";
 import { useRouter } from "next/navigation";
 import { getPayments, getTenants, verifyPayment, addNotification, notifyAdmins, Payment, TenantRecord } from "@/lib/data";
 import { toast } from "sonner";
+import ReceiptModal from "@/components/receipt-modal";
 
 const staggerContainer = { hidden: {}, visible: { transition: { staggerChildren: 0.05, delayChildren: 0.1 } } };
 const fadeInUp = { hidden: { opacity: 0, y: 15 }, visible: { opacity: 1, y: 0, transition: { duration: 0.4 } } };
@@ -257,48 +258,12 @@ export default function PaymentsPage() {
       </Card>
 
       {/* ─── Receipt Viewer Modal ─── */}
-      {viewingReceipt && (
-        <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={() => setViewingReceipt(null)}>
-          <div className="relative w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
-            <button onClick={() => setViewingReceipt(null)} className="absolute -top-3 -right-3 z-10 h-8 w-8 rounded-full bg-white shadow-lg flex items-center justify-center">
-              <X className="h-4 w-4" />
-            </button>
-            <div className="rounded-2xl bg-white shadow-2xl overflow-hidden">
-              <div className="bg-gradient-to-r from-emerald-600 to-teal-600 p-5 text-white">
-                <p className="text-sm font-medium opacity-90">Payment Receipt</p>
-                <p className="text-xl font-bold mt-0.5">{viewingReceipt.tenantName}</p>
-                <div className="flex justify-between mt-3 text-xs">
-                  <span>{formatDate(viewingReceipt.paymentDate)}</span>
-                  <span className="font-mono">{viewingReceipt.id}</span>
-                </div>
-              </div>
-              <div className="p-5 space-y-3">
-                <img src={viewingReceipt.receiptUrl} alt="Receipt" className="w-full h-auto max-h-72 object-contain rounded-xl border border-gray-100" />
-                <div className="border-t border-gray-100 pt-3 space-y-1.5 text-sm">
-                  <div className="flex justify-between"><span className="text-gray-500">Amount Paid</span><span className="font-semibold text-gray-900">{formatCurrency(viewingReceipt.amountPaid)}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-500">Amount Due</span><span className="font-semibold text-gray-900">{formatCurrency(viewingReceipt.amountDue)}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-500">Remaining Balance</span><span className={cn("font-bold", viewingReceipt.balance > 0 ? "text-red-500" : "text-green-600")}>{formatCurrency(viewingReceipt.balance)}</span></div>
-                  <div className="flex justify-between"><span className="text-gray-500">Status</span>
-                    <Badge variant="outline" className={cn("text-[10px] capitalize", statusStyles[viewingReceipt.status])}>{viewingReceipt.status}</Badge>
-                  </div>
-                </div>
-                {viewingReceipt.status === "pending" && (
-                  <div className="flex gap-2 pt-2">
-                    <Button size="sm" className="flex-1 bg-green-500 hover:bg-green-600"
-                      onClick={() => { const p = viewingReceipt; setViewingReceipt(null); handleVerify(p, "paid"); }}>
-                      <CheckCircle2 className="h-4 w-4 mr-1" />Approve &amp; Deduct
-                    </Button>
-                    <Button size="sm" variant="outline" className="flex-1 text-red-500"
-                      onClick={() => { const p = viewingReceipt; setViewingReceipt(null); handleVerify(p, "rejected"); }}>
-                      <XCircle className="h-4 w-4 mr-1" />Reject
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <ReceiptModal
+        isOpen={!!viewingReceipt}
+        onClose={() => setViewingReceipt(null)}
+        receiptUrl={viewingReceipt?.receiptUrl || null}
+        payment={viewingReceipt || undefined}
+      />
     </motion.div>
   );
 }

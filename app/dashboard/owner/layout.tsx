@@ -5,20 +5,19 @@ import { motion, AnimatePresence } from "framer-motion";
 import { createPortal } from "react-dom";
 import {
   LayoutDashboard, Home, ClipboardCheck, FileText,
-  CreditCard, BarChart3, FileSpreadsheet, LogOut, ChevronRight, Menu, X,
-  Loader2, MessageSquare, ChevronDown, ChevronLeft, Users, User, Bell, UserPlus,
+  CreditCard, BarChart3, LogOut, ChevronRight, Menu, X,
+  Loader2, ChevronDown, ChevronLeft, Users, User, Bell, UserPlus, MessageSquare,
 } from "lucide-react";
 import { useRouter, usePathname } from "next/navigation";
 import { cn, getInitials } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
-import { getNotifications, markNotificationRead, markAllNotificationsRead, getUnreadCount, getUnreadMessageCount, getPendingPaymentsCount, Notification } from "@/lib/data";
+import { getNotifications, markNotificationRead, getUnreadCount, getPendingPaymentsCount, getConversations, Notification, Conversation } from "@/lib/data";
 import { getTenants } from "@/lib/data";
 import Link from "next/link";
 import MessagingPanel from "@/components/messaging-panel";
+import MessagingModal from "@/components/messaging-modal";
+import AccountRequestReviewModal from "@/components/account-request-review-modal";
 import { Avatar } from "@/components/ui/avatar";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
 
 const navItems = [
   { label: "Overview", tab: "overview", href: "/dashboard/owner#overview", icon: LayoutDashboard },
@@ -47,19 +46,42 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
   const [logoutLoading, setLogoutLoading] = useState(false);
   const [activeTab, setActiveTab] = useState(getTabFromHash);
   const [showMessages, setShowMessages] = useState(false);
-  const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showUserMenu, setShowUserMenu] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
-  const [unreadMessageCount, setUnreadMessageCount] = useState(0);
+  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
   const [pendingAssignmentsCount, setPendingAssignmentsCount] = useState(0);
   const [pendingPaymentsCount, setPendingPaymentsCount] = useState(0);
-  const [unreadNotificationsCount, setUnreadNotificationsCount] = useState(0);
+  const [accountRequests, setAccountRequests] = useState<Conversation[]>([]);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [selectedAccountRequest, setSelectedAccountRequest] = useState<Conversation | null>(null);
+  const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
       router.push("/");
     }
   }, [isLoading, isAuthenticated, router]);
+
+  useEffect(() => {
+    if (user) {
+      getNotifications(user.id).then(setNotifications).catch(() => setNotifications([]));
+      getUnreadCount(user.id).then(setUnreadNotificationsCount).catch(() => setUnreadNotificationsCount(0));
+      getTenants(user).then((tenants) => {
+        const pending = tenants.filter((t: any) => t.assignmentStatus === "pending" && t.unitId).length;
+        setPendingAssignmentsCount(pending);
+      }).catch(() => setPendingAssignmentsCount(0));
+      getPendingPaymentsCount().then(setPendingPaymentsCount).catch(() => setPendingPaymentsCount(0));
+      getConversations().then((convs) => {
+        setConversations(convs);
+        const requests = convs.filter((c) => c.lastMessage?.subject === "Account Creation Request");
+        setAccountRequests(requests);
+      }).catch(() => {
+        setConversations([]);
+        setAccountRequests([]);
+      });
+    }
+  }, [user]);
 
   const refreshNotificationsCount = useCallback(async () => {
     if (!user) return;
@@ -72,33 +94,23 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
   }, [user]);
 
   useEffect(() => {
-    if (user) {
-      getNotifications(user.id).then(setNotifications).catch(() => setNotifications([]));
-      getUnreadMessageCount().then(setUnreadMessageCount).catch(() => setUnreadMessageCount(0));
+    const handleRefresh = () => {
+      if (!user) return;
+      getNotifications(user.id).then(setNotifications).catch(() => {});
       getTenants(user).then((tenants) => {
         const pending = tenants.filter((t: any) => t.assignmentStatus === "pending" && t.unitId).length;
         setPendingAssignmentsCount(pending);
-      }).catch(() => setPendingAssignmentsCount(0));
-      getPendingPaymentsCount().then(setPendingPaymentsCount).catch(() => setPendingPaymentsCount(0));
-      refreshNotificationsCount();
-    }
-  }, [user, refreshNotificationsCount]);
+      }).catch(() => {});
+      getPendingPaymentsCount().then(setPendingPaymentsCount).catch(() => {});
+      getConversations().then((convs) => {
+        const requests = convs.filter((c) => c.lastMessage?.subject === "Account Creation Request");
+        setAccountRequests(requests);
+      }).catch(() => {});
+    };
 
-  useEffect(() => {
-    const interval = setInterval(() => {
-      if (user) {
-        getNotifications(user.id).then(setNotifications).catch(() => {});
-        getUnreadMessageCount().then(setUnreadMessageCount).catch(() => {});
-        getTenants(user).then((tenants) => {
-          const pending = tenants.filter((t: any) => t.assignmentStatus === "pending" && t.unitId).length;
-          setPendingAssignmentsCount(pending);
-        }).catch(() => {});
-        getPendingPaymentsCount().then(setPendingPaymentsCount).catch(() => {});
-        refreshNotificationsCount();
-      }
-    }, 30000);
-    return () => clearInterval(interval);
-  }, [user, refreshNotificationsCount]);
+    window.addEventListener("renttrack-notifications-updated", handleRefresh);
+    return () => window.removeEventListener("renttrack-notifications-updated", handleRefresh);
+  }, [user]);
 
   useEffect(() => {
     const refreshPending = () => {
@@ -124,10 +136,23 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
     return () => window.removeEventListener("payment-confirmed", refreshPayments);
   }, [user]);
 
-  const handleNotificationClick = async (id: string) => {
+  const handleNotificationClick = async (notification: Notification) => {
     setShowNotifications(false);
+    if (notification.title === "Account Creation Request") {
+      const loadedRequest = accountRequests.find((conv) => conv.lastMessage?.body === notification.message)
+        || accountRequests[0];
+      if (loadedRequest) {
+        setSelectedAccountRequest(loadedRequest);
+      } else {
+        void getConversations().then((convs) => {
+          const request = convs.find((conv) => conv.lastMessage?.subject === "Account Creation Request" && conv.lastMessage.body === notification.message)
+            || convs.find((conv) => conv.lastMessage?.subject === "Account Creation Request");
+          if (request) setSelectedAccountRequest(request);
+        }).catch(() => undefined);
+      }
+    }
+    void markNotificationRead(notification.id).catch(() => undefined);
     try {
-      await markNotificationRead(id);
       getNotifications(user?.id).then(setNotifications).catch(() => {});
       refreshNotificationsCount();
     } catch {
@@ -140,14 +165,11 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
     setShowUserMenu(false);
     if (!showNotifications && user) {
       try {
-        await markAllNotificationsRead(user.id);
         const updated = await getNotifications(user.id);
         setNotifications(updated);
         const count = await getUnreadCount(user.id);
-        console.log("[OwnerLayout] Refreshed notification count:", count);
         setUnreadNotificationsCount(count);
-      } catch (err) {
-        console.error("[OwnerLayout] Failed to refresh notifications:", err);
+      } catch {
       }
     }
   };
@@ -182,7 +204,7 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
 
   const handleLogout = async () => {
     setLogoutLoading(true);
-    await logout();
+    logout();
     router.push("/");
   };
 
@@ -203,6 +225,8 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
       </div>
     );
   }
+
+  const selectedOtherUser = selectedConversation?.otherUser;
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-slate-100 flex-1">
@@ -242,7 +266,7 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
                       notifications.slice(0, 10).map((n) => (
                         <button
                           key={n.id}
-                          onClick={() => handleNotificationClick(n.id)}
+                          onClick={() => handleNotificationClick(n)}
                           className="w-full text-left p-3 border-b border-slate-700 last:border-0 hover:bg-surface-secondary transition-colors"
                         >
                           <p className="text-sm font-medium text-foreground">{n.title}</p>
@@ -281,6 +305,10 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
                   key={item.tab || item.href}
                   id={`sidebar-${item.tab}`}
                   onClick={() => {
+                    if (item.tab === "notifications") {
+                      setShowNotifications(true);
+                      return;
+                    }
                     if (window.location.pathname !== "/dashboard/owner") {
                       router.push(`/dashboard/owner#${item.tab}`);
                     } else {
@@ -296,6 +324,16 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
                 >
                   <Icon className={cn("h-4 w-4 shrink-0", isActive ? "text-blue-600" : "text-gray-400")} />
                   {sidebarOpen && <span className="truncate">{item.label}</span>}
+                  {item.tab === "notifications" && unreadNotificationsCount > 0 && (
+                    <motion.span
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      transition={{ type: "spring", stiffness: 500, damping: 15 }}
+                      className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-md"
+                    >
+                      {unreadNotificationsCount}
+                    </motion.span>
+                  )}
                   {item.tab === "assignments" && pendingAssignmentsCount > 0 && (
                     <motion.span
                       initial={{ scale: 0 }}
@@ -416,68 +454,54 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
                 {sidebarOpen ? <ChevronLeft className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
               </button>
             </div>
-            <div className="flex items-center gap-3">
+             <div className="flex items-center gap-3">
+              <div className="relative">
+                <button
+                  onClick={handleOpenNotifications}
+                  className="relative rounded-lg p-2 text-text-secondary transition-colors hover:bg-surface-secondary hover:text-foreground"
+                  aria-label="Open notifications"
+                >
+                  <Bell className="h-5 w-5" />
+                  {unreadNotificationsCount > 0 && (
+                    <span className="absolute -right-0.5 -top-0.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+                      {unreadNotificationsCount}
+                    </span>
+                  )}
+                </button>
+                <AnimatePresence initial={false}>
+                  {showNotifications && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                      className="absolute right-0 top-full z-[70] mt-2 w-80 overflow-hidden rounded-xl border border-slate-700 bg-surface shadow-dropdown"
+                    >
+                      <div className="border-b border-slate-700 p-3">
+                        <h3 className="text-sm font-semibold text-foreground">Notifications</h3>
+                      </div>
+                      <div className="max-h-80 overflow-y-auto">
+                        {notifications.length === 0 ? (
+                          <p className="px-3 py-6 text-center text-xs text-text-secondary">No notifications yet</p>
+                        ) : notifications.slice(0, 10).map((notification) => (
+                            <button key={notification.id} onClick={() => handleNotificationClick(notification)} className="w-full border-b border-slate-700 p-3 text-left last:border-0 hover:bg-surface-secondary">
+                            <p className="text-sm font-medium text-foreground">{notification.title}</p>
+                            <p className="mt-0.5 line-clamp-2 text-xs text-text-secondary">{notification.message}</p>
+                          </button>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
               <div className="relative">
                 <AnimatePresence initial={false}>
                   {showMessages && (
                     <MessagingPanel
                       isOpen={showMessages}
                       onClose={() => setShowMessages(false)}
+                      onSelectConversation={setSelectedConversation}
+                      floating
                     />
-                  )}
-                </AnimatePresence>
-              </div>
-              <div className="relative z-[60]">
-                <button
-                  onClick={(e) => { e.stopPropagation(); handleOpenNotifications(); }}
-                  className="relative p-2 rounded-lg hover:bg-surface-secondary transition-colors text-text-secondary hover:text-foreground"
-                >
-                  <Bell className="h-5 w-5" />
-                  <AnimatePresence mode="popLayout">
-                    {unreadNotificationsCount > 0 && (
-                      <motion.span
-                        key="notification-badge"
-                        initial={{ scale: 0, y: -4 }}
-                        animate={{ scale: 1, y: 0 }}
-                        exit={{ scale: 0, y: -4 }}
-                        transition={{ type: "spring", stiffness: 500, damping: 15 }}
-                        className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-lg"
-                      >
-                        {unreadNotificationsCount}
-                      </motion.span>
-                    )}
-                  </AnimatePresence>
-                </button>
-                <AnimatePresence initial={false}>
-                  {showNotifications && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                      transition={{ duration: 0.15 }}
-                      onClick={(e) => e.stopPropagation()}
-                      className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl border border-slate-700 bg-surface shadow-dropdown overflow-hidden z-[70]"
-                    >
-                      <div className="p-4 border-b border-slate-700">
-                        <h3 className="font-semibold text-foreground">Notifications</h3>
-                      </div>
-                      <div className="max-h-80 overflow-y-auto">
-                        {notifications.length === 0 ? (
-                          <p className="px-4 py-8 text-center text-sm text-text-secondary">No notifications yet</p>
-                        ) : (
-                          notifications.slice(0, 10).map((n) => (
-                            <button
-                              key={n.id}
-                              onClick={() => handleNotificationClick(n.id)}
-                              className="w-full text-left p-4 border-b border-slate-700 last:border-0 hover:bg-surface-secondary transition-colors"
-                            >
-                              <p className="text-sm font-medium text-foreground">{n.title}</p>
-                              <p className="text-xs text-text-secondary mt-0.5 line-clamp-2">{n.message}</p>
-                            </button>
-                          ))
-                        )}
-                      </div>
-                    </motion.div>
                   )}
                 </AnimatePresence>
               </div>
@@ -497,26 +521,62 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 10, scale: 0.95 }}
                       transition={{ duration: 0.15 }}
-                      className="absolute right-0 mt-2 w-56 rounded-2xl border border-slate-700 bg-surface shadow-dropdown overflow-hidden"
+                      className="absolute right-0 mt-2 w-72 rounded-2xl border border-slate-700 bg-surface shadow-dropdown overflow-hidden z-[70]"
                     >
                        <div className="p-3 border-b border-slate-700">
                          <p className="text-sm font-semibold text-foreground truncate">{user.name}</p>
                          <p className="text-xs text-text-secondary truncate">{user.email}</p>
                        </div>
                        <div className="p-2 space-y-0.5">
-                          <button
-                            onClick={() => {
-                              setShowUserMenu(false);
-                              setActiveTab("profile");
-                              window.location.hash = "profile";
-                            }}
-                            className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-text-secondary hover:bg-surface-secondary hover:text-foreground transition-colors"
-                          >
-                            <User className="h-4 w-4" />
-                            My Profile
-                          </button>
-                         </div>
-                     </motion.div>
+                           <button
+                             onClick={() => {
+                               setShowUserMenu(false);
+                               setActiveTab("profile");
+                               window.location.hash = "profile";
+                             }}
+                             className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-text-secondary hover:bg-surface-secondary hover:text-foreground transition-colors"
+                           >
+                             <User className="h-4 w-4" />
+                             My Profile
+                           </button>
+                           <div className="border-t border-slate-700 pt-1 mt-1">
+                             <button
+                               onClick={() => {
+                                 setShowUserMenu(false);
+                                 setShowMessages(true);
+                               }}
+                               className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-text-secondary hover:bg-surface-secondary hover:text-foreground"
+                             >
+                               <MessageSquare className="h-4 w-4" />
+                               <span>Messages</span>
+                               {conversations.some((conv) => conv.unreadCount > 0) && (
+                                 <span className="ml-auto rounded-full bg-red-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                                   {conversations.reduce((count, conv) => count + conv.unreadCount, 0)}
+                                 </span>
+                               )}
+                             </button>
+                             {conversations.length === 0 ? (
+                               <p className="px-3 pb-2 text-[11px] text-text-secondary">No messages yet</p>
+                             ) : conversations.slice(0, 5).map((conv) => (
+                                 <button
+                                   key={conv.userId}
+                                   onClick={() => {
+                                     setShowUserMenu(false);
+                                     if (conv.lastMessage?.subject === "Account Creation Request") {
+                                       setSelectedAccountRequest(conv);
+                                     } else {
+                                       setSelectedConversation(conv);
+                                     }
+                                   }}
+                                   className="w-full text-left px-3 py-2 rounded-lg hover:bg-surface-secondary transition-colors"
+                                 >
+                                   <p className="text-xs font-medium text-foreground truncate">{conv.otherUser?.name || "Unknown"}</p>
+                                   <p className="text-[10px] text-text-secondary truncate">{conv.lastMessage?.body?.split('\n').slice(0, 2).join(' ')}</p>
+                                 </button>
+                               ))}
+                           </div>
+                       </div>
+                    </motion.div>
                   )}
                 </AnimatePresence>
               </div>
@@ -537,6 +597,24 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
             {children}
           </div>
         </main>
+
+        <AccountRequestReviewModal
+          request={selectedAccountRequest}
+          onClose={() => setSelectedAccountRequest(null)}
+          onCreated={() => {
+            getConversations().then((convs) => {
+              setConversations(convs);
+              setAccountRequests(convs.filter((conv) => conv.lastMessage?.subject === "Account Creation Request"));
+            }).catch(() => {});
+          }}
+        />
+        {selectedOtherUser && (
+          <MessagingModal
+            isOpen={true}
+            onClose={() => setSelectedConversation(null)}
+            otherUser={selectedOtherUser as NonNullable<Conversation["otherUser"]>}
+          />
+        )}
 
         {showLogoutModal && createPortal(
           <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">

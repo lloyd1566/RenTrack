@@ -13,17 +13,19 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
-import { DropdownMenu, DropdownItem } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import CreateTenantModal from "@/components/create-tenant-modal";
+import AccountRequestModal from "@/components/account-request-modal";
+import ReceiptModal from "@/components/receipt-modal";
 import { useAuth } from "@/lib/auth";
 import {
   getProperties, getUnits, getTenants, getPayments,
   addTenant, updateTenantAssignment, verifyPayment,
-  getConversations, sendMessage, notifyAdmins, updateTenantVerification,
+  getConversations, sendMessage, notifyAdmins, updateTenantVerification, updateTenantStatus,
   getInquiries, updateInquiryStatus,
   Property, Unit, TenantRecord, Payment, Conversation, ChatInquiry,
 } from "@/lib/data";
-import { cn, formatCurrency, formatDate, getInitials } from "@/lib/utils";
+import { cn, formatCurrency, formatDate, formatDateTime, getTimeAgo, getInitials } from "@/lib/utils";
 import { toast } from "sonner";
 import MessagingModal from "@/components/messaging-modal";
 import ProfilePanel from "@/components/profile-panel";
@@ -44,7 +46,7 @@ const flowSteps: { key: Step; label: string; icon: React.ElementType }[] = [
 ];
 
 export default function AgentDashboard() {
-  const { user, isAuthenticated, isLoading } = useAuth();
+  const { user, isAuthenticated, isLoading, refreshUser } = useAuth();
   const [activeTab, setActiveTab] = useState<Step>("overview");
   const [properties, setProperties] = useState<Property[]>([]);
   const [units, setUnits] = useState<Unit[]>([]);
@@ -62,18 +64,21 @@ export default function AgentDashboard() {
   const [threadReply, setThreadReply] = useState("");
   const [threadSending, setThreadSending] = useState(false);
   const threadEndRef = useRef<HTMLDivElement>(null);
+  const lastLocalReplyAt = useRef<string | null>(null);
 
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
   const [selectedTenant, setSelectedTenant] = useState<TenantRecord | null>(null);
   const [tenantSearch, setTenantSearch] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCreateTenantModal, setShowCreateTenantModal] = useState(false);
+  const [showAccountRequestModal, setShowAccountRequestModal] = useState(false);
 
   const [assignForm, setAssignForm] = useState({ unitId: "", propertyName: "", unitNumber: "", rentAmount: 0, contractStart: "" });
   const [paymentFilter, setPaymentFilter] = useState<string>("all");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [resubmittingId, setResubmittingId] = useState<string | null>(null);
   const [viewingReceipt, setViewingReceipt] = useState<Payment | null>(null);
+  const [initialLoad, setInitialLoad] = useState(true);
 
   const loadData = useCallback(async () => {
     if (!user) return [];
@@ -90,10 +95,13 @@ export default function AgentDashboard() {
       setProperties(props);
       setUnits(unitsData);
       setTenants(tenantsData);
-      setPayments(paymentsData);
+      const filteredPayments = paymentsData.filter((p: any) => p.createdBy === user.id || p.verifiedBy === user.id);
+      setPayments(filteredPayments);
       setConversations(convs);
-      setInquiries(inquiriesData);
-      return inquiriesData;
+      const filteredInquiries = inquiriesData.filter((inq: any) => inq.agentId === user.id);
+      setInquiries(filteredInquiries);
+      setInitialLoad(false);
+      return filteredInquiries;
     } catch (err) {
       console.error("Agent dashboard load error:", err);
       return [];
@@ -102,9 +110,8 @@ export default function AgentDashboard() {
     }
   }, [user]);
 
-  const openThread = async (inquiry: ChatInquiry) => {
-    const inquiriesData = await loadData();
-    const thread = (inquiriesData || [])
+  const openThread = (inquiry: ChatInquiry) => {
+    const thread = (inquiries || [])
       .filter((item) => item.senderEmail && inquiry.senderEmail && item.senderEmail.toLowerCase().trim() === inquiry.senderEmail.toLowerCase().trim())
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
     setThreadMessages(thread);
@@ -116,22 +123,42 @@ export default function AgentDashboard() {
     setViewingThread(null);
     setThreadMessages([]);
     setThreadReply("");
+    lastLocalReplyAt.current = null;
   };
 
-  const sendThreadReply = async () => {
+  const markInquiryRead = async (inquiryId: string) => {
+    try {
+      await updateInquiryStatus(inquiryId, "read");
+      setInquiries((prev) => prev.map((item) => item.id === inquiryId ? { ...item, status: "read" } : item));
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new Event("renttrack-notifications-updated"));
+      }
+    } catch {
+      toast.error("Failed to mark as read");
+    }
+  };
+
+   const sendThreadReply = async () => {
     if (!viewingThread || !threadReply.trim()) return;
     setThreadSending(true);
     try {
-      await updateInquiryStatus(viewingThread.id, "replied", threadReply.trim());
+      const result = await updateInquiryStatus(viewingThread.id, "replied", threadReply.trim());
+      if (!result || !result.success) {
+         toast.error("Failed to send reply");
+        setThreadSending(false);
+        return;
+      }
       const reply = threadReply.trim();
+      const nowIso = new Date().toISOString();
+      lastLocalReplyAt.current = nowIso;
       setThreadMessages((prev) => {
         const targetEmail = viewingThread.senderEmail;
         const refreshed = prev.filter((item) => item.senderEmail && targetEmail && item.senderEmail.toLowerCase().trim() === targetEmail.toLowerCase().trim());
-        return refreshed.map((item) => item.id === viewingThread.id ? { ...item, status: "replied", replyText: reply, repliedAt: new Date().toISOString(), agentName: user?.name } : item);
+        return refreshed.map((item) => item.id === viewingThread.id ? { ...item, status: "replied", replyText: reply, repliedAt: nowIso, agentName: user?.name } : item);
       });
-      setInquiries((prev) => prev.map((item) => item.id === viewingThread.id ? { ...item, status: "replied", replyText: reply, repliedAt: new Date().toISOString(), agentName: user?.name } : item));
+      setInquiries((prev) => prev.map((item) => item.id === viewingThread.id ? { ...item, status: "replied", replyText: reply, repliedAt: nowIso, agentName: user?.name } : item));
       setThreadReply("");
-      toast.success("Reply sent");
+      toast.success(result.emailSent ? "Reply sent and email notification delivered" : "Reply saved, but email notification could not be sent");
     } catch {
       toast.error("Failed to send reply");
     } finally {
@@ -140,7 +167,7 @@ export default function AgentDashboard() {
   };
 
   useEffect(() => {
-    loadData();
+    void loadData();
   }, [loadData]);
 
   useEffect(() => {
@@ -152,6 +179,12 @@ export default function AgentDashboard() {
   }, [loadData]);
 
   useEffect(() => {
+    if (activeTab === "profile") {
+      refreshUser();
+    }
+  }, [activeTab, refreshUser]);
+
+  useEffect(() => {
     if (!viewingThread) return;
     let cancelled = false;
     const refreshThread = async () => {
@@ -159,7 +192,16 @@ export default function AgentDashboard() {
         const result = await getInquiries();
         if (cancelled) return;
         const thread = result.filter((item) => item.senderEmail && viewingThread.senderEmail && item.senderEmail.toLowerCase().trim() === viewingThread.senderEmail.toLowerCase().trim()).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
-        setThreadMessages(thread);
+        setThreadMessages((prev) => {
+          const prevMap = new Map(prev.map((item) => [item.id, item]));
+          return thread.map((serverItem) => {
+            const localItem = prevMap.get(serverItem.id);
+            if (localItem && localItem.replyText && localItem.repliedAt && localItem.repliedAt >= (serverItem.repliedAt || "")) {
+              return localItem;
+            }
+            return serverItem;
+          });
+        });
         setInquiries(result);
       } catch {
         // ignore background poll errors
@@ -174,14 +216,51 @@ export default function AgentDashboard() {
   }, [viewingThread]);
 
   useEffect(() => {
+    if (activeTab !== "inquiries" || inquiries.length === 0) return;
+    const unread = inquiries.filter((item) => item.status === "new");
+    if (unread.length === 0) return;
+
+    const unreadIds = unread.map((item) => item.id);
+    Promise.allSettled(unreadIds.map((id) => updateInquiryStatus(id, "read")))
+      .then(() => {
+        setInquiries((prev) => prev.map((item) => unreadIds.includes(item.id) ? { ...item, status: "read" } : item));
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new Event("renttrack-notifications-updated"));
+        }
+      })
+      .catch(() => toast.error("Failed to update inquiry status"));
+  }, [activeTab, inquiries]);
+
+  const listAnimation = {
+    hidden: { opacity: 0, y: 10 },
+    visible: (index: number) => ({
+      opacity: 1,
+      y: 0,
+      transition: { duration: 0.22, delay: index * 0.04, ease: [0.25, 0.1, 0.25, 1] as const },
+    }),
+  } as const;
+
+  useEffect(() => {
     threadEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [threadMessages]);
+
+  const userRef = useRef(user);
+  const loadDataRef = useRef(loadData);
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
+  useEffect(() => {
+    loadDataRef.current = loadData;
+  }, [loadData]);
 
   useEffect(() => {
     const readHash = () => {
       const hash = window.location.hash.replace("#", "");
       if (hash && flowSteps.some((s) => s.key === hash)) {
         setActiveTab(hash as Step);
+        if (hash === "overview" && userRef.current) {
+          loadDataRef.current();
+        }
       }
     };
     readHash();
@@ -204,6 +283,7 @@ export default function AgentDashboard() {
     if (paymentFilter === "all") return true;
     return p.status === paymentFilter;
   });
+  const myTenants = tenants;
 
   const handleAssignTenant = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -328,12 +408,12 @@ export default function AgentDashboard() {
             {activeTab === "overview" && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
                 <div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h1 className="text-4xl font-bold text-foreground">Agent Dashboard</h1>
-                      <p className="text-lg text-text-secondary mt-1">Welcome back, {user?.name?.split(" ")[0] || "Agent"}</p>
-                    </div>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h1 className="text-4xl font-bold text-foreground">Agent Dashboard</h1>
+                    <p className="text-lg text-text-secondary mt-1">Welcome back, {user?.name?.split(" ")[0] || "Agent"}</p>
                   </div>
+                </div>
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                   {[
@@ -342,7 +422,7 @@ export default function AgentDashboard() {
                     { label: "Pending", value: pendingTenants.length, icon: Clock, color: "from-amber-500 to-amber-600", tab: "assign" as const },
                     { label: "Payments Due", value: pendingPayments.length, icon: CreditCard, color: "from-accent-500 to-accent-600", tab: "payments" as const },
                   ].map((stat, i) => (
-                    <Card key={i} onClick={() => { setActiveTab(stat.tab); window.location.hash = stat.tab; }} className="hover:shadow-lg transition-all duration-300 cursor-pointer hover:scale-105 active:scale-95">
+                    <Card key={i} onClick={async () => { await loadData(); setActiveTab(stat.tab); window.location.hash = stat.tab; }} className="hover:shadow-lg transition-all duration-300 cursor-pointer hover:scale-105 active:scale-95">
                       <CardContent className="min-h-[180px] p-8">
                         <div className="flex items-center justify-between mb-4">
                           <span className="text-lg font-medium text-text-secondary">{stat.label}</span>
@@ -376,13 +456,24 @@ export default function AgentDashboard() {
                     <CardContent className="p-8">
                       <div className="space-y-3">
                         {properties.slice(0, 5).map((property) => (
-                          <div key={property.id} className="flex items-center justify-between p-6 rounded-xl border border-border hover:bg-surface-secondary transition-colors">
-                            <div>
-                              <p className="text-xl font-semibold text-foreground">{property.name}</p>
-                              <p className="text-base text-text-secondary">{property.location}</p>
+                          <button
+                            key={property.id}
+                            onClick={() => { setActiveTab("properties"); window.location.hash = "properties"; }}
+                            className="w-full flex items-center justify-between p-4 rounded-xl border border-border hover:bg-surface-secondary transition-colors text-left"
+                          >
+                            <div className="flex items-center gap-4">
+                              {property.imageUrl ? (
+                                <img src={property.imageUrl} alt={property.name} className="h-14 w-20 object-cover rounded-lg border border-border" />
+                              ) : (
+                                <div className="h-14 w-20 rounded-lg bg-surface-secondary flex items-center justify-center text-text-tertiary text-xs">No image</div>
+                              )}
+                              <div>
+                                <p className="text-xl font-semibold text-foreground">{property.name}</p>
+                                <p className="text-base text-text-secondary">{property.location}</p>
+                              </div>
                             </div>
                             <Badge variant={property.status === "active" ? "success" : "outline"} className="text-sm font-semibold capitalize">{property.status}</Badge>
-                          </div>
+                          </button>
                         ))}
                         {properties.length === 0 && <p className="text-center py-8 text-text-secondary">No properties yet</p>}
                       </div>
@@ -396,7 +487,11 @@ export default function AgentDashboard() {
                     <CardContent className="p-8">
                       <div className="space-y-3">
                         {payments.slice(0, 5).map((payment) => (
-                          <div key={payment.id} className="flex items-center justify-between p-6 rounded-xl border border-border hover:bg-surface-secondary transition-colors">
+                          <button
+                            key={payment.id}
+                            onClick={() => { setActiveTab("payments"); window.location.hash = "payments"; }}
+                            className="w-full flex items-center justify-between p-6 rounded-xl border border-border hover:bg-surface-secondary transition-colors text-left"
+                          >
                             <div>
                               <p className="text-xl font-semibold text-foreground">{payment.tenantName}</p>
                               <p className="text-base text-text-secondary">{formatDate(payment.paymentDate)}</p>
@@ -405,12 +500,12 @@ export default function AgentDashboard() {
                               <p className="text-xl font-semibold text-foreground">{formatCurrency(payment.amountPaid)}</p>
                               {getStatusBadge(payment.status)}
                                {payment.receiptUrl && (
-                                 <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => setViewingReceipt(payment)}>
+                                 <Button size="sm" variant="outline" className="h-8 text-xs" onClick={(e) => { e.stopPropagation(); setViewingReceipt(payment); }}>
                                    <FileText className="h-3.5 w-3.5 mr-1" />View Receipt
                                  </Button>
                                )}
                             </div>
-                          </div>
+                          </button>
                         ))}
                         {payments.length === 0 && <p className="text-center py-8 text-text-secondary">No payments yet</p>}
                       </div>
@@ -433,30 +528,40 @@ export default function AgentDashboard() {
                     const vacant = propertyUnits.filter((u) => u.status === "vacant");
                     return (
                       <Card key={property.id} className="hover:shadow-lg transition-shadow">
-                        <CardContent className="p-6">
-                          <div className="flex items-start justify-between mb-4">
-                            <div>
-                              <h3 className="text-lg font-semibold text-foreground">{property.name}</h3>
-                              <p className="text-sm text-text-secondary mt-1">{property.location}</p>
+                        <CardContent className="p-0">
+                          {property.imageUrl && (
+                            <img src={property.imageUrl} alt={property.name} className="w-full h-40 object-cover rounded-t-xl border-b border-border" />
+                          )}
+                          <div className="p-6">
+                            <div className="flex items-start justify-between mb-4">
+                              <div>
+                                <h3 className="text-lg font-semibold text-foreground">{property.name}</h3>
+                                <p className="text-sm text-text-secondary mt-1">{property.location}</p>
+                              </div>
+                              <Badge variant={property.status === "active" ? "success" : "outline"} className="capitalize">{property.status}</Badge>
                             </div>
-                            <Badge variant={property.status === "active" ? "success" : "outline"} className="capitalize">{property.status}</Badge>
-                          </div>
-                          <div className="flex items-center gap-4 text-sm text-text-secondary mb-4">
-                            <span className="flex items-center gap-1.5"><Home className="h-4 w-4" />{property.units} units</span>
-                            <span className="flex items-center gap-1.5"><ClipboardCheck className="h-4 w-4" />{vacant.length} vacant</span>
-                          </div>
-                          <div className="space-y-2.5">
-                            <p className="text-sm font-medium text-text-secondary">Units:</p>
-                            {propertyUnits.length === 0 ? (
-                              <p className="text-sm text-text-tertiary">No units registered</p>
-                            ) : (
-                              propertyUnits.map((unit) => (
-                                <div key={unit.id} className="flex items-center justify-between p-3 rounded-lg bg-surface-secondary">
-                                  <span className="text-sm font-medium">Unit {unit.unitNumber}</span>
-                                  <Badge variant={unit.status === "vacant" ? "success" : unit.status === "occupied" ? "outline" : "warning"} className="text-xs capitalize">{unit.status}</Badge>
-                                </div>
-                              ))
-                            )}
+                            <div className="flex items-center gap-4 text-sm text-text-secondary mb-4">
+                              <span className="flex items-center gap-1.5"><Home className="h-4 w-4" />{property.units} units</span>
+                              <span className="flex items-center gap-1.5"><ClipboardCheck className="h-4 w-4" />{vacant.length} vacant</span>
+                            </div>
+                            <div className="space-y-2.5">
+                              <p className="text-sm font-medium text-text-secondary">Units:</p>
+                              {propertyUnits.length === 0 ? (
+                                <p className="text-sm text-text-tertiary">No units registered</p>
+                              ) : (
+                                propertyUnits.map((unit) => (
+                                  <div key={unit.id} className="flex items-center justify-between p-3 rounded-lg bg-surface-secondary">
+                                    <span className="text-sm font-medium">Unit {unit.unitNumber}</span>
+                                    <div className="flex items-center gap-2">
+                                      {unit.imageUrl && (
+                                        <img src={unit.imageUrl} alt={`Unit ${unit.unitNumber}`} className="h-8 w-12 object-cover rounded border border-border" />
+                                      )}
+                                      <Badge variant={unit.status === "vacant" ? "success" : unit.status === "occupied" ? "outline" : "warning"} className="text-xs capitalize">{unit.status}</Badge>
+                                    </div>
+                                  </div>
+                                ))
+                              )}
+                            </div>
                           </div>
                         </CardContent>
                       </Card>
@@ -514,11 +619,11 @@ export default function AgentDashboard() {
                            className="pl-9"
                          />
                        </div>
-                       <div className="flex-1 overflow-y-auto space-y-2 max-h-[360px] pr-1">
-                         {(() => {
-                           const unassigned = tenants.filter((t) => !t.unitId);
-                           const filtered = unassigned.filter((t) => t.name.toLowerCase().includes(tenantSearch.toLowerCase()) || t.email.toLowerCase().includes(tenantSearch.toLowerCase()));
-                           if (unassigned.length === 0) {
+                        <div className="flex-1 overflow-y-auto space-y-2 max-h-[360px] pr-1">
+                          {(() => {
+                            const unassigned = tenants.filter((t) => !t.unitId);
+                            const filtered = unassigned.filter((t) => t.name.toLowerCase().includes(tenantSearch.toLowerCase()) || t.email.toLowerCase().includes(tenantSearch.toLowerCase()));
+                            if (unassigned.length === 0) {
                              return (
                                <div className="text-center py-12">
                                  <UserPlus className="h-12 w-12 text-text-tertiary mx-auto mb-3" />
@@ -750,14 +855,14 @@ export default function AgentDashboard() {
                     </CardHeader>
                     <CardContent>
                       <div className="space-y-3">
-                        {tenants.filter(t => t.createdBy === user?.id).length === 0 ? (
+                        {myTenants.length === 0 ? (
                           <div className="text-center py-12">
                             <Users className="h-12 w-12 text-text-tertiary mx-auto mb-3" />
                             <p className="text-text-secondary font-medium">No tenants yet</p>
                             <p className="text-xs text-text-tertiary mt-1">Register a tenant above to get started</p>
                           </div>
                         ) : (
-                          tenants.filter(t => t.createdBy === user?.id).map((tenant) => (
+                          myTenants.map((tenant) => (
                             <div key={tenant.id} className="flex items-center justify-between p-4 rounded-xl border border-border hover:bg-surface-secondary transition-colors">
                               <div className="flex items-center gap-3">
                                 <Avatar src={tenant.avatarUrl} fallback={getInitials(tenant.name)} size="sm" />
@@ -768,15 +873,37 @@ export default function AgentDashboard() {
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
-                                <Badge variant={tenant.status === "active" ? "success" : tenant.status === "inactive" ? "outline" : "warning"} className="text-xs capitalize">{tenant.status || "pending"}</Badge>
-                                <DropdownMenu align="end" trigger={
-                                  <button className="h-8 w-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-foreground hover:bg-surface-secondary transition-colors">
-                                    <MoreHorizontal className="h-4 w-4" />
-                                  </button>
-                                }>
-                                  <DropdownItem onClick={() => { setSelectedTenant(tenant); setActiveTab("assign"); }}>Assign Unit</DropdownItem>
-                                  <DropdownItem onClick={() => { setSelectedTenant(tenant); setActiveTab("verifications"); }}>View Verification</DropdownItem>
-                                  <DropdownItem onClick={() => window.location.href = `mailto:${tenant.email}`}>Send Email</DropdownItem>
+                                  <Badge variant={tenant.status === "active" ? "success" : tenant.status === "inactive" ? "outline" : "warning"} className="text-xs capitalize">{tenant.status || "pending"}</Badge>
+                                  {tenant.status === "active" && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      className="text-emerald-700 hover:bg-emerald-50"
+                                      onClick={async () => {
+                                        if (!window.confirm(`Mark ${tenant.name}'s stay as done?`)) return;
+                                        const updated = await updateTenantStatus(tenant.id, "inactive");
+                                        if (updated) {
+                                          setTenants((current) => current.map((item) => item.id === tenant.id ? { ...item, status: "inactive" } : item));
+                                          toast.success(`${tenant.name}'s stay is marked done`);
+                                        } else {
+                                          toast.error("Could not complete the tenant stay");
+                                        }
+                                      }}
+                                    >
+                                      Done
+                                    </Button>
+                                  )}
+                                  <DropdownMenu modal={false}>
+                                   <DropdownMenuTrigger asChild>
+                                     <button className="h-8 w-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-foreground hover:bg-surface-secondary transition-colors">
+                                       <MoreHorizontal className="h-4 w-4" />
+                                     </button>
+                                   </DropdownMenuTrigger>
+                                   <DropdownMenuContent align="end" sideOffset={4} side="bottom">
+                                    <DropdownMenuItem onSelect={() => { setSelectedTenant(tenant); setActiveTab("assign"); }}>Assign Unit</DropdownMenuItem>
+                                    <DropdownMenuItem onSelect={() => { setSelectedTenant(tenant); setActiveTab("verifications"); }}>View Verification</DropdownMenuItem>
+                                    <DropdownMenuItem onSelect={() => window.location.href = `mailto:${tenant.email}`}>Send Email</DropdownMenuItem>
+                                  </DropdownMenuContent>
                                 </DropdownMenu>
                               </div>
                             </div>
@@ -988,53 +1115,36 @@ export default function AgentDashboard() {
                 <Card>
                   <CardContent className="p-6">
                     <div className="space-y-3">
-                      {conversations.length === 0 && inquiries.length === 0 ? (
+                      {conversations.length === 0 ? (
                         <div className="text-center py-12">
                           <p className="text-text-secondary font-medium">No messages yet</p>
                           <p className="text-xs text-text-tertiary mt-1">Start a conversation with an owner or tenant</p>
                         </div>
                       ) : (
-                        <>
-                          {conversations.map((conv) => (
-                            <div key={conv.userId} onClick={() => { setSelectedConversation(conv); setIsMessagingOpen(true); }} className="flex items-center justify-between p-4 rounded-xl border border-border hover:bg-surface-secondary transition-colors cursor-pointer">
-                              <div className="flex items-center gap-3">
-                                 <Avatar src={conv.otherUser?.avatarUrl} fallback={conv.otherUser?.name ? getInitials(conv.otherUser.name) : "?"} />
-                                <div>
-                                  <p className="font-medium text-foreground">{conv.otherUser?.name || "Unknown"}</p>
-                                  <p className="text-xs text-text-secondary truncate max-w-[200px]">{conv.lastMessage.subject && `${conv.lastMessage.subject} - `}{conv.lastMessage.body}</p>
-                                </div>
-                              </div>
-                              <div className="flex items-center gap-2">
-                                <span className="text-[10px] text-text-tertiary">{new Date(conv.lastMessage.createdAt).toLocaleDateString()}</span>
-                                {conv.unreadCount > 0 && <Badge variant="default" className="bg-blue-600 text-white text-[10px]">{conv.unreadCount}</Badge>}
-                              </div>
-                            </div>
-                          ))}
-                          {inquiries.map((inq) => (
-                            <div key={`inquiry-${inq.id}`} className="p-4 rounded-xl border border-blue-200 bg-blue-50/40">
-                              <div className="flex items-start justify-between gap-4">
-                                <div className="min-w-0">
-                                  <div className="flex items-center gap-2 mb-1">
-                                    <Mail className="h-4 w-4 text-blue-600" />
-                                    <p className="font-medium text-foreground">{inq.senderName}</p>
-                                    <Badge variant="outline" className="text-[10px]">Landing inquiry</Badge>
-                                  </div>
-                                  <p className="text-xs text-text-secondary">{inq.senderEmail}</p>
-                                  <p className="mt-2 text-sm text-foreground whitespace-pre-wrap">{inq.text}</p>
-                                  {inq.replyText ? (
-                                    <div className="mt-3 rounded-lg bg-white border border-blue-100 p-3">
-                                      <p className="text-xs font-semibold text-blue-700">Your reply{inq.agentName ? ` • ${inq.agentName}` : ""}</p>
-                                      <p className="mt-1 text-sm text-gray-700 whitespace-pre-wrap">{inq.replyText}</p>
-                                    </div>
-                                  ) : (
-                                    <p className="mt-2 text-xs text-text-tertiary">Awaiting reply</p>
-                                  )}
-                                </div>
-                                <Button size="sm" variant="outline" onClick={() => { setReplyingInquiry(inq.id); setInquiryReply(inq.replyText || ""); }}>Reply</Button>
+                        conversations.map((conv, index) => (
+                          <motion.div
+                            key={conv.userId}
+                            custom={index}
+                            initial="hidden"
+                            animate="visible"
+                            variants={listAnimation}
+                            whileHover={{ y: -2, scale: 1.01 }}
+                            onClick={() => { setSelectedConversation(conv); setIsMessagingOpen(true); }}
+                            className="flex items-center justify-between p-4 rounded-xl border border-border hover:bg-surface-secondary transition-colors cursor-pointer"
+                          >
+                            <div className="flex items-center gap-3">
+                               <Avatar src={conv.otherUser?.avatarUrl} fallback={conv.otherUser?.name ? getInitials(conv.otherUser.name) : "?"} />
+                              <div>
+                                <p className="font-medium text-foreground">{conv.otherUser?.name || "Unknown"}</p>
+                                <p className="text-xs text-text-secondary truncate max-w-[200px]">{conv.lastMessage.subject && `${conv.lastMessage.subject} - `}{conv.lastMessage.body}</p>
                               </div>
                             </div>
-                          ))}
-                        </>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-text-tertiary">{new Date(conv.lastMessage.createdAt).toLocaleDateString()}</span>
+                              {conv.unreadCount > 0 && <Badge variant="default" className="bg-blue-600 text-white text-[10px]">{conv.unreadCount}</Badge>}
+                            </div>
+                          </motion.div>
+                        ))
                       )}
                     </div>
                   </CardContent>
@@ -1059,8 +1169,16 @@ export default function AgentDashboard() {
                           <p className="text-xs text-text-tertiary mt-1">When visitors contact you from the landing page, they will appear here.</p>
                         </div>
                       ) : (
-                        inquiries.map((inq) => (
-                          <div key={inq.id} className="p-4 rounded-xl border border-border hover:bg-surface-secondary transition-colors">
+                        inquiries.map((inq, index) => (
+                          <motion.div
+                            key={inq.id}
+                            custom={index}
+                            initial="hidden"
+                            animate="visible"
+                            variants={listAnimation}
+                            whileHover={{ y: -2, scale: 1.01 }}
+                            className="p-4 rounded-xl border border-border hover:bg-surface-secondary transition-colors"
+                          >
                             <div className="flex items-start justify-between gap-4">
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2 mb-1">
@@ -1070,23 +1188,44 @@ export default function AgentDashboard() {
                                 <p className="text-xs text-text-secondary mb-1">{inq.senderEmail}{inq.senderPhone ? ` • ${inq.senderPhone}` : ""}</p>
                                 <p className="text-sm text-foreground whitespace-pre-wrap">{inq.text}</p>
                                 {inq.replyText && <div className="mt-3 rounded-lg bg-blue-50 p-3"><p className="text-xs font-semibold text-blue-700">Your reply{inq.agentName ? ` • ${inq.agentName}` : ""}</p><p className="mt-1 whitespace-pre-wrap text-sm text-gray-700">{inq.replyText}</p></div>}
-                                <p className="text-[10px] text-text-tertiary mt-2">{new Date(inq.createdAt).toLocaleString()}</p>
+                                 {inq.visitorReply && <div className="mt-3 rounded-lg bg-gray-50 p-3"><p className="text-xs font-semibold text-gray-700">Visitor reply{inq.visitorRepliedAt ? ` • ${getTimeAgo(inq.visitorRepliedAt)}` : ""}</p><p className="mt-1 whitespace-pre-wrap text-sm text-gray-800">{inq.visitorReply}</p></div>}
+                                 <p className="text-[10px] text-text-tertiary mt-2">{getTimeAgo(inq.repliedAt || inq.createdAt)}</p>
                               </div>
-                              <div className="flex flex-col gap-2">
-                                <Button size="sm" variant="outline" onClick={() => { setReplyingInquiry(inq.id); setInquiryReply(""); }}>Reply</Button>
-                                <Button size="sm" variant="ghost" onClick={() => openThread(inq)}>View Conversation</Button>
-                                {inq.status === "new" && (
-                                  <Button size="sm" onClick={async () => { try { await updateInquiryStatus(inq.id, "read"); setInquiries(prev => prev.map(i => i.id === inq.id ? { ...i, status: "read" } : i)); } catch (e) { toast.error("Failed to mark as read"); } }}>Mark Read</Button>
-                                )}
-                                <Button size="sm" variant="outline" onClick={async () => { try { await updateInquiryStatus(inq.id, "replied"); setInquiries(prev => prev.map(i => i.id === inq.id ? { ...i, status: "replied" } : i)); } catch (e) { toast.error("Failed to mark as replied"); } }}>Mark Replied</Button>
-                              </div>
+                                <div className="flex flex-col gap-2">
+                                 <DropdownMenu modal={false}>
+                                   <DropdownMenuTrigger asChild>
+                                     <button type="button" className="inline-flex items-center justify-center rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-surface-secondary">
+                                       Actions
+                                       <MoreHorizontal className="ml-1 h-3.5 w-3.5" />
+                                     </button>
+                                   </DropdownMenuTrigger>
+                                   <DropdownMenuContent align="end" sideOffset={4} side="bottom">
+                                     <DropdownMenuItem onSelect={() => { setReplyingInquiry(inq.id); setInquiryReply(inq.replyText || ""); }}>
+                                       Reply
+                                     </DropdownMenuItem>
+                                     <DropdownMenuItem onSelect={() => setShowAccountRequestModal(true)} className="text-amber-700 hover:bg-amber-50">
+                                       Request Account
+                                     </DropdownMenuItem>
+                                     {inq.status === "new" && (
+                                       <DropdownMenuItem onSelect={() => markInquiryRead(inq.id)}>
+                                         Mark Read
+                                       </DropdownMenuItem>
+                                     )}
+                                   </DropdownMenuContent>
+                                 </DropdownMenu>
+                               </div>
                             </div>
-                          </div>
+                          </motion.div>
                         ))
                       )}
                     </div>
                   </CardContent>
                 </Card>
+                <AccountRequestModal
+                  isOpen={showAccountRequestModal}
+                  onClose={() => setShowAccountRequestModal(false)}
+                  agentName={user?.name || "Agent"}
+                />
               </motion.div>
             )}
 
@@ -1111,23 +1250,27 @@ export default function AgentDashboard() {
                     <p className="text-xs font-medium text-text-secondary mb-1">Visitor message</p>
                     <p className="text-sm text-foreground whitespace-pre-wrap">{inquiry.text}</p>
                   </div>
-                  <form onSubmit={async (event) => {
-                    event.preventDefault();
-                    const reply = inquiryReply.trim();
-                    if (!reply) return;
-                    setReplying(true);
-                    try {
-                      await updateInquiryStatus(inquiry.id, "replied", reply);
-                      setInquiries((current) => current.map((item) => item.id === inquiry.id ? { ...item, status: "replied", replyText: reply, repliedAt: new Date().toISOString(), agentName: user?.name } : item));
-                      setReplyingInquiry(null);
-                      setInquiryReply("");
-                      toast.success("Reply sent");
-                    } catch {
-                      toast.error("Failed to send reply");
-                    } finally {
-                      setReplying(false);
-                    }
-                  }}>
+                   <form onSubmit={async (event) => {
+                     event.preventDefault();
+                     const reply = inquiryReply.trim();
+                     if (!reply) return;
+                     setReplying(true);
+                     try {
+                       const result = await updateInquiryStatus(inquiry.id, "replied", reply);
+                       setInquiries((current) => current.map((item) => item.id === inquiry.id ? { ...item, status: "replied", replyText: reply, repliedAt: new Date().toISOString(), agentName: user?.name } : item));
+                       setReplyingInquiry(null);
+                       setInquiryReply("");
+                       if (result && (result as any).emailSent) {
+                         toast.success("Reply sent and email notification delivered");
+                       } else {
+                         toast.success("Reply saved, but email notification could not be sent");
+                       }
+                     } catch {
+                       toast.error("Failed to send reply");
+                     } finally {
+                       setReplying(false);
+                     }
+                   }}>
                     <textarea autoFocus value={inquiryReply} onChange={(event) => setInquiryReply(event.target.value)} placeholder="Write your reply..." rows={5} className="w-full resize-none rounded-lg border border-border bg-surface p-3 text-sm text-foreground placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-blue-500/30" />
                     <div className="mt-4 flex justify-end gap-2">
                       <Button type="button" variant="outline" onClick={() => setReplyingInquiry(null)} disabled={replying}>Cancel</Button>
@@ -1157,13 +1300,30 @@ export default function AgentDashboard() {
                   <p className="text-sm text-text-secondary text-center py-8">No messages in this conversation.</p>
                 ) : (
                   threadMessages.map((msg) => (
-                    <div key={msg.id} className={`flex ${msg.replyText ? "justify-end" : "justify-start"}`}>
-                      <div className={`max-w-[75%] rounded-2xl px-4 py-3 ${msg.replyText ? "bg-blue-600 text-white" : "bg-surface-secondary text-foreground"}`}>
-                        <p className="text-sm whitespace-pre-wrap">{msg.replyText || msg.text}</p>
-                        <p className={`text-[10px] mt-1 ${msg.replyText ? "text-blue-100" : "text-text-tertiary"}`}>{new Date(msg.repliedAt || msg.createdAt).toLocaleString()}</p>
-                        {msg.replyText && <p className="text-[10px] text-blue-100 mt-0.5">You • {msg.agentName || user?.name}</p>}
+                    msg.replyText ? (
+                      <div key={msg.id} className="space-y-2">
+                        <div className="flex justify-start">
+                          <div className="max-w-[75%] rounded-2xl px-4 py-3 bg-surface-secondary text-foreground">
+                            <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
+                            <p className="text-[10px] text-text-tertiary mt-1">{formatDateTime(msg.createdAt)}</p>
+                          </div>
+                        </div>
+                        <div className="flex justify-end">
+                          <div className="max-w-[75%] rounded-2xl px-4 py-3 bg-blue-600 text-white">
+                            <p className="text-sm whitespace-pre-wrap">{msg.replyText}</p>
+                            <p className="text-[10px] text-blue-100 mt-1">{formatDateTime(msg.repliedAt || msg.createdAt)}</p>
+                            <p className="text-[10px] text-blue-100 mt-0.5">You • {msg.agentName || user?.name}</p>
+                          </div>
+                        </div>
                       </div>
-                    </div>
+                    ) : (
+                      <div key={msg.id} className="flex justify-start">
+                        <div className="max-w-[75%] rounded-2xl px-4 py-3 bg-surface-secondary text-foreground">
+                          <p className="text-sm whitespace-pre-wrap">{msg.text}</p>
+                          <p className="text-[10px] text-text-tertiary mt-1">{formatDateTime(msg.createdAt)}</p>
+                        </div>
+                      </div>
+                    )
                   ))
                 )}
                 <div ref={threadEndRef} />
@@ -1212,32 +1372,12 @@ export default function AgentDashboard() {
         )}
 
         {/* Receipt Modal */}
-        {viewingReceipt && (
-          <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
-            <div className="absolute inset-0 bg-black/50" onClick={() => setViewingReceipt(null)} />
-            <div className="relative w-full max-w-2xl rounded-2xl border border-border bg-white shadow-2xl max-h-[90vh] overflow-y-auto">
-              <div className="p-6 border-b border-border flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold text-foreground">Receipt</h3>
-                  <p className="text-sm text-text-secondary">{viewingReceipt.tenantName} • {formatDate(viewingReceipt.paymentDate)}</p>
-                </div>
-                <button onClick={() => setViewingReceipt(null)} className="h-8 w-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-foreground hover:bg-surface-secondary transition-colors">
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-              <div className="p-6">
-                {viewingReceipt.receiptUrl ? (
-                  <img src={viewingReceipt.receiptUrl} alt="Receipt" className="w-full h-auto max-h-[70vh] object-contain rounded-xl border border-border" />
-                ) : (
-                  <div className="text-center py-12 text-text-secondary">No receipt image available</div>
-                )}
-              </div>
-              <div className="p-6 border-t border-border">
-                <Button variant="outline" onClick={() => setViewingReceipt(null)} className="w-full">Close</Button>
-              </div>
-            </div>
-          </div>
-        )}
+        <ReceiptModal
+          isOpen={!!viewingReceipt}
+          onClose={() => setViewingReceipt(null)}
+          receiptUrl={viewingReceipt?.receiptUrl || null}
+          payment={viewingReceipt || undefined}
+        />
         {showCreateTenantModal && (
           <CreateTenantModal
             isOpen={showCreateTenantModal}
@@ -1246,8 +1386,8 @@ export default function AgentDashboard() {
               await handleRegisterTenant(formData);
             }}
             submitting={isSubmitting}
-          />
-        )}
-      </div>
+           />
+         )}
+       </div>
   );
 }
