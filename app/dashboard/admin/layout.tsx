@@ -263,7 +263,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                                 if (conv.lastMessage?.subject === "Account Creation Request") {
                                   setSelectedAccountRequest(conv);
                                 } else {
-                                  setShowMessages(true);
+                                  router.push(`/dashboard/admin?tab=messages&userId=${conv.userId}`);
                                 }
                               }}
                               className="w-full text-left px-3 py-2 rounded-lg hover:bg-surface-secondary transition-colors"
