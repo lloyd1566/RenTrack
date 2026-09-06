@@ -145,7 +145,10 @@ export interface AuditLog {
 
 async function apiGet(url: string) {
   try {
-    const res = await fetch(url, { credentials: "include" });
+    const res = await fetch(url, { credentials: "include", next: { revalidate: 0 } });
+    if (!res.ok) {
+      return { success: false, error: `Request failed with status ${res.status}` };
+    }
     return await res.json();
   } catch {
     return { success: false, error: "Request unavailable" };

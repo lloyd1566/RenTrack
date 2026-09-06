@@ -24,11 +24,20 @@ export default function MessagingPanel({ isOpen, onClose, onSelectConversation, 
   useEffect(() => {
     if (isOpen) {
       setLoading(true);
-      getConversations()
+      const timeout = new Promise<Conversation[]>((_, reject) =>
+        setTimeout(() => reject(new Error("Request timeout")), 10000)
+      );
+      Promise.race([getConversations(), timeout])
         .then((convs) => {
-          setConversations(convs);
+          setConversations(convs as Conversation[]);
         })
-        .catch(() => toast.error("Failed to load conversations"))
+        .catch((err) => {
+          if (err instanceof Error && err.message === "Request timeout") {
+            toast.error("Loading messages timed out. Please try again.");
+          } else {
+            toast.error("Failed to load conversations");
+          }
+        })
         .finally(() => setLoading(false));
     }
   }, [isOpen]);

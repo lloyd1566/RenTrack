@@ -1173,17 +1173,36 @@ export async function getConversations(userId: string) {
   const { data: sent } = await getAdminSupabase().from("messages").select("*").eq("sender_id", userId).order("created_at", { ascending: false });
   const { data: received } = await getAdminSupabase().from("messages").select("*").eq("receiver_id", userId).order("created_at", { ascending: false });
   const seen = new Set<string>();
-  const conversations: any[] = [];
+  const others: string[] = [];
+  const latestByOther = new Map<string, any>();
   for (const msg of [...(sent || []), ...(received || [])]) {
     const otherId = msg.sender_id === userId ? msg.receiver_id : msg.sender_id;
     if (seen.has(otherId)) continue;
     seen.add(otherId);
-    const otherUser = await findUserById(otherId);
-    if (!otherUser) continue;
-    const unreadCount = (received || []).filter((m: any) => m.sender_id === otherId && !m.read).length;
-    conversations.push({ userId: otherId, otherUser, lastMessage: snakeToCamel(msg), unreadCount });
+    others.push(otherId);
+    latestByOther.set(otherId, msg);
   }
-  return conversations;
+  const { data: otherUsers } = others.length > 0
+    ? await getAdminSupabase().from("users").select("*").in("id", others)
+    : { data: [] };
+  const userMap = new Map((otherUsers || []).map((u: any) => [u.id, u]));
+  const unreadBySender = new Map<string, number>();
+  for (const m of (received || [])) {
+    if (!m.read) {
+      unreadBySender.set(m.sender_id, (unreadBySender.get(m.sender_id) || 0) + 1);
+    }
+  }
+  return Array.from(seen)
+    .filter((id) => userMap.has(id))
+    .map((otherId) => {
+      const otherUser = userMap.get(otherId)!;
+      return {
+        userId: otherId,
+        otherUser: { id: otherUser.id, name: otherUser.name, email: otherUser.email, role: otherUser.role, avatarUrl: otherUser.avatar_url },
+        lastMessage: snakeToCamel(latestByOther.get(otherId)),
+        unreadCount: unreadBySender.get(otherId) || 0,
+      };
+    });
 }
 
 export async function getMessages(userId: string, otherId: string) {
