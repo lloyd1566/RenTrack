@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { calculateProfileCompleteness, type UserProfile } from "@/lib/profile";
+import { getNotifications, Notification } from "@/lib/data";
 import { toast } from "sonner";
 
 type Tab = "general" | "edit-profile";
@@ -75,6 +76,7 @@ export default function TenantSettingsPage() {
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isUploadingId, setIsUploadingId] = useState(false);
   const [showIdPreview, setShowIdPreview] = useState(false);
+  const [notifications, setNotifications] = useState<Notification[]>([]);
   const userIdRef = useRef(user?.id || null);
   const didSyncRef = useRef(false);
 
@@ -110,6 +112,26 @@ export default function TenantSettingsPage() {
       userIdRef.current = user.id;
       didSyncRef.current = true;
     }
+  }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    let mounted = true;
+    const refresh = () => {
+      getNotifications(user.id)
+        .then((next) => { if (mounted) setNotifications(next); })
+        .catch(() => { if (mounted) setNotifications([]); });
+    };
+    refresh();
+    const interval = window.setInterval(refresh, 30000);
+    window.addEventListener("focus", refresh);
+    window.addEventListener("renttrack-notifications-updated", refresh);
+    return () => {
+      mounted = false;
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("renttrack-notifications-updated", refresh);
+    };
   }, [user]);
 
   const handleSaveProfile = async (e: React.FormEvent) => {
@@ -346,18 +368,24 @@ export default function TenantSettingsPage() {
         transition={{ duration: 0.5, delay: 0.2 }}
       >
         <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as Tab)} className="space-y-6">
-          <TabsList className="bg-white border border-gray-200 p-1.5 rounded-2xl shadow-sm">
-            <div className="grid grid-cols-2 gap-1 w-full">
+          <TabsList className="bg-white border border-gray-200 p-1.5 rounded-2xl shadow-sm inline-flex">
+            <div className="flex gap-1">
               {tabs.map((tab) => {
                 const Icon = tab.icon;
+                const unreadCount = tab.id === "general" ? notifications.filter((n) => !n.read).length : 0;
                 return (
                   <TabsTrigger
                     key={tab.id}
                     value={tab.id}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-blue-700 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-blue-500/25 transition-all duration-300"
+                    className="relative flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium data-[state=active]:bg-gradient-to-r data-[state=active]:from-blue-600 data-[state=active]:to-blue-700 data-[state=active]:text-white data-[state=active]:shadow-lg data-[state=active]:shadow-blue-500/25 transition-all duration-300"
                   >
                     <Icon className="h-4 w-4" />
                     <span>{tab.label}</span>
+                    {unreadCount > 0 && (
+                      <span className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
+                        {unreadCount > 9 ? "9+" : unreadCount}
+                      </span>
+                    )}
                   </TabsTrigger>
                 );
               })}
