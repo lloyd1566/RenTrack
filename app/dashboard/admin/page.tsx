@@ -15,6 +15,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
+import { Modal } from "@/components/ui/modal";
 import { cn, formatCurrency, formatDate, formatDateTime } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import {
@@ -60,6 +61,8 @@ export default function AdminDashboard() {
   const [conversations, setConversations] = useState<any[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<any>(null);
   const [isMessagingOpen, setIsMessagingOpen] = useState(false);
+  const [showNewMessageDialog, setShowNewMessageDialog] = useState(false);
+  const [newMessageSearch, setNewMessageSearch] = useState("");
   const [editingUser, setEditingUser] = useState<UserRecord | null>(null);
   const [editForm, setEditForm] = useState({ name: "", email: "" });
   const [resettingPassword, setResettingPassword] = useState<UserRecord | null>(null);
@@ -1050,10 +1053,18 @@ export default function AdminDashboard() {
       {activeTab === "messages" && (
         <Card className="border border-gray-200">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-gray-900">
-              Messages
-            </CardTitle>
-            <CardDescription>Conversations with owners and agents</CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-gray-900">
+                  Messages
+                </CardTitle>
+                <CardDescription>Conversations with owners and agents</CardDescription>
+              </div>
+              <Button onClick={() => setShowNewMessageDialog(true)} className="h-9">
+                <Plus className="h-4 w-4 mr-2" />
+                New Message
+              </Button>
+            </div>
           </CardHeader>
           <CardContent>
             {conversations.length === 0 ? (
@@ -1106,6 +1117,78 @@ export default function AdminDashboard() {
           </CardContent>
         </Card>
       )}
+
+      {/* New Message Dialog */}
+      <Modal
+        isOpen={showNewMessageDialog}
+        onClose={() => {
+          setShowNewMessageDialog(false);
+          setNewMessageSearch("");
+        }}
+        title="New Message"
+        description="Select a user to start a conversation"
+      >
+        <div className="space-y-3">
+          <Input
+            placeholder="Search users..."
+            value={newMessageSearch}
+            onChange={(e) => setNewMessageSearch(e.target.value)}
+            className="h-10"
+          />
+          <div className="max-h-80 overflow-y-auto space-y-2">
+            {users
+              .filter((u) => u.id !== user?.id)
+              .filter((u) => {
+                const search = newMessageSearch.toLowerCase();
+                return (
+                  !search ||
+                  u.name.toLowerCase().includes(search) ||
+                  u.email.toLowerCase().includes(search) ||
+                  u.role.toLowerCase().includes(search)
+                );
+              })
+              .map((u) => (
+                <button
+                  key={u.id}
+                  onClick={() => {
+                    setSelectedConversation({
+                      userId: u.id,
+                      otherUser: {
+                        id: u.id,
+                        name: u.name,
+                        email: u.email,
+                        role: u.role,
+                        avatarUrl: u.avatarUrl,
+                      },
+                      lastMessage: null,
+                      unreadCount: 0,
+                    });
+                    setIsMessagingOpen(true);
+                    setShowNewMessageDialog(false);
+                    setNewMessageSearch("");
+                  }}
+                  className="w-full flex items-center gap-3 p-3 rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors text-left"
+                >
+                  <Avatar
+                    src={u.avatarUrl}
+                    fallback={u.name ? u.name.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() : "?"}
+                    size="sm"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-gray-900 truncate">{u.name}</p>
+                    <p className="text-xs text-gray-500 truncate">{u.email}</p>
+                  </div>
+                  <Badge variant="outline" className="text-xs capitalize">
+                    {u.role}
+                  </Badge>
+                </button>
+              ))}
+            {users.filter((u) => u.id !== user?.id).length === 0 && (
+              <p className="text-center text-sm text-gray-500 py-8">No users available to message</p>
+            )}
+          </div>
+        </div>
+      </Modal>
 
       {/* Messaging Modal */}
       {selectedConversation && (
