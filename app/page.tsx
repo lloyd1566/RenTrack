@@ -324,7 +324,9 @@ export default function LandingPage() {
               </a>
             ))}
             <div className="px-4 py-3 space-y-2">
-              
+              <Link href="/login?mode=signin" className={`block w-full text-center rounded-lg py-2.5 text-sm font-semibold transition-all duration-200 ${scrolled ? "bg-gray-900 text-white hover:bg-gray-800" : "bg-white text-gray-900 hover:bg-gray-100"}`}>
+                Sign In
+              </Link>
             </div>
           </div>
         )}
