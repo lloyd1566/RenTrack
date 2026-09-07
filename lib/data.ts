@@ -752,16 +752,31 @@ export async function resetAgentData(userId: string): Promise<boolean> {
 }
 
 export async function getAgentStats(userId: string): Promise<{ properties: number; tenants: number; payments: number }> {
-  const [properties, tenants, payments] = await Promise.all([
+  const [properties, tenants, payments, units] = await Promise.all([
     getProperties(),
     getTenants(),
     getPayments(),
+    getUnits(),
   ]);
 
+  const agentPropertyIds = new Set(
+    properties.filter((p) => p.agentId === userId).map((p) => p.id)
+  );
+
+  const propertyUnitIds = new Set(
+    units.filter((u) => agentPropertyIds.has(u.propertyId)).map((u) => u.id)
+  );
+
+  const tenantIdsForAgent = new Set(
+    tenants
+      .filter((t) => propertyUnitIds.has(t.unitId || ""))
+      .map((t) => t.id)
+  );
+
   return {
-    properties: properties.filter((p) => p.createdBy === userId).length,
-    tenants: tenants.filter((t) => t.createdBy === userId).length,
-    payments: payments.filter((p) => p.createdBy === userId || p.verifiedBy === userId).length,
+    properties: agentPropertyIds.size,
+    tenants: tenantIdsForAgent.size,
+    payments: payments.filter((p) => tenantIdsForAgent.has(p.tenantId || "")).length,
   };
 }
 
