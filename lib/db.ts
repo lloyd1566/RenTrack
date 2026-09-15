@@ -597,6 +597,7 @@ export async function createProperty(data: any, userId: string) {
     occupied_units: 0,
     monthly_revenue: 0,
     status: "active",
+    assignment_status: data.unitId ? "confirmed" : "",
     created_by: userId,
     image_url: data.imageUrl || null,
     agent_id: data.agentId || null,
@@ -733,6 +734,11 @@ export async function syncTenantUnit(tenantId: string, unitId: string | null, as
 
 export async function deleteUnit(id: string) {
   const adminClient = getAdminSupabase();
+  const { data: unit, error: lookupError } = await adminClient.from("units").select("status, tenant_id").eq("id", id).maybeSingle();
+  if (lookupError) throw lookupError;
+  if (unit?.status === "occupied" || unit?.tenant_id) {
+    throw new Error("An occupied unit cannot be deleted. Reassign or move out the tenant first.");
+  }
   const { error: tenantError } = await adminClient.from("tenants").update({ unit_id: null, unit_number: null }).eq("unit_id", id);
   if (tenantError) {
     console.error("Failed to clear tenant references before unit deletion:", tenantError);

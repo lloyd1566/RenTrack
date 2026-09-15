@@ -168,10 +168,18 @@ export default function OwnerDashboard() {
     rentAmount: string;
     contractStart: string;
     contractEnd: string;
+    paymentMethod: string;
+    advancePayment: string;
     password: string;
   }) => {
-    if (!formData.name || !formData.email || !formData.password) {
-      toast.error("Name, email, and password are required");
+    const property = properties.find((item) => item.name === formData.propertyName);
+    const unit = units.find((item) => item.propertyId === property?.id && item.unitNumber === formData.unitNumber && item.status === "vacant");
+    if (!formData.name || !formData.email || !formData.password || !property || !unit || !formData.contractStart || !formData.contractEnd || Number(formData.rentAmount) <= 0) {
+      toast.error("Choose an available property and unit and complete valid rental details");
+      return;
+    }
+    if (new Date(formData.contractEnd) <= new Date(formData.contractStart)) {
+      toast.error("Lease end date must be after the start date");
       return;
     }
     setCreateTenantSubmitting(true);
@@ -184,7 +192,9 @@ export default function OwnerDashboard() {
       });
       const data = await res.json();
       if (data.success) {
-        await fetch("/api/data/tenants", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ id: data.user?.id, name: formData.name, email: formData.email, phone: formData.phone, address: formData.address }) });
+        const tenantResponse = await fetch("/api/data/tenants", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "include", body: JSON.stringify({ id: data.user?.id, name: formData.name, email: formData.email, phone: formData.phone, address: formData.address, unitId: unit.id, propertyName: property.name, unitNumber: unit.unitNumber, rentAmount: Number(formData.rentAmount), contractStart: formData.contractStart, contractEnd: formData.contractEnd }) });
+        const tenantResult = await tenantResponse.json();
+        if (!tenantResult.success) throw new Error(tenantResult.error || "Unable to assign the selected unit");
         toast.success(data.emailSent ? "Tenant account created and login credentials emailed" : "Tenant account created, but the credentials email could not be sent");
         setShowCreateTenantModal(false);
         loadData();
@@ -374,6 +384,34 @@ export default function OwnerDashboard() {
       toast.error("Failed to update property");
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const changePropertyUnitCount = async (delta: 1 | -1) => {
+    if (!editingProperty) return;
+    const propertyUnits = units.filter((unit) => unit.propertyId === editingProperty.id);
+    try {
+      if (delta > 0) {
+        const nextNumber = `Unit ${propertyUnits.length + 1}`;
+        const unit = await addUnit({ propertyId: editingProperty.id, unitNumber: nextNumber, status: "vacant", rentAmount: 0 });
+        setUnits((current) => [...current, unit]);
+      } else {
+        const removable = [...propertyUnits].reverse().find((unit) => unit.status === "vacant" && !unit.tenantId);
+        if (!removable) {
+          toast.error("No vacant unit can be removed. Occupied units are protected.");
+          return;
+        }
+        const removed = await deleteUnit(removable.id);
+        if (!removed) throw new Error("Unit deletion failed");
+        setUnits((current) => current.filter((unit) => unit.id !== removable.id));
+      }
+      const nextCount = propertyUnits.length + delta;
+      await updateProperty(editingProperty.id, { units: nextCount });
+      setProperties((current) => current.map((property) => property.id === editingProperty.id ? { ...property, units: nextCount } : property));
+      setEditingProperty((current) => current ? { ...current, units: nextCount } : current);
+      toast.success(delta > 0 ? "New vacant unit added" : "Vacant unit removed");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to update unit count");
     }
   };
 
@@ -859,6 +897,8 @@ export default function OwnerDashboard() {
                   } as any);
                 }}
                 submitting={createTenantSubmitting}
+                properties={properties}
+                units={units}
               />
             )}
 
@@ -1560,6 +1600,15 @@ export default function OwnerDashboard() {
                       </div>
                     </div>
                     <div>
+                      <label className="block text-sm font-medium mb-1.5">Number of Units</label>
+                      <div className="flex items-center gap-3">
+                        <Button type="button" variant="outline" onClick={() => changePropertyUnitCount(-1)} aria-label="Decrease units">− Decrease Unit</Button>
+                        <span className="min-w-12 text-center rounded-lg bg-surface-secondary px-3 py-2 text-sm font-semibold">{units.filter((unit) => unit.propertyId === editingProperty.id).length}</span>
+                        <Button type="button" variant="outline" onClick={() => changePropertyUnitCount(1)} aria-label="Increase units">+ Increase Unit</Button>
+                      </div>
+                      <p className="mt-1 text-xs text-text-secondary">Removing a unit is allowed only when it is vacant.</p>
+                    </div>
+                    <div>
                       <label className="block text-sm font-medium mb-1.5">Property Image</label>
                       <div className="flex items-center gap-3">
                         <label className="flex items-center gap-2 px-4 py-2 rounded-xl border border-border bg-surface-secondary cursor-pointer hover:bg-surface-tertiary transition-colors">
@@ -1692,6 +1741,8 @@ export default function OwnerDashboard() {
                   await handleCreateTenant(formData);
                 }}
                 submitting={createTenantSubmitting}
+                properties={properties}
+                units={units}
               />
             )}
           </div>

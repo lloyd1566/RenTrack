@@ -68,6 +68,12 @@ CREATE TABLE IF NOT EXISTS properties (
   image_url TEXT
 );
 
+-- Location and presentation fields used by property details and mapping.
+ALTER TABLE properties ADD COLUMN IF NOT EXISTS description TEXT;
+ALTER TABLE properties ADD COLUMN IF NOT EXISTS amenities JSONB DEFAULT '[]'::jsonb;
+ALTER TABLE properties ADD COLUMN IF NOT EXISTS latitude DECIMAL(10,7);
+ALTER TABLE properties ADD COLUMN IF NOT EXISTS longitude DECIMAL(10,7);
+
 CREATE TABLE IF NOT EXISTS units (
   id TEXT PRIMARY KEY,
   property_id TEXT REFERENCES properties(id) ON DELETE CASCADE,
@@ -122,6 +128,66 @@ CREATE TABLE IF NOT EXISTS payments (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   created_by TEXT REFERENCES users(id) ON DELETE SET NULL
 );
+
+-- A payment always identifies the rental period it settles.  Existing records
+-- remain valid and can be backfilled from their payment/due dates.
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS payment_type TEXT DEFAULT 'regular'
+  CHECK (payment_type IN ('regular', 'advance'));
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS payment_period_start DATE;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS payment_period_end DATE;
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS tax_amount DECIMAL(10,2) DEFAULT 0 CHECK (tax_amount >= 0);
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS receipt_number TEXT UNIQUE;
+
+CREATE TABLE IF NOT EXISTS leases (
+  id TEXT PRIMARY KEY,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  property_id TEXT NOT NULL REFERENCES properties(id) ON DELETE RESTRICT,
+  unit_id TEXT NOT NULL REFERENCES units(id) ON DELETE RESTRICT,
+  monthly_rent DECIMAL(10,2) NOT NULL CHECK (monthly_rent > 0),
+  lease_start DATE NOT NULL,
+  lease_end DATE NOT NULL CHECK (lease_end > lease_start),
+  due_day INTEGER NOT NULL DEFAULT 1 CHECK (due_day BETWEEN 1 AND 28),
+  payment_method TEXT,
+  advance_payment DECIMAL(10,2) NOT NULL DEFAULT 0 CHECK (advance_payment >= 0),
+  security_deposit DECIMAL(10,2) NOT NULL DEFAULT 0 CHECK (security_deposit >= 0),
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'ended', 'cancelled')),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS payment_periods (
+  id TEXT PRIMARY KEY,
+  lease_id TEXT NOT NULL REFERENCES leases(id) ON DELETE CASCADE,
+  period_start DATE NOT NULL,
+  period_end DATE NOT NULL CHECK (period_end >= period_start),
+  due_date DATE NOT NULL,
+  amount_due DECIMAL(10,2) NOT NULL CHECK (amount_due >= 0),
+  amount_paid DECIMAL(10,2) NOT NULL DEFAULT 0 CHECK (amount_paid >= 0),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('paid', 'pending', 'partial', 'overdue', 'advance_paid')),
+  UNIQUE(lease_id, period_start)
+);
+
+CREATE TABLE IF NOT EXISTS contracts (
+  id TEXT PRIMARY KEY,
+  contract_number TEXT NOT NULL UNIQUE,
+  lease_id TEXT NOT NULL REFERENCES leases(id) ON DELETE CASCADE,
+  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
+  owner_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+  terms TEXT,
+  document_url TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS receipts (
+  id TEXT PRIMARY KEY,
+  receipt_number TEXT NOT NULL UNIQUE,
+  payment_id TEXT NOT NULL REFERENCES payments(id) ON DELETE CASCADE,
+  document_url TEXT,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS payments_tenant_period_idx ON payments(tenant_id, payment_period_start);
+CREATE INDEX IF NOT EXISTS leases_active_tenant_idx ON leases(tenant_id, status);
+CREATE INDEX IF NOT EXISTS units_property_status_idx ON units(property_id, status);
 
 ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_payment_method_check;
 ALTER TABLE payments ADD CONSTRAINT payments_payment_method_check CHECK (payment_method IN ('cash', 'bank_transfer', 'gcash', 'credit_card', 'other'));

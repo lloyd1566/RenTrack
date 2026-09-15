@@ -65,8 +65,23 @@ export async function POST(request: NextRequest) {
     if (!sanitized.name) {
       return NextResponse.json({ success: false, error: "Tenant name is required" }, { status: 400 });
     }
+    if (sanitized.rentAmount !== undefined && Number(sanitized.rentAmount) <= 0) {
+      return NextResponse.json({ success: false, error: "Rent must be a positive amount" }, { status: 400 });
+    }
+    if (sanitized.contractStart && sanitized.contractEnd && new Date(sanitized.contractEnd) <= new Date(sanitized.contractStart)) {
+      return NextResponse.json({ success: false, error: "Lease end date must be after the start date" }, { status: 400 });
+    }
+    if (sanitized.unitId) {
+      const { data: unit, error: unitError } = await getAdminSupabase().from("units").select("id, status, unit_number").eq("id", sanitized.unitId).maybeSingle();
+      if (unitError || !unit || unit.status !== "vacant" || (sanitized.unitNumber && unit.unit_number !== sanitized.unitNumber)) {
+        return NextResponse.json({ success: false, error: "The selected unit is no longer available" }, { status: 409 });
+      }
+    } else if (sanitized.propertyName || sanitized.unitNumber) {
+      return NextResponse.json({ success: false, error: "A valid available unit is required for a property assignment" }, { status: 400 });
+    }
 
     const tenant = await createTenant(sanitized, auth.userId);
+    if (sanitized.unitId) await syncTenantUnit(tenant.id, sanitized.unitId, "confirmed");
     await logAudit(auth.userId, "tenant_created", { tenantId: tenant.id, name: tenant.name }, auth.ip, auth.userAgent);
     return NextResponse.json({ success: true, tenant: sanitizeResponse(tenant) });
   } catch (error) {

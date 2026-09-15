@@ -15,7 +15,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { cn, formatCurrency, formatDate } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { useRouter } from "next/navigation";
-import { getPayments, getTenants, verifyPayment, addNotification, notifyAdmins, Payment, TenantRecord } from "@/lib/data";
+import { getPayments, getTenants, getUnits, verifyPayment, addNotification, notifyAdmins, Payment, TenantRecord, Unit } from "@/lib/data";
 import { toast } from "sonner";
 import ReceiptModal from "@/components/receipt-modal";
 
@@ -36,7 +36,10 @@ export default function PaymentsPage() {
   const [tenants, setTenants] = useState<TenantRecord[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [view, setView] = useState<"all" | "monthly" | "yearly">("all");
+  const [period, setPeriod] = useState<"monthly" | "quarterly" | "yearly">("monthly");
+  const [paymentType, setPaymentType] = useState<"all" | "regular" | "advance">("all");
+  const [referenceDate, setReferenceDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [units, setUnits] = useState<Unit[]>([]);
 
   useEffect(() => {
     if (!user) return;
@@ -46,10 +49,11 @@ export default function PaymentsPage() {
     }
     Promise.all([
       getPayments(user),
-      getTenants(user),
-    ]).then(([pays, tens]) => {
+      getTenants(user), getUnits(user),
+    ]).then(([pays, tens, unitRows]) => {
       setPayments(pays);
       setTenants(tens);
+      setUnits(unitRows);
     });
   }, [user, router]);
 
@@ -62,17 +66,27 @@ export default function PaymentsPage() {
     );
   }
 
+  const isAdvance = (p: Payment) => /advance/i.test(p.notes || "") || p.amountPaid > p.amountDue;
+  const isInPeriod = (p: Payment) => {
+    const paymentDate = new Date(p.paymentDate || "");
+    const selected = new Date(`${referenceDate}T00:00:00`);
+    if (Number.isNaN(paymentDate.getTime())) return false;
+    if (period === "yearly") return paymentDate.getFullYear() === selected.getFullYear();
+    if (period === "quarterly") return paymentDate.getFullYear() === selected.getFullYear() && Math.floor(paymentDate.getMonth() / 3) === Math.floor(selected.getMonth() / 3);
+    return paymentDate.getFullYear() === selected.getFullYear() && paymentDate.getMonth() === selected.getMonth();
+  };
   const filteredPayments = payments.filter((p) => {
     const matchesSearch = p.tenantName.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = statusFilter === "all" || p.status === statusFilter;
-    const matchesView = view === "all" || (view === "monthly" && new Date(p.paymentDate).getMonth() === new Date().getMonth()) || (view === "yearly" && new Date(p.paymentDate).getFullYear() === new Date().getFullYear());
-    return matchesSearch && matchesStatus && matchesView;
+    const matchesType = paymentType === "all" || (paymentType === "advance" ? isAdvance(p) : !isAdvance(p));
+    return matchesSearch && matchesStatus && matchesType && isInPeriod(p);
   });
 
-  const totalCollected = payments.filter((p) => p.status === "paid").reduce((s, p) => s + p.amountPaid, 0);
-  const totalPending = payments.filter((p) => p.status === "pending").reduce((s, p) => s + p.balance, 0);
-  const totalOverdue = payments.filter((p) => p.status === "overdue").reduce((s, p) => s + p.balance, 0);
-  const totalAdvance = payments.filter((p) => p.amountPaid > p.amountDue).reduce((s, p) => s + (p.amountPaid - p.amountDue), 0);
+  const totalCollected = filteredPayments.filter((p) => p.status === "paid").reduce((s, p) => s + Number(p.amountPaid || 0), 0);
+  const totalPending = filteredPayments.filter((p) => p.status === "pending" || p.status === "partial").reduce((s, p) => s + Number(p.balance || 0), 0);
+  const totalOverdue = filteredPayments.filter((p) => p.status === "overdue").reduce((s, p) => s + Number(p.balance || 0), 0);
+  const totalAdvance = filteredPayments.filter(isAdvance).reduce((s, p) => s + Math.max(0, Number(p.amountPaid) - Number(p.amountDue)), 0);
+  const totalReceivable = units.filter((unit) => unit.status === "occupied").reduce((sum, unit) => sum + Number(unit.rentAmount || 0), 0);
 
   const [viewingReceipt, setViewingReceipt] = useState<Payment | null>(null);
 
@@ -120,12 +134,13 @@ export default function PaymentsPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-5 gap-4">
         {[
           { label: "Total Collected", value: formatCurrency(totalCollected), icon: DollarSign, color: "from-green-500 to-green-600", change: "All time" },
           { label: "Pending", value: formatCurrency(totalPending), icon: Wallet, color: "from-amber-500 to-amber-600", change: "Awaiting approval" },
           { label: "Overdue", value: formatCurrency(totalOverdue), icon: AlertCircle, color: "from-red-500 to-red-600", change: `${payments.filter(p => p.status === "overdue").length} accounts` },
           { label: "Advance", value: formatCurrency(totalAdvance), icon: TrendingUp, color: "from-primary-500 to-primary-600", change: "Overpayments" },
+          { label: "Total Receivable", value: formatCurrency(totalReceivable), icon: Wallet, color: "from-sky-500 to-sky-600", change: "Occupied units / month" },
         ].map((stat, i) => (
           <motion.div key={i} variants={fadeInUp} whileHover={{ scale: 1.02, y: -2 }} transition={{ duration: 0.2 }}>
             <Card className="hover:shadow-lg transition-all duration-300"><CardContent className="p-4">
@@ -167,22 +182,24 @@ export default function PaymentsPage() {
               </select>
             </div>
           </div>
-          <div className="flex gap-2 mt-4">
-            <Button size="sm" variant={view === "all" ? "default" : "outline"} onClick={() => setView("all")}>All</Button>
-            <Button size="sm" variant={view === "monthly" ? "default" : "outline"} onClick={() => setView("monthly")}>Monthly</Button>
-            <Button size="sm" variant={view === "yearly" ? "default" : "outline"} onClick={() => setView("yearly")}>Yearly</Button>
+          <div className="flex flex-wrap gap-2 mt-4 items-center">
+            <select value={period} onChange={(e) => setPeriod(e.target.value as typeof period)} className="h-9 rounded-lg border border-border bg-surface text-sm text-foreground px-3"><option value="monthly">Monthly</option><option value="quarterly">Quarterly</option><option value="yearly">Yearly</option></select>
+            <Input aria-label="Selected period" type="date" value={referenceDate} onChange={(e) => setReferenceDate(e.target.value)} className="h-9 w-40" />
+            <select value={paymentType} onChange={(e) => setPaymentType(e.target.value as typeof paymentType)} className="h-9 rounded-lg border border-border bg-surface text-sm text-foreground px-3"><option value="all">All payment types</option><option value="regular">Regular payment</option><option value="advance">Advance payment</option></select>
           </div>
         </CardHeader>
 <CardContent className="overflow-x-auto">
-          <div className="min-w-[600px]">
+          <div className="min-w-[1050px]">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead>Tenant</TableHead>
                 <TableHead>Property</TableHead>
-                <TableHead>Amount</TableHead>
+                <TableHead className="text-right">Base Rent</TableHead>
+                <TableHead className="text-right">Tax</TableHead>
+                <TableHead className="text-right">Total Paid</TableHead>
                 <TableHead>Due Date</TableHead>
-                <TableHead>Advance</TableHead>
+                <TableHead>Payment Type</TableHead>
                 <TableHead>Status</TableHead>
                 {(user?.role === "owner" || user?.role === "agent") && <TableHead>Actions</TableHead>}
               </TableRow>
@@ -190,7 +207,7 @@ export default function PaymentsPage() {
             <TableBody>
               {filteredPayments.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-12 text-text-secondary text-sm">
+                  <TableCell colSpan={10} className="text-center py-12 text-text-secondary text-sm">
                     No payment records found
                   </TableCell>
                 </TableRow>
@@ -205,17 +222,11 @@ export default function PaymentsPage() {
                       </div>
                     </TableCell>
                     <TableCell className="text-sm text-text-secondary">{payment.propertyName || "—"}</TableCell>
-                    <TableCell>
-                      <span className="text-sm font-semibold text-foreground">{formatCurrency(payment.amountPaid)}</span>
-                      <span className="text-xs text-text-tertiary ml-1">of {formatCurrency(payment.amountDue)}</span>
-                    </TableCell>
-                    <TableCell className="text-sm text-text-secondary">{formatDate(payment.paymentDate)}</TableCell>
-                    <TableCell className="text-sm text-text-secondary">{formatDate(payment.dueDate)}</TableCell>
-                    <TableCell>
-                      <span className={cn("text-sm font-semibold", payment.amountPaid > payment.amountDue ? "text-green-600" : "text-foreground")}>
-                        {formatCurrency(Math.max(0, payment.amountPaid - payment.amountDue))}
-                      </span>
-                    </TableCell>
+                    <TableCell className="text-right text-sm font-medium">{formatCurrency(payment.amountDue)}</TableCell>
+                    <TableCell className="text-right text-sm text-text-secondary">{formatCurrency(0)}</TableCell>
+                    <TableCell className="text-right text-sm font-semibold text-foreground">{formatCurrency(payment.amountPaid)}</TableCell>
+                    <TableCell className="text-sm text-text-secondary whitespace-nowrap">{formatDate(payment.dueDate)}</TableCell>
+                    <TableCell><Badge variant="outline" className="whitespace-nowrap">{isAdvance(payment) ? "Advance Payment" : "Regular Payment"}</Badge></TableCell>
                     <TableCell>
                       <Badge variant="outline" className={cn("text-[10px] font-medium px-1.5 py-0.5 capitalize", statusStyles[payment.status])}>
                         {payment.status}
