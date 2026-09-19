@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyLoginOtp, initDatabase, findOrCreateAdmin, findUserByEmail, findUserById, logAudit, updateUser } from "@/lib/db";
+import { verifyLoginOtp, initDatabase, findUserByEmail, findUserById, logAudit, updateUser, getAllUsers, createNotification } from "@/lib/db";
 import { withSecurityHeaders, withCorsHeaders, validateApiRequest, getClientIp } from "@/lib/api-security";
 import { checkVerifyRateLimit, clearVerifyRateLimit, VERIFY_LOCKOUT_DURATION_MS } from "@/lib/auth-security";
 
 export async function POST(request: NextRequest) {
   try {
     await initDatabase();
-    await findOrCreateAdmin();
 
     const validation = validateApiRequest(request);
     if (validation) return validation;
@@ -66,6 +65,21 @@ export async function POST(request: NextRequest) {
     try {
       await logAudit(resolvedUserId, "email_verified", { email: user.email }, ip, request.headers.get("user-agent") || "unknown");
     } catch {}
+
+    if (user.role === "agent") {
+      try {
+        const recipients = (await getAllUsers()).filter((candidate: any) => ["owner", "admin"].includes(candidate.role));
+        await Promise.allSettled(recipients.map((recipient: any) => createNotification({
+          userId: recipient.id,
+          title: "Agent email verified",
+          message: `Agent ${user.name} has verified their email and can now log in.`,
+          type: "system",
+          read: false,
+        })));
+      } catch (notificationError) {
+        console.error("Verified agent notification failed:", notificationError);
+      }
+    }
 
     const safeUser = { ...updatedUser };
     delete safeUser.password;

@@ -2,14 +2,17 @@
 
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import dynamic from "next/dynamic";
 import Link from "next/link";
-import { Bell, Shield, MapPin, Home, Search, Menu, ChevronRight, Star, Phone, Mail, KeyRound, CreditCard, BarChart3, Building2, Users, X } from "lucide-react";
+import { Bell, Shield, MapPin, Home, Search, Menu, ChevronRight, Star, Phone, Mail, KeyRound, CreditCard, BarChart3, Building2, Users, X, UserPlus, BedDouble, Bath, Car, Grid2X2, Ruler, Wifi, Snowflake, Sofa, Utensils, WashingMachine, TreePine, LockKeyhole } from "lucide-react";
 import { cn } from "@/lib/utils";
+import UnitImageCarousel from "@/components/unit-image-carousel";
+
+const DestinationsMap = dynamic(() => import("@/components/destinations-map"), { ssr: false });
 
 const navItems = [
   { label: "Home", href: "/" },
   { label: "Properties", href: "#properties" },
-  { label: "How It Works", href: "#how-it-works" },
   { label: "Destinations", href: "#destinations" },
   { label: "Contact", href: "#contact" },
   { label: "About", href: "#about" },
@@ -42,15 +45,8 @@ const CHAT_DRAFT_KEY = "renttrack_chat_draft";
 const destinations = [
   { name: "Cebu", region: "Central Visayas", image: "/images/favicon/Cebu.webp" },
   { name: "Manila", region: "National Capital Region", image: "/images/favicon/Manila.jpg" },
-  { name: "Butuan", region: "Agusan del Norte", image: "/images/favicon/Butuan City.webp" },
+  { name: "Butuan", region: "Agusan del Norte", image: "/images/favicon/Agusan del Norte.jpg" },
   { name: "Davao", region: "Davao Region", image: "/images/favicon/Davao.jpg" },
-];
-
-const steps = [
-  { icon: Search, title: "Browse Listings", desc: "Explore houses and condominium units with photos, pricing, and location details.", image: "/images/landing/step-browse.jpg" },
-  { icon: KeyRound, title: "Move In", desc: "Agents register tenants, assign units, and manage contracts pending owner approval.", image: "/images/landing/step-movein.jpg" },
-  { icon: CreditCard, title: "Pay Online", desc: "Tenants upload receipts. Owners verify. Balances update automatically in real-time.", image: "/images/landing/step-pay.jpg" },
-  { icon: BarChart3, title: "Track Everything", desc: "Dashboards show receivables, occupancy, and performance. Generate reports instantly.", image: "/images/landing/step-track.jpg" },
 ];
 
 const features = [
@@ -69,16 +65,19 @@ export default function LandingPage() {
   const [heroIndex, setHeroIndex] = useState(0);
   const [isImageLoaded, setIsImageLoaded] = useState(false);
   const [bannerIndex, setBannerIndex] = useState(0);
-  const [scrolled, setScrolled] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<any | null>(null);
   const [showContactModal, setShowContactModal] = useState(false);
   const [contactForm, setContactForm] = useState({ name: "", email: "", phone: "", message: "" });
   const [contactSending, setContactSending] = useState(false);
   const [propertyAgent, setPropertyAgent] = useState<any | null>(null);
-  const [chatOpen, setChatOpen] = useState(false);
+  const [chatOpen, setChatOpen] = useState(true);
   const [chatUser, setChatUser] = useState({ name: "", email: "", phone: "" });
   const [chatMessages, setChatMessages] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [locationFilter, setLocationFilter] = useState("");
+  const [propertyTypeFilter, setPropertyTypeFilter] = useState("");
+  const [minPriceFilter, setMinPriceFilter] = useState("");
+  const [maxPriceFilter, setMaxPriceFilter] = useState("");
   const [chatInput, setChatInput] = useState("");
   const [chatSending, setChatSending] = useState(false);
   const [chatStarting, setChatStarting] = useState(false);
@@ -91,12 +90,11 @@ export default function LandingPage() {
   const [selectedAgent, setSelectedAgent] = useState<any | null>(null);
   const [showAgentDetails, setShowAgentDetails] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-
-  useEffect(() => {
-    const handleScroll = () => setScrolled(window.scrollY > 20);
-    window.addEventListener("scroll", handleScroll, { passive: true });
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
+  const [showApplicationSuccess, setShowApplicationSuccess] = useState(false);
+  const [showAgentApplication, setShowAgentApplication] = useState(false);
+  const [agentApplication, setAgentApplication] = useState({ name: "", email: "", phone: "", address: "", gender: "", birthdate: "" });
+  const [agentResume, setAgentResume] = useState<File | null>(null);
+  const [agentApplicationSending, setAgentApplicationSending] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -240,91 +238,99 @@ export default function LandingPage() {
     }
   }, [chatInput]);
 
-  const filteredProperties = (searchTerm.trim()
-    ? properties.filter((property: any) => {
-        const haystack = [
-          property.name,
-          property.location,
-          property.address,
-          property.city,
-          property.province,
-          property.type,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-        return haystack.includes(searchTerm.trim().toLowerCase());
-      })
-    : properties
-  );
+  const normalizedSearch = searchTerm.trim().toLowerCase();
+  const locations = Array.from(new Set(properties
+    .map((property: any) => property.location || property.city || property.province)
+    .filter(Boolean)));
+  const propertyTypes = Array.from(new Set(properties.map((property: any) => property.type).filter(Boolean)));
+  const minPrice = minPriceFilter ? Number(minPriceFilter) : 0;
+  const maxPrice = maxPriceFilter ? Number(maxPriceFilter) : Number.POSITIVE_INFINITY;
+  const matchesPropertyFilters = (property: any, unit?: any) => {
+    const propertyName = property?.name || "";
+    const propertyLocation = property?.location || property?.city || property?.province || unit?.location || unit?.propertyLocation || "";
+    const propertyType = property?.type || unit?.type || "";
+    const rentAmount = Number(unit?.rentAmount ?? unit?.rent_amount ?? property?.rentAmount ?? property?.monthlyRent ?? 0);
+    const haystack = [propertyName, propertyLocation, property?.address, property?.city, property?.province, propertyType, unit?.unitNumber, unit?.unit_number, unit?.status]
+      .filter(Boolean).join(" ").toLowerCase();
+    return (!normalizedSearch || haystack.includes(normalizedSearch))
+      && (!locationFilter || propertyLocation === locationFilter)
+      && (!propertyTypeFilter || propertyType === propertyTypeFilter)
+      && rentAmount >= minPrice
+      && rentAmount <= maxPrice;
+  };
 
-  const filteredUnits = (searchTerm.trim()
-    ? units.filter((unit: any) => {
-        const propertyName = unit.propertyName || unit.property_name || "";
-        const location = unit.location || unit.propertyLocation || "";
-        const haystack = [
-          unit.unitNumber,
-          unit.unit_number,
-          propertyName,
-          location,
-          unit.status,
-          unit.type,
-        ]
-          .filter(Boolean)
-          .join(" ")
-          .toLowerCase();
-        return haystack.includes(searchTerm.trim().toLowerCase());
-      })
-    : units
-  );
-
-  const displayUnits = filteredUnits.slice(0, 6);
+  const filteredProperties = properties.filter((property: any) => matchesPropertyFilters(property));
   const displayProperties = filteredProperties.slice(0, 6);
 
+  const submitAgentApplication = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!agentResume) return;
+    setAgentApplicationSending(true);
+    try {
+      const form = new FormData();
+      Object.entries(agentApplication).forEach(([key, value]) => form.append(key, value));
+      form.append("resume", agentResume);
+      const response = await fetch("/api/agent-applications", { method: "POST", body: form });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || "Application failed");
+      setShowAgentApplication(false);
+      setAgentApplication({ name: "", email: "", phone: "", address: "", gender: "", birthdate: "" });
+      setAgentResume(null);
+      setShowApplicationSuccess(true);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Application failed");
+    } finally {
+      setAgentApplicationSending(false);
+    }
+  };
+
   return (
-    <main className="relative min-h-screen bg-white text-gray-900 overflow-x-hidden pt-16">
+    <main className="relative min-h-screen overflow-x-hidden bg-slate-50 text-slate-900 pt-16">
       {/* â”€â”€â”€ Navigation â”€â”€â”€ */}
-      <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "bg-white/90 backdrop-blur-md shadow-sm border-b border-gray-200" : "bg-black/30 backdrop-blur-sm"}`}>
-        <div className="px-4 sm:px-6 lg:px-8">
+      <nav className="fixed left-0 right-0 top-0 z-50 border-b border-slate-200 bg-white shadow-sm">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
           <div className="relative flex h-16 items-center justify-between">
             <Link href="/" className="flex items-center gap-2">
               <div className="relative h-8 w-8">
                    <img src="/images/landing/logo.png" alt="RentTrack" className="w-full h-full object-contain rounded-full" />
               </div>
-              <span className={`text-lg font-bold ${scrolled ? "text-gray-900" : "text-white"}`}>Rent<span className="text-blue-600">Track</span></span>
+              <span className="text-lg font-bold text-slate-900">Rent<span className="text-blue-600">Track</span></span>
             </Link>
 
-            <div className="hidden md:flex absolute left-1/2 -translate-x-1/2 items-center gap-8">
+            <div className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-7 md:flex">
               {navItems.map((item) => (
-                <a key={item.label} href={item.href} className={`text-sm font-medium transition-all duration-200 hover:scale-110 ${scrolled ? "text-gray-600 hover:text-blue-600" : "text-white/90 hover:text-white"}`}>
+                <a key={item.label} href={item.href} className="text-sm font-medium text-slate-600 transition-colors hover:text-blue-600">
                   {item.label}
                 </a>
               ))}
             </div>
 
             <div className="hidden md:flex items-center gap-3">
+              <button type="button" onClick={() => setShowAgentApplication(true)} className="inline-flex h-9 items-center justify-center rounded-lg border border-blue-200 bg-blue-50 px-4 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-100">
+                <UserPlus className="mr-1.5 h-4 w-4" />Apply as Agent
+              </button>
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                <Link href="/login?mode=signin" className={`inline-flex h-9 px-5 text-sm font-semibold items-center justify-center rounded-lg border transition-all duration-200 hover:shadow-md ${scrolled ? "border-gray-300 text-gray-700 bg-white hover:bg-gray-50" : "border-white/30 text-white bg-white/10 hover:bg-white/20"}`}>
+                <Link href="/login?mode=signin" className="inline-flex h-9 items-center justify-center rounded-lg bg-blue-600 px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700">
                   Sign In
                 </Link>
               </motion.div>
             </div>
 
-            <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className={`md:hidden p-2 rounded-lg transition-all duration-200 hover:scale-110 ${scrolled ? "hover:bg-gray-100 text-gray-700" : "hover:bg-white/10 text-white"}`}>
+            <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="rounded-lg p-2 text-slate-700 transition-colors hover:bg-blue-50 hover:text-blue-600 md:hidden">
               <Menu className="h-5 w-5" />
             </button>
           </div>
         </div>
 
         {mobileMenuOpen && (
-          <div className={`md:hidden border-t ${scrolled ? "border-gray-200 bg-white" : "border-white/10 bg-black/20 backdrop-blur-md"}`}>
+          <div className="border-t border-slate-200 bg-white md:hidden">
             {navItems.map((item) => (
-              <a key={item.label} href={item.href} className={`block px-4 py-3 text-sm font-medium border-b border-gray-100 transition-colors ${scrolled ? "text-gray-600 hover:text-gray-900 hover:bg-gray-50" : "text-white/90 hover:text-white hover:bg-white/10"}`}>
+              <a key={item.label} href={item.href} className="block border-b border-slate-100 px-4 py-3 text-sm font-medium text-slate-600 transition-colors hover:bg-blue-50 hover:text-blue-700">
                 {item.label}
               </a>
             ))}
             <div className="px-4 py-3 space-y-2">
-              <Link href="/login?mode=signin" className={`block w-full text-center rounded-lg py-2.5 text-sm font-semibold transition-all duration-200 ${scrolled ? "bg-gray-900 text-white hover:bg-gray-800" : "bg-white text-gray-900 hover:bg-gray-100"}`}>
+              <Link href="/login?mode=signin" className="block w-full rounded-lg bg-blue-600 py-2.5 text-center text-sm font-semibold text-white transition-colors hover:bg-blue-700">
                 Sign In
               </Link>
             </div>
@@ -333,67 +339,28 @@ export default function LandingPage() {
       </nav>
 
        {/* â”€â”€â”€ Hero â”€â”€â”€ */}
-       <section className="relative flex min-h-[380px] items-center justify-center overflow-hidden sm:min-h-[440px]">
+      <section className="relative flex min-h-[460px] items-center justify-center overflow-hidden sm:min-h-[500px]">
          <motion.div
            className="absolute inset-0"
            animate={{ scale: [1, 1.05, 1] }}
            transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
          >
-           <div className="absolute inset-0 bg-cover bg-center opacity-55" style={{ backgroundImage: "url('/images/favicon/Landing page and login page.png')" }} />
-           <div className="absolute inset-0 bg-gradient-to-r from-blue-950/90 via-blue-900/80 to-blue-900/30" />
+           <div className="absolute inset-0 bg-cover bg-center" style={{ backgroundImage: "url('/images/favicon/Landing page and login page.png')" }} />
          </motion.div>
-         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-white/10" />
-
-         <div className="absolute inset-0 overflow-hidden pointer-events-none">
-           {[...Array(20)].map((_, i) => (
-             <motion.div
-               key={i}
-               animate={{
-                 y: [0, -28, 0],
-                 x: [0, 12, 0],
-                 opacity: [0.08, 0.45, 0.08],
-               }}
-               transition={{
-                 duration: 5 + i * 0.35,
-                 repeat: Infinity,
-                 ease: "easeInOut",
-                 delay: i * 0.18,
-               }}
-               className="absolute rounded-full bg-white"
-               style={{
-                 left: `${10 + i * 4.5}%`,
-                 top: `${18 + (i % 5) * 18}%`,
-                 width: `${2 + (i % 3)}px`,
-                 height: `${2 + (i % 3)}px`,
-               }}
-             />
-           ))}
-         </div>
-
-         <motion.div
-           animate={{ y: ["-100%", "100%"] }}
-           transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
-           className="absolute inset-0 pointer-events-none bg-gradient-to-b from-transparent via-white/5 to-transparent"
-         />
-
-         <div className="absolute inset-0 overflow-hidden">
-           <motion.div animate={{ x: [0, 20, 0], y: [0, -15, 0] }} transition={{ duration: 8, repeat: Infinity, ease: "linear" }} className="absolute -top-10 -right-10 h-40 w-40 rounded-full bg-white/5 blur-xl" />
-           <motion.div animate={{ x: [0, -15, 0], y: [0, 20, 0] }} transition={{ duration: 10, repeat: Infinity, ease: "linear" }} className="absolute top-1/2 -left-10 h-56 w-56 rounded-full bg-white/5 blur-xl" />
-           <motion.div animate={{ x: [0, 10, 0], y: [0, -10, 0] }} transition={{ duration: 7, repeat: Infinity, ease: "linear" }} className="absolute bottom-0 right-1/3 h-32 w-32 rounded-full bg-white/5 blur-xl" />
-         </div>
+         <div className="absolute inset-0 bg-black/15" />
 
          <motion.div
            initial={{ opacity: 0, y: 22 }}
            animate={{ opacity: 1, y: 0 }}
            transition={{ duration: 0.75, delay: 0.15 }}
-           className="relative z-10 mx-auto max-w-4xl px-4 py-8 text-center sm:px-6 lg:px-8"
+           className="relative z-10 mx-auto flex w-full max-w-7xl items-center justify-center px-4 py-12 text-center sm:px-6 lg:px-8"
          >
-           <div className="mx-auto max-w-2xl">
+           <div className="mx-auto flex max-w-2xl flex-col items-center text-center">
              <motion.div
                initial={{ opacity: 0, y: 18, scale: 0.95 }}
                animate={{ opacity: 1, y: 0, scale: 1 }}
                transition={{ duration: 0.55, delay: 0.25 }}
-               className="mb-4 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-white backdrop-blur-md"
+               className="mb-5 inline-flex items-center gap-2 rounded-lg border border-blue-200/30 bg-blue-500/20 px-3 py-1.5 text-xs font-semibold uppercase tracking-[0.14em] text-blue-50 backdrop-blur-md"
              >
               <motion.div
                 initial={{ opacity: 0, y: 4, scale: 0.9 }}
@@ -407,7 +374,7 @@ export default function LandingPage() {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.45, delay: 0.35, ease: "easeOut" }}
               >
-                 Find your next home
+                 Rental property marketplace
                </motion.span>
              </motion.div>
 
@@ -415,7 +382,7 @@ export default function LandingPage() {
                initial={{ opacity: 0, y: 24 }}
                animate={{ opacity: 1, y: 0 }}
                transition={{ duration: 0.65, delay: 0.35 }}
-               className="mb-3 text-3xl font-black tracking-[-0.04em] text-white sm:text-4xl md:text-5xl"
+               className="mb-4 max-w-xl text-4xl font-bold leading-tight tracking-tight text-white sm:text-5xl md:text-6xl"
              >
                <span className="inline-block">Rental Property Marketplace</span>
              </motion.h1>
@@ -424,7 +391,7 @@ export default function LandingPage() {
                initial={{ opacity: 0, y: 24 }}
                animate={{ opacity: 1, y: 0 }}
                transition={{ duration: 0.65, delay: 0.45 }}
-               className="mx-auto mb-5 max-w-xl text-sm leading-relaxed text-white/85 sm:text-base"
+               className="mb-7 max-w-xl text-base leading-7 text-blue-50 sm:text-lg"
              >
                Find verified apartments, condos & houses for rent in Cebu, Manila, Butuan, and Davao.
              </motion.p>
@@ -439,7 +406,7 @@ export default function LandingPage() {
              >
                <motion.a
                  href="#properties"
-                 className="relative inline-flex h-11 items-center justify-center gap-2 overflow-hidden rounded-xl bg-white px-5 text-sm font-semibold text-blue-700 shadow-xl transition-colors hover:bg-blue-50"
+                 className="relative inline-flex h-12 items-center justify-center gap-2 overflow-hidden rounded-lg bg-white px-6 text-sm font-semibold text-blue-700 shadow-xl transition-colors hover:bg-blue-50"
                  whileHover={{ scale: 1.03 }}
                  whileTap={{ scale: 0.98 }}
                >
@@ -461,7 +428,7 @@ export default function LandingPage() {
                initial={{ opacity: 0, y: 24 }}
                animate={{ opacity: 1, y: 0 }}
                transition={{ duration: 0.7, delay: 0.7 }}
-               className="relative mx-auto mt-8 max-w-3xl"
+               className="hidden"
              >
                <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-white/5 backdrop-blur-sm">
                  <div className="absolute inset-0 opacity-30" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,0.15) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.15) 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
@@ -500,35 +467,64 @@ export default function LandingPage() {
          </motion.div>
        </section>
 
-       {/* Properties for Rent Near You */}
+       {/* Properties for Rent */}
       <motion.section id="properties" className="bg-white py-12 sm:py-14" initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} transition={{ duration: 0.6 }}>
         <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="mb-8 text-center">
-            <span className="mb-4 inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-1.5 text-sm font-medium text-blue-600">
-              <MapPin className="h-4 w-4" />Available Now
-            </span>
-            <h2 className="text-3xl font-bold tracking-[-0.04em] text-gray-900 sm:text-4xl">Properties for Rent Near You</h2>
-            <p className="mx-auto mt-3 max-w-2xl text-sm text-gray-600 sm:text-base">Browse verified houses and condominium units. New units are added regularly.</p>
+          <div className="mb-8 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.16em] text-blue-600">Explore RentTrack</p>
+              <h2 className="mt-1 text-3xl font-bold tracking-tight text-slate-950 sm:text-4xl">Featured Properties</h2>
+              <p className="mt-2 max-w-2xl text-sm text-slate-600 sm:text-base">New properties and available rental units from our owners.</p>
+            </div>
+            <a href="#contact" className="text-sm font-semibold text-blue-600 transition-colors hover:text-blue-800">Need help finding a place? <span aria-hidden="true">→</span></a>
           </div>
 
-          <div className="mb-6 max-w-2xl mx-auto">
-            <div className="relative group">
-              <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600 shadow-sm ring-1 ring-blue-100">
-                  <Search className="h-4 w-4" />
-                </div>
-              </div>
-              <input
-                type="text"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Search by location, city, property name, or unit..."
-                className="w-full rounded-2xl border border-slate-200 bg-white/95 px-16 py-3.5 text-sm text-slate-900 shadow-[0_10px_30px_rgba(37,99,235,0.08)] outline-none transition-all duration-200 placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:shadow-[0_12px_35px_rgba(37,99,235,0.12)] focus:ring-4 focus:ring-blue-100"
-              />
+          <div className="mb-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_12px_30px_rgba(37,99,235,0.10)] sm:p-6">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-[1.15fr_1.8fr_1fr_1fr_auto_auto] xl:items-end">
+              <label className="text-sm text-gray-700">
+                <span className="mb-1 block">Location</span>
+                <select value={locationFilter} onChange={(e) => setLocationFilter(e.target.value)}
+                  className="h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100">
+                  <option value="">Any</option>
+                  {locations.map((location) => <option key={location} value={location}>{location}</option>)}
+                </select>
+              </label>
+              <label className="text-sm text-gray-700">
+                <span className="mb-1 block">Property Type</span>
+                <select value={propertyTypeFilter} onChange={(e) => setPropertyTypeFilter(e.target.value)}
+                  className="h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100">
+                  <option value="">Any</option>
+                  {propertyTypes.map((type) => <option key={type} value={type}>{type === "condominium" ? "Condominium" : type === "house" ? "House" : type}</option>)}
+                </select>
+              </label>
+              <label className="text-sm text-gray-700">
+                <span className="mb-1 block">Min. Price</span>
+                <select value={minPriceFilter} onChange={(e) => setMinPriceFilter(e.target.value)}
+                  className="h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100">
+                  <option value="">Any</option><option value="5000">₱5,000</option><option value="10000">₱10,000</option><option value="20000">₱20,000</option>
+                </select>
+              </label>
+              <label className="text-sm text-gray-700">
+                <span className="mb-1 block">Max. Price</span>
+                <select value={maxPriceFilter} onChange={(e) => setMaxPriceFilter(e.target.value)}
+                  className="h-12 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 text-base outline-none transition focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-100">
+                  <option value="">Any</option><option value="10000">₱10,000</option><option value="20000">₱20,000</option><option value="50000">₱50,000</option>
+                </select>
+              </label>
+              <button type="button" onClick={() => { setSearchTerm(""); setLocationFilter(""); setPropertyTypeFilter(""); setMinPriceFilter(""); setMaxPriceFilter(""); }}
+                className="h-12 rounded-lg px-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 hover:text-blue-700">CLEAR</button>
+              <button type="button" onClick={() => document.getElementById("properties-results")?.scrollIntoView({ behavior: "smooth" })}
+                className="h-12 rounded-lg bg-blue-600 px-6 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700">SEARCH</button>
+            </div>
+            <div className="mt-4 flex max-w-md items-center gap-2 xl:hidden">
+              <Search className="h-4 w-4 text-gray-500" />
+              <input value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} placeholder="Search by property, city, or unit..."
+                className="h-10 w-full border-b border-gray-300 text-sm outline-none focus:border-gray-900" />
             </div>
           </div>
 
-          {displayProperties.length === 0 && displayUnits.length === 0 ? (
+          <div id="properties-results">
+          {displayProperties.length === 0 ? (
             <div className="text-center py-12 bg-gray-50 rounded-lg">
               <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-blue-50 text-blue-600">
                 <Home className="h-7 w-7" />
@@ -545,12 +541,21 @@ export default function LandingPage() {
             <div className="space-y-10">
               {displayProperties.length > 0 && (
                 <div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-4">Properties</h3>
                   <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
                     {displayProperties.map((property: any, i: number) => {
-                      const img = property.imageUrl || property.image_url || unitImages[i % unitImages.length];
                       const location = property.location || "Cebu, Manila, Butuan, Davao";
                       const propertyType = property.type === "condominium" ? "Condominium" : "House";
+                      const propertyUnits = units.filter((unit: any) => (unit.propertyId || unit.property_id) === property.id);
+                      const propertyImages = [
+                        ...(Array.isArray(property.imageUrls) ? property.imageUrls : property.imageUrl ? [property.imageUrl] : []),
+                        ...propertyUnits.flatMap((unit: any) => Array.isArray(unit.imageUrls) ? unit.imageUrls : unit.imageUrl ? [unit.imageUrl] : []),
+                      ].filter((image, index, all) => Boolean(image) && all.indexOf(image) === index);
+                      const img = propertyImages[0] || property.image_url || unitImages[i % unitImages.length];
+                      const rents = propertyUnits.map((unit: any) => Number(unit.rentAmount ?? unit.rent_amount ?? 0)).filter(Boolean);
+                      const price = rents.length ? Math.min(...rents) : Number(property.monthlyRevenue || 0);
+                      const isAvailable = propertyUnits.length === 0 || propertyUnits.some((unit: any) => (unit.status || "vacant") === "vacant");
+                      const bedrooms = (property.features || []).find((feature: string) => /bedroom/i.test(feature)) || "Bedrooms";
+                      const bathrooms = (property.features || []).find((feature: string) => /bathroom/i.test(feature)) || "Bathrooms";
                       return (
                         <motion.div
                           key={property.id}
@@ -559,115 +564,35 @@ export default function LandingPage() {
                           viewport={{ once: true }}
                           transition={{ duration: 0.5, delay: i * 0.09 }}
                           whileHover={{ y: -6 }}
-                          className="group relative overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-300 hover:shadow-xl"
+                          className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_16px_rgba(15,23,42,0.06)] transition-all duration-300 hover:-translate-y-1 hover:border-blue-200 hover:shadow-[0_18px_42px_rgba(37,99,235,0.14)]"
                         >
-                          <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-blue-500/0 via-blue-500/0 to-blue-500/0 opacity-0 transition-opacity duration-500 group-hover:from-blue-500/5 group-hover:via-blue-500/5 group-hover:to-blue-500/5 group-hover:opacity-100" />
-                          <div className="relative h-40 overflow-hidden bg-gradient-to-br from-blue-100 to-indigo-100">
+                          <div className="relative h-60 overflow-hidden bg-slate-100">
                             <motion.div className="relative h-full w-full" whileHover={{ scale: 1.04 }} transition={{ duration: 0.45, ease: "easeOut" }}>
-                              <img
-                                src={img}
-                                alt={property.name}
-                                className="h-full w-full object-cover"
-                                loading="lazy"
-                                onError={(e) => {
-                                  const target = e.currentTarget;
-                                  target.onerror = null;
-                                  target.src = unitImages[i % unitImages.length];
-                                }}
-                              />
+                              <UnitImageCarousel images={propertyImages} fallbackImage={img} alt={property.name} className="h-full w-full" imageClassName="object-cover" />
                             </motion.div>
-                            <div className="absolute right-3 top-3">
+                            <div className="absolute left-4 top-4 flex max-w-[calc(100%-2rem)] items-start gap-1 rounded-[10px] bg-slate-900/85 px-3 py-2 text-xs font-bold uppercase leading-snug tracking-wide text-white shadow-sm backdrop-blur-sm">
                               <motion.span
                                 initial={{ scale: 0 }}
                                 whileInView={{ scale: 1 }}
                                 viewport={{ once: true }}
                                 transition={{ duration: 0.25, delay: i * 0.09 + 0.12 }}
-                                className="inline-flex rounded-full bg-blue-100 px-2.5 py-0.5 text-[10px] font-medium capitalize text-blue-700"
+                                className="truncate text-white"
                               >
-                                {propertyType}
+                                <><MapPin className="mr-1 mt-0.5 inline h-4 w-4 shrink-0 text-white" />{location}</>
                               </motion.span>
                             </div>
                           </div>
-                          <div className="relative p-4">
-                            <h3 className="mb-1 text-lg font-semibold text-gray-900 transition-colors group-hover:text-blue-700">{property.name}</h3>
-                            <p className="mb-3 flex items-center gap-1 text-sm text-gray-600">
-                              <MapPin className="h-3.5 w-3.5 shrink-0" />{location}
+                          <div className="relative p-5">
+                            <p className="text-2xl font-bold tracking-tight text-slate-950">₱{price.toLocaleString()}<span className="ml-1 text-sm font-medium text-slate-500">/mo</span></p>
+                            <h3 className="mt-2 text-lg font-semibold leading-snug text-slate-950 transition-colors group-hover:text-blue-700">{property.name} <span className="font-normal text-slate-500">— {propertyType} for Rent</span></h3>
+                            <p className={cn("mt-3 inline-flex rounded-full px-2.5 py-1 text-xs font-bold uppercase tracking-wide", isAvailable ? "bg-blue-50 text-blue-700" : "bg-amber-50 text-amber-700")}>{isAvailable ? "Available" : "Currently occupied"}</p>
+                            <p className="mb-4 mt-3 flex items-start gap-1 text-sm leading-5 text-slate-700">
+                              <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-600" />{location}
                             </p>
-                            <div className="flex items-center justify-between border-t border-gray-100 pt-3 text-xs text-gray-500">
-                              <span className="flex items-center gap-1"><Home className="h-3.5 w-3.5" />{property.units || 0} Units</span>
-                              <motion.button whileHover={{ x: 4 }} onClick={() => setSelectedProperty(property)} className="font-medium text-blue-600">
-                                View Details →
-                              </motion.button>
-                            </div>
-                          </div>
-                        </motion.div>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {displayUnits.length > 0 && (
-                <div>
-                  <h3 className="text-xl font-semibold text-gray-900 mb-4">Units</h3>
-                  <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-                    {displayUnits.map((unit: any, i: number) => {
-                      const status = unit.status || "vacant";
-                      const isOccupied = status === "occupied";
-                      const img = unit.imageUrl || unit.image_url || unitImages[i % unitImages.length];
-                      const unitNumber = unit.unitNumber || unit.unit_number || "Unit";
-                      const rentAmount = unit.rentAmount ?? unit.rent_amount ?? 0;
-                      const rent = rentAmount ? `₱${Number(rentAmount).toLocaleString()}` : "₱0";
-                      const propName = unit.propertyName || unit.property_name || unit.propertyId || unit.property_id || "—";
-                      return (
-                        <motion.div
-                          key={unit.id}
-                          initial={{ opacity: 0, y: 24 }}
-                          whileInView={{ opacity: 1, y: 0 }}
-                          viewport={{ once: true }}
-                          transition={{ duration: 0.5, delay: i * 0.09 }}
-                          whileHover={{ y: -6 }}
-                          className="group relative overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-300 hover:shadow-xl"
-                        >
-                          <div className="absolute inset-0 rounded-2xl bg-gradient-to-r from-blue-500/0 via-blue-500/0 to-blue-500/0 opacity-0 transition-opacity duration-500 group-hover:from-blue-500/5 group-hover:via-blue-500/5 group-hover:to-blue-500/5 group-hover:opacity-100" />
-                          <div className="relative h-40 overflow-hidden bg-gradient-to-br from-blue-100 to-indigo-100">
-                            <motion.div className="relative h-full w-full" whileHover={{ scale: 1.04 }} transition={{ duration: 0.45, ease: "easeOut" }}>
-                              <img
-                                src={img}
-                                alt={`${unitNumber} photo`}
-                                className="h-full w-full object-cover"
-                                loading="lazy"
-                                onError={(e) => {
-                                  const target = e.currentTarget;
-                                  target.onerror = null;
-                                  target.src = unitImages[i % unitImages.length];
-                                }}
-                              />
-                            </motion.div>
-                            <div className="absolute right-3 top-3">
-                              <motion.span
-                                initial={{ scale: 0 }}
-                                whileInView={{ scale: 1 }}
-                                viewport={{ once: true }}
-                                transition={{ duration: 0.25, delay: i * 0.09 + 0.12 }}
-                                className={cn("inline-flex rounded-full px-2.5 py-0.5 text-[10px] font-medium", isOccupied ? "bg-green-100 text-green-700" : "bg-amber-100 text-amber-700")}
-                              >
-                                {status.charAt(0).toUpperCase() + status.slice(1)}
-                              </motion.span>
-                            </div>
-                          </div>
-                          <div className="relative p-4">
-                            <div className="mb-2 flex items-center justify-between gap-3">
-                              <h3 className="text-lg font-semibold text-gray-900">{unitNumber}</h3>
-                              <span className="text-base font-semibold text-blue-600">{rent}<span className="text-[10px] text-gray-400">/mo</span></span>
-                            </div>
-                            <p className="mb-3 flex items-center gap-1 text-sm text-gray-600">
-                              <MapPin className="h-3.5 w-3.5 shrink-0" />{propName}
-                            </p>
-                            <div className="flex items-center justify-between border-t border-gray-100 pt-3 text-xs text-gray-500">
-                              <span className="flex items-center gap-1"><Home className="h-3.5 w-3.5" />{isOccupied ? "Occupied" : "Vacant"}</span>
-                              <motion.button whileHover={{ x: 4 }} onClick={() => setSelectedProperty(unit)} className="font-medium text-blue-600">
-                                View Details →
+                            <div className="flex items-center justify-between border-t border-slate-200 pt-4 text-xs text-slate-500">
+                              <span className="flex items-center gap-2 text-sm text-slate-700"><BedDouble className="h-4 w-4 text-blue-600" />{bedrooms} <Bath className="ml-2 h-4 w-4 text-blue-600" />{bathrooms}</span>
+                              <motion.button whileHover={{ x: 4 }} onClick={() => setSelectedProperty(property)} className="font-semibold text-blue-600 transition-colors hover:text-blue-800">
+                                View Details <span aria-hidden="true">→</span>
                               </motion.button>
                             </div>
                           </div>
@@ -680,61 +605,6 @@ export default function LandingPage() {
             </div>
           )}
         </div>
-      </motion.section>
-
-      {/* â”€â”€â”€ Be One of Our First Tenants â”€â”€â”€ */}
-      <motion.section className="bg-blue-600 py-12" initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} transition={{ duration: 0.6 }}>
-        <div className="mx-auto max-w-4xl px-4 text-center sm:px-6 lg:px-8">
-          <h2 className="mb-3 text-3xl font-bold leading-tight tracking-[-0.04em] text-white sm:text-4xl">Be One of Our First Tenants</h2>
-          <p className="mx-auto mb-7 max-w-2xl text-base text-blue-100 sm:text-lg">New verified units are being added. Browse available homes or contact us for more information.</p>
-          <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
-            <a href="#properties" className="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-white px-7 text-base font-semibold text-blue-700 shadow-xl transition-colors hover:bg-blue-50">
-              Browse Properties<ChevronRight className="ml-2 h-4 w-4" />
-            </a>
-          </div>
-        </div>
-      </motion.section>
-
-      {/* â”€â”€â”€ How It Works â”€â”€â”€ */}
-      <motion.section id="how-it-works" className="bg-gray-50 py-14 sm:py-16" initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} transition={{ duration: 0.6 }}>
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-          <div className="mb-10 text-center">
-            <span className="mb-4 inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-1.5 text-sm font-medium text-blue-600">
-              <Star className="h-4 w-4" />How It Works
-            </span>
-            <h2 className="text-3xl font-bold tracking-[-0.04em] text-gray-900 sm:text-4xl">Renting Made Simple</h2>
-            <p className="mx-auto mt-3 max-w-2xl text-sm text-gray-600 sm:text-base">From browsing to moving in, we make the rental process seamless</p>
-          </div>
-
-          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
-            {steps.map((step, i) => (
-              <motion.div
-                key={i}
-                initial={{ opacity: 0, y: 24 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: i * 0.12 }}
-                whileHover={{ y: -8 }}
-                className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm transition-all duration-300 hover:shadow-xl"
-              >
-                <div className="relative h-40 overflow-hidden bg-gradient-to-br from-blue-100 to-indigo-100">
-                  <motion.div whileHover={{ scale: 1.06 }} transition={{ duration: 0.6, ease: "easeOut" }} className="relative h-full w-full">
-                    <img src={step.image} alt={step.title} className="absolute inset-0 h-full w-full object-cover" loading="lazy" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
-                  </motion.div>
-                  <div className="absolute inset-0 bg-black/10" />
-                </div>
-                <div className="p-4">
-                  <div className="mb-3 flex items-center gap-3">
-                    <motion.div animate={{ scale: [1, 1.15, 1] }} transition={{ duration: 2, repeat: Infinity, ease: "easeInOut", delay: i * 0.3 }} className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white">
-                      {i + 1}
-                    </motion.div>
-                    <h3 className="text-base font-semibold text-gray-900">{step.title}</h3>
-                  </div>
-                  <p className="text-sm text-gray-600">{step.desc}</p>
-                </div>
-              </motion.div>
-            ))}
-          </div>
         </div>
       </motion.section>
 
@@ -745,78 +615,12 @@ export default function LandingPage() {
             <span className="inline-flex items-center gap-2 rounded-full bg-blue-50 px-4 py-1.5 text-sm font-medium text-blue-600 mb-4">
               <Star className="h-4 w-4" />Destinations
             </span>
-            <h2 className="text-3xl font-bold text-gray-900">Most Popular Destations</h2>
-            <p className="mt-3 text-gray-600 max-w-2xl mx-auto">Explore rental properties in the Philippines most sought-after locations</p>
+            <h2 className="text-3xl font-bold text-gray-900">Most Popular Destinations</h2>
+            <p className="mt-3 text-gray-600 max-w-2xl mx-auto">Explore rental properties in the Philippines&apos; most sought-after locations</p>
           </div>
 
-          <div className="relative mx-auto max-w-4xl rounded-2xl overflow-hidden border border-gray-200 bg-gray-50 h-64 sm:h-80">
-            <div className="absolute inset-0 opacity-40" style={{ backgroundImage: "linear-gradient(rgba(0,0,0,0.06) 1px, transparent 1px), linear-gradient(90deg, rgba(0,0,0,0.06) 1px, transparent 1px)", backgroundSize: "40px 40px" }} />
-            <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 200" preserveAspectRatio="none">
-              <motion.path
-                d="M 60 90 Q 120 20 200 50"
-                fill="none"
-                stroke="rgba(37,99,235,0.35)"
-                strokeWidth="2"
-                strokeDasharray="8 5"
-                initial={{ pathLength: 0 }}
-                animate={{ pathLength: 1 }}
-                transition={{ duration: 2, delay: 0.2, repeat: Infinity, repeatType: "reverse" }}
-              />
-              <motion.path
-                d="M 200 50 Q 260 90 340 80"
-                fill="none"
-                stroke="rgba(37,99,235,0.35)"
-                strokeWidth="2"
-                strokeDasharray="8 5"
-                initial={{ pathLength: 0 }}
-                animate={{ pathLength: 1 }}
-                transition={{ duration: 2, delay: 0.5, repeat: Infinity, repeatType: "reverse" }}
-              />
-              <motion.path
-                d="M 60 90 Q 100 140 160 120"
-                fill="none"
-                stroke="rgba(37,99,235,0.35)"
-                strokeWidth="2"
-                strokeDasharray="8 5"
-                initial={{ pathLength: 0 }}
-                animate={{ pathLength: 1 }}
-                transition={{ duration: 2, delay: 0.8, repeat: Infinity, repeatType: "reverse" }}
-              />
-            </svg>
-            {[
-              { name: "Cebu", region: "Central Visayas", x: "15%", y: "60%", delay: 0.9 },
-              { name: "Butuan", region: "Agusan del Norte", x: "40%", y: "28%", delay: 1.1 },
-              { name: "Davao", region: "Davao Region", x: "68%", y: "72%", delay: 1.3 },
-              { name: "Manila", region: "National Capital Region", x: "85%", y: "36%", delay: 1.5 },
-            ].map((city) => (
-              <motion.div
-                key={city.name}
-                initial={{ opacity: 0, scale: 0 }}
-                whileInView={{ opacity: 1, scale: 1 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.5, delay: city.delay }}
-                className="absolute"
-                style={{ left: city.x, top: city.y, transform: "translate(-50%, -50%)" }}
-              >
-                <motion.div
-                  animate={{ scale: [1, 2.2, 1], opacity: [0.5, 0, 0.5] }}
-                  transition={{ duration: 2.5, repeat: Infinity, ease: "easeOut" }}
-                  className="absolute rounded-full bg-blue-500/50"
-                  style={{ width: 44, height: 44, marginLeft: -22, marginTop: -22 }}
-                />
-                <motion.div
-                  animate={{ y: [0, -5, 0] }}
-                  transition={{ duration: 2.6, repeat: Infinity, ease: "easeInOut" }}
-                  className="relative flex flex-col items-center"
-                >
-                  <div className="h-4 w-4 rounded-full bg-blue-600 shadow-lg shadow-blue-500/60 ring-2 ring-white/40" />
-                  <span className="mt-1.5 text-xs sm:text-sm font-bold text-gray-900 drop-shadow-md whitespace-nowrap">
-                    {city.name}
-                  </span>
-                  <span className="text-[10px] sm:text-xs text-gray-600 font-medium whitespace-nowrap">{city.region}</span>
-                </motion.div>
-              </motion.div>
-            ))}
+          <div className="relative mx-auto aspect-square w-full max-w-[42rem] overflow-hidden rounded-2xl border border-gray-200 bg-slate-100 shadow-lg shadow-blue-950/10">
+            <DestinationsMap />
           </div>
         </div>
       </motion.section>
@@ -860,71 +664,6 @@ export default function LandingPage() {
               </motion.div>
             ))}
           </div>
-        </div>
-      </motion.section>
-
-      {/* â”€â”€â”€ CTA â”€â”€â”€ */}
-      <motion.section className="relative py-16 bg-blue-600 overflow-hidden" initial={{ opacity: 0 }} whileInView={{ opacity: 1 }} viewport={{ once: true }} transition={{ duration: 0.6 }}>
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          {[...Array(8)].map((_, i) => (
-            <motion.div
-              key={i}
-              animate={{
-                y: [0, -15, 0],
-                x: [0, 8, 0],
-                opacity: [0.2, 0.5, 0.2],
-              }}
-              transition={{
-                duration: 3 + i * 0.4,
-                repeat: Infinity,
-                ease: "easeInOut",
-                delay: i * 0.2,
-              }}
-              className="absolute w-2 h-2 bg-white/50 rounded-full"
-              style={{
-                left: `${10 + i * 12}%`,
-                top: `${20 + (i % 4) * 20}%`,
-              }}
-            />
-          ))}
-        </div>
-        <div className="relative mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 text-center">
-          <motion.h2
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="text-3xl sm:text-4xl font-bold text-white leading-tight mb-4"
-          >
-            Ready to Find Your Home?
-          </motion.h2>
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.15 }}
-            className="text-blue-100 mb-8 max-w-xl mx-auto"
-          >
-            Browse verified rental properties across Cebu, Manila, Butuan, and Davao. Contact agents directly for inquiries.
-          </motion.p>
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            transition={{ duration: 0.6, delay: 0.3 }}
-            whileHover={{ scale: 1.04 }}
-            whileTap={{ scale: 0.97 }}
-            className="inline-flex"
-          >
-            <motion.a
-              href="#properties"
-              className="inline-flex h-12 px-8 text-base font-semibold text-blue-700 bg-white hover:bg-blue-50 rounded-xl items-center justify-center gap-2 shadow-xl transition-colors"
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-            >
-              Browse Properties<ChevronRight className="ml-2 h-4 w-4" />
-            </motion.a>
-          </motion.div>
         </div>
       </motion.section>
 
@@ -1007,38 +746,73 @@ export default function LandingPage() {
         {selectedProperty && (
           <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/50" onClick={() => setSelectedProperty(null)} />
-            <div className="relative w-full max-w-2xl rounded-2xl border border-gray-200 bg-white shadow-2xl max-h-[90vh] overflow-y-auto">
-              <div className="p-6 border-b border-gray-200 flex items-center justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold text-gray-900">{selectedProperty.name || selectedProperty.unitNumber || "Property Details"}</h3>
-                  <p className="text-sm text-gray-500">{selectedProperty.location || selectedProperty.propertyName || "Property"}</p>
-                </div>
-                <button onClick={() => setSelectedProperty(null)} className="h-8 w-8 rounded-lg flex items-center justify-center text-gray-500 hover:text-gray-900 hover:bg-gray-100 transition-colors">
-                  <X className="h-4 w-4" />
-                </button>
+            <div className="relative w-full max-w-3xl overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-2xl max-h-[92vh]">
+              <div className="relative h-64 bg-gray-100 sm:h-80">
+                {(() => {
+                  const relatedUnits = units.filter((unit: any) => (unit.propertyId || unit.property_id) === selectedProperty.id);
+                  const images = [
+                    ...(Array.isArray(selectedProperty.imageUrls) ? selectedProperty.imageUrls : selectedProperty.imageUrl ? [selectedProperty.imageUrl] : []),
+                    ...relatedUnits.flatMap((unit: any) => Array.isArray(unit.imageUrls) && unit.imageUrls.length > 0 ? unit.imageUrls : unit.imageUrl ? [unit.imageUrl] : []),
+                  ].filter((image, index, all) => Boolean(image) && all.indexOf(image) === index);
+                  return <UnitImageCarousel images={images} alt={selectedProperty.name || selectedProperty.unitNumber || "Property image"} className="h-full w-full" />;
+                })()}
+                <button onClick={() => setSelectedProperty(null)} aria-label="Close property details" className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full bg-white/90 text-gray-600 shadow-sm hover:bg-white hover:text-gray-950"><X className="h-4 w-4" /></button>
               </div>
-              <div className="p-6 space-y-4">
-                {selectedProperty.imageUrl && (
-                  <img src={selectedProperty.imageUrl} alt={selectedProperty.name || selectedProperty.unitNumber} className="w-full h-48 object-cover rounded-xl border border-gray-200" />
-                )}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-4 rounded-xl bg-gray-50">
-                    <p className="text-xs text-gray-500 mb-1">Type</p>
-                    <p className="text-sm font-medium text-gray-900 capitalize">{selectedProperty.type || "House"}</p>
-                  </div>
-                  <div className="p-4 rounded-xl bg-gray-50">
-                    <p className="text-xs text-gray-500 mb-1">Status</p>
-                    <p className="text-sm font-medium text-gray-900 capitalize">{selectedProperty.status || "Active"}</p>
-                  </div>
-                  <div className="p-4 rounded-xl bg-gray-50">
-                    <p className="text-xs text-gray-500 mb-1">Units</p>
-                    <p className="text-sm font-medium text-gray-900">{selectedProperty.units || 0}</p>
-                  </div>
-                  <div className="p-4 rounded-xl bg-gray-50">
-                    <p className="text-xs text-gray-500 mb-1">Monthly Rent</p>
-                    <p className="text-sm font-medium text-gray-900">₱{Number(selectedProperty.rentAmount || 0).toLocaleString()}/mo</p>
-                  </div>
+              <div className="space-y-6 p-6 sm:p-8">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-gray-500">{selectedProperty.type || "Property"}</p>
+                  <h3 className="mt-2 text-2xl font-semibold leading-tight text-gray-950">{selectedProperty.name || selectedProperty.unitNumber || "Property Details"}</h3>
+                  <p className="mt-2 flex items-center gap-1.5 text-sm text-gray-600"><MapPin className="h-4 w-4 shrink-0" />{selectedProperty.location || selectedProperty.propertyName || "Location not specified"}</p>
                 </div>
+                {(() => {
+                  const selectedFeatures = selectedProperty.features || [];
+                  const featureCards = selectedFeatures.map((feature: string) => {
+                    const normalized = feature.toLowerCase();
+                    const icon = normalized.includes("bedroom") ? BedDouble
+                      : normalized.includes("bathroom") ? Bath
+                      : normalized.includes("parking") || normalized.includes("car") ? Car
+                      : normalized.includes("wi-fi") || normalized.includes("wifi") ? Wifi
+                      : normalized.includes("air conditioning") ? Snowflake
+                      : normalized.includes("furnished") ? Sofa
+                      : normalized.includes("kitchen") ? Utensils
+                      : normalized.includes("laundry") ? WashingMachine
+                      : normalized.includes("outdoor") ? TreePine
+                      : normalized.includes("gated") ? LockKeyhole
+                      : normalized.includes("floor area") || normalized.includes("sqm") || normalized.includes("m²") ? Grid2X2
+                      : normalized.includes("lot area") ? Ruler
+                      : Home;
+                    const label = normalized.includes("bedroom") ? "Bedrooms"
+                      : normalized.includes("bathroom") ? "Bathrooms"
+                      : normalized.includes("parking") || normalized.includes("car") ? "Car Parks"
+                      : normalized.includes("wi-fi") || normalized.includes("wifi") ? "Wi-Fi"
+                      : normalized.includes("air conditioning") ? "Air Conditioning"
+                      : normalized.includes("furnished") ? "Furnished"
+                      : normalized.includes("kitchen") ? "Kitchen"
+                      : normalized.includes("laundry") ? "Laundry Area"
+                      : normalized.includes("outdoor") ? "Outdoor Area"
+                      : normalized.includes("gated") ? "Gated Property"
+                      : feature.replace(/\d+/g, "").trim() || feature;
+                    const numericValue = feature.match(/\d+(?:\.\d+)?/)?.[0];
+                    const value = numericValue || (normalized.includes("parking") || normalized.includes("car") ? "1" : /^(yes|true)$/i.test(feature.trim()) ? "Yes" : feature.replace(/\d+/g, "").trim() === label ? "Yes" : feature.replace(new RegExp(label, "i"), "").trim() || "Yes");
+                    return { feature, icon, label, value };
+                  });
+                  return featureCards.length > 0 ? (
+                    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+                      {featureCards.map((featureCard, index) => (
+                        <div key={`${featureCard.feature}-${index}`} className="rounded-xl bg-gray-50 p-3 text-center sm:text-left">
+                          <featureCard.icon className="mx-auto h-5 w-5 text-gray-950 sm:mx-0" />
+                          <p className="mt-2 text-lg font-medium text-gray-950">{featureCard.value}</p>
+                          <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-gray-500">{featureCard.label}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null;
+                })()}
+                <div className="grid grid-cols-2 gap-4 border-y border-gray-200 py-4">
+                  <div><p className="text-xs font-medium text-gray-500">Availability</p><p className="mt-1 text-sm font-semibold text-emerald-700">{selectedProperty.availabilityStatus || "Available"}</p></div>
+                  <div><p className="text-xs font-medium text-gray-500">Monthly Rent</p><p className="mt-1 text-lg font-bold text-gray-950">₱{(() => { const directRent = Number(selectedProperty.rentAmount || 0); if (directRent > 0) return directRent.toLocaleString(); const rents = units.filter((unit: any) => (unit.propertyId || unit.property_id) === selectedProperty.id).map((unit: any) => Number(unit.rentAmount ?? unit.rent_amount ?? 0)).filter((rent: number) => rent > 0); return (rents.length ? Math.min(...rents) : Number(selectedProperty.monthlyRevenue || 0)).toLocaleString(); })()}<span className="text-xs font-medium text-gray-500">/mo</span></p></div>
+                </div>
+                {selectedProperty.condition && <div><p className="text-xs font-medium text-gray-500">Condition</p><p className="mt-1 text-sm font-medium text-gray-950">{selectedProperty.condition}</p></div>}
                 {selectedProperty.description && (
                   <div>
                     <p className="text-xs text-gray-500 mb-2">Description</p>
@@ -1062,13 +836,13 @@ export default function LandingPage() {
                 )}
                 <button
                   onClick={() => setShowContactModal(true)}
-                  className="w-full h-10 rounded-xl bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition-colors"
+                  className="h-12 w-full rounded-xl bg-blue-600 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
                 >
                   Contact Agent
                 </button>
               </div>
-              <div className="p-6 border-t border-gray-200">
-                <button onClick={() => setSelectedProperty(null)} className="w-full h-10 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">Close</button>
+              <div className="border-t border-gray-200 p-6 sm:px-8">
+                <button onClick={() => setSelectedProperty(null)} className="h-11 w-full rounded-xl border border-gray-200 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50">Close</button>
               </div>
             </div>
           </div>
@@ -1259,22 +1033,96 @@ export default function LandingPage() {
           </div>
         )}
       </AnimatePresence>
+      <AnimatePresence>
+        {showApplicationSuccess && (
+          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-labelledby="application-success-title">
+            <motion.button
+              type="button"
+              aria-label="Close application submitted dialog"
+              className="absolute inset-0 cursor-default bg-slate-950/55 backdrop-blur-sm"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setShowApplicationSuccess(false)}
+            />
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9, y: 18 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.94, y: 10 }}
+              transition={{ type: "spring", stiffness: 260, damping: 22 }}
+              className="relative w-full max-w-md overflow-hidden rounded-3xl bg-white p-7 text-center shadow-2xl"
+            >
+              <div className="absolute inset-x-0 top-0 h-1.5 bg-gradient-to-r from-blue-500 via-indigo-500 to-cyan-400" />
+              <div className="mx-auto mb-5 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 ring-8 ring-emerald-50">
+                <svg className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="m5 13 4 4L19 7" />
+                </svg>
+              </div>
+              <h2 id="application-success-title" className="text-xl font-bold text-slate-900">Application submitted!</h2>
+              <p className="mt-2 text-sm leading-6 text-slate-600">Your application is now pending review. An owner will contact you using the email address you provided.</p>
+              <div className="mt-7 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <button type="button" onClick={() => setShowApplicationSuccess(false)} className="h-11 rounded-xl border border-slate-200 bg-white text-sm font-semibold text-slate-700 transition hover:bg-slate-50">Done</button>
+                <button type="button" onClick={() => { setShowApplicationSuccess(false); document.getElementById("properties")?.scrollIntoView({ behavior: "smooth" }); }} className="h-11 rounded-xl bg-blue-600 text-sm font-semibold text-white shadow-sm transition hover:bg-blue-700">Browse rentals</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showAgentApplication && (
+          <div className="fixed inset-0 z-[99999] flex items-center justify-center p-4">
+            <div className="absolute inset-0 bg-black/50" onClick={() => setShowAgentApplication(false)} />
+            <motion.form onSubmit={submitAgentApplication} initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} className="relative w-full max-w-2xl rounded-2xl bg-white p-6 shadow-2xl">
+              <button type="button" onClick={() => setShowAgentApplication(false)} className="absolute right-4 top-4 text-gray-500"><X className="h-5 w-5" /></button>
+              <h2 className="text-xl font-bold text-gray-900">Apply as an Agent</h2>
+              <p className="mt-1 text-sm text-gray-500">Submit your information and resume for owner review.</p>
+              <section className="mt-5 rounded-xl border border-blue-100 bg-blue-50/60 p-4">
+                <h3 className="text-sm font-semibold text-gray-900">Application Requirements</h3>
+                <p className="mt-1 text-sm leading-6 text-gray-600">Please complete all required information and upload the necessary documents for your application to be reviewed.</p>
+              </section>
+              <section className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
+                <h3 className="text-sm font-semibold text-gray-900">Application Details</h3>
+                <div className="mt-3 grid grid-cols-1 gap-3 text-xs leading-5 text-gray-600 sm:grid-cols-2">
+                  <p><span className="font-semibold text-gray-800">Application Date:</span> Recorded when your application is submitted.</p>
+                  <p><span className="font-semibold text-gray-800">Application Status:</span> Tracks whether your application is pending, approved, or rejected.</p>
+                  <p><span className="font-semibold text-gray-800">Applicant Information:</span> Includes the personal and contact details you provide.</p>
+                  <p><span className="font-semibold text-gray-800">Resume:</span> Your uploaded PDF or Word document for owner review.</p>
+                  <p className="sm:col-span-2"><span className="font-semibold text-gray-800">Review Notes:</span> Additional information recorded by the owner during the review process.</p>
+                </div>
+              </section>
+              <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <input required placeholder="Full name *" value={agentApplication.name} onChange={(e) => setAgentApplication({ ...agentApplication, name: e.target.value })} className="h-11 rounded-lg border px-3 text-sm" />
+                <input required type="email" placeholder="Email *" value={agentApplication.email} onChange={(e) => setAgentApplication({ ...agentApplication, email: e.target.value })} className="h-11 rounded-lg border px-3 text-sm" />
+                <input placeholder="Phone" value={agentApplication.phone} onChange={(e) => setAgentApplication({ ...agentApplication, phone: e.target.value })} className="h-11 rounded-lg border px-3 text-sm" />
+                <select required value={agentApplication.address} onChange={(e) => setAgentApplication({ ...agentApplication, address: e.target.value })} className="h-11 rounded-lg border bg-white px-3 text-sm">
+                  <option value="">Select city *</option><option value="Cebu">Cebu</option><option value="Manila">Manila</option><option value="Davao">Davao</option><option value="Butuan">Butuan</option>
+                </select>
+                <select value={agentApplication.gender} onChange={(e) => setAgentApplication({ ...agentApplication, gender: e.target.value })} className="h-11 rounded-lg border bg-white px-3 text-sm"><option value="">Gender</option><option>Male</option><option>Female</option><option>Other</option></select>
+                <input type="date" value={agentApplication.birthdate} onChange={(e) => setAgentApplication({ ...agentApplication, birthdate: e.target.value })} className="h-11 rounded-lg border px-3 text-sm" />
+                <label className="sm:col-span-2"><span className="mb-1 block text-xs font-medium text-gray-600">Resume (PDF or Word, max 5 MB) *</span><input required type="file" accept=".pdf,.doc,.docx,application/pdf" onChange={(e) => setAgentResume(e.target.files?.[0] || null)} className="w-full rounded-lg border px-3 py-2 text-sm" /></label>
+              </div>
+              <button type="submit" disabled={agentApplicationSending} className="mt-5 h-11 w-full rounded-lg bg-blue-600 font-semibold text-white hover:bg-blue-700 disabled:opacity-60">{agentApplicationSending ? "Submitting..." : "Submit Application"}</button>
+            </motion.form>
+          </div>
+        )}
+      </AnimatePresence>
       {/* Chat Widget */}
       <div className="fixed bottom-6 right-6 z-[9998]">
         {chatOpen && (
           <div className="mb-4 w-80 h-96 bg-white rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden">
             <div className="p-4 bg-blue-600 text-white flex items-center justify-between">
               <div>
-                <p className="text-sm font-semibold">Chat with an Agent</p>
-                <p className="text-xs text-blue-100">We typically reply within minutes</p>
+                <p className="text-sm font-semibold">RentTrack</p>
+                <p className="text-xs text-blue-100">We&apos;re Here to Help! 😊</p>
               </div>
               <button onClick={() => setChatOpen(false)} className="text-white/90 hover:text-white">
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-gray-50">
+            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-blue-50">
               {chatMessages.length === 0 && (
                 <div className="space-y-3 mt-4">
+                  <div className="max-w-[90%] rounded-2xl rounded-tl-sm bg-blue-600 px-4 py-3 text-sm text-white shadow-sm">Hi there! Thanks for reaching out to RentTrack. How can we help you today?</div>
                   <p className="text-xs text-gray-500 text-center">Enter your details and choose an agent before sending your message.</p>
                   <select
                     value={chatSelectedAgent?.id || ""}

@@ -41,7 +41,16 @@ export async function POST(request: NextRequest) {
       { key: "status", type: "string", maxLength: 20 },
       { key: "imageUrl", type: "string", maxLength: 5000000 },
       { key: "agentId", type: "string", maxLength: 200 },
+      { key: "condition", type: "string", maxLength: 100 },
+      { key: "availabilityStatus", type: "string", maxLength: 40 },
     ]);
+    if (Array.isArray(body.imageUrls)) {
+      sanitized.imageUrls = Array.from(new Set(body.imageUrls.filter((url: unknown): url is string => typeof url === "string"))).slice(0, 20);
+      sanitized.imageUrl = sanitized.imageUrls[0] || sanitized.imageUrl;
+    }
+    if (Array.isArray(body.features)) {
+      sanitized.features = body.features.filter((feature: unknown): feature is string => typeof feature === "string").slice(0, 30);
+    }
 
     if (!sanitized.name || !sanitized.location) {
       return NextResponse.json({ success: false, error: "Name and location are required" }, { status: 400 });
@@ -53,7 +62,8 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ success: true, property: sanitizeResponse(property) });
   } catch (error) {
     console.error("Create property error:", error);
-    return NextResponse.json({ success: false, error: "Failed to create property" }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Failed to create property";
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }
 

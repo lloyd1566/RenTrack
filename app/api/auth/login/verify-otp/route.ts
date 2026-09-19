@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { verifyLoginOtp, initDatabase, findOrCreateAdmin, findUserById, logAudit } from "@/lib/db";
+import { verifyLoginOtp, initDatabase, findUserById, logAudit } from "@/lib/db";
 import { regenerateSession } from "@/lib/security";
 import { withSecurityHeaders, withCorsHeaders, getClientIp } from "@/lib/security-headers";
 
 export async function POST(request: NextRequest) {
   try {
     await initDatabase();
-    await findOrCreateAdmin();
 
     const { userId, otp } = await request.json();
     if (!userId || !otp) {

@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
+import { Select } from "@/components/ui/select";
 import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "@/components/ui/table";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Modal } from "@/components/ui/modal";
@@ -47,10 +48,14 @@ export default function AdminDashboard() {
   const [tenants, setTenants] = useState<TenantRecord[]>([]);
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
+  const [paymentPeriod, setPaymentPeriod] = useState<"monthly" | "quarterly" | "yearly">("monthly");
+  const [paymentReferenceDate, setPaymentReferenceDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [paymentTypeFilter, setPaymentTypeFilter] = useState<"all" | "regular" | "advance">("all");
   const [complaints, setComplaints] = useState<Complaint[]>([]);
   const [ratings, setRatings] = useState<Rating[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
+  const [roleFilter, setRoleFilter] = useState<"all" | "admin" | "owner" | "agent" | "tenant">("all");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [diagnosisResults, setDiagnosisResults] = useState<Record<string, string> | null>(null);
   const [isRunningDiagnosis, setIsRunningDiagnosis] = useState(false);
@@ -182,6 +187,24 @@ export default function AdminDashboard() {
     }
   }, [activeTab, user]);
 
+  const isAdvancePayment = (payment: Payment) => /advance/i.test(payment.notes || "") || payment.amountPaid > payment.amountDue;
+  const filteredPayments = payments.filter((payment) => {
+    const paymentDate = new Date(payment.paymentDate || "");
+    const selectedDate = new Date(`${paymentReferenceDate}T00:00:00`);
+    if (Number.isNaN(paymentDate.getTime())) return false;
+
+    const matchesPeriod = paymentPeriod === "yearly"
+      ? paymentDate.getFullYear() === selectedDate.getFullYear()
+      : paymentPeriod === "quarterly"
+        ? paymentDate.getFullYear() === selectedDate.getFullYear() &&
+          Math.floor(paymentDate.getMonth() / 3) === Math.floor(selectedDate.getMonth() / 3)
+        : paymentDate.getFullYear() === selectedDate.getFullYear() &&
+          paymentDate.getMonth() === selectedDate.getMonth();
+    const matchesType = paymentTypeFilter === "all" ||
+      (paymentTypeFilter === "advance" ? isAdvancePayment(payment) : !isAdvancePayment(payment));
+    return matchesPeriod && matchesType;
+  });
+
   useEffect(() => {
     if (activeTab === "complaints") {
       getTenants().then(setTenants).catch(() => {});
@@ -250,9 +273,10 @@ export default function AdminDashboard() {
   };
 
   const filteredUsers = users.filter(u =>
-    u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    u.role.toLowerCase().includes(searchTerm.toLowerCase())
+    (roleFilter === "all" || u.role === roleFilter) &&
+    (u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      u.role.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   const handleDeleteUser = async (userId: string) => {
@@ -475,7 +499,7 @@ export default function AdminDashboard() {
         >
           <Card className="border border-gray-200 hover:shadow-lg transition-all duration-300">
             <CardHeader>
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <CardTitle className="flex items-center gap-2 text-gray-900">
                     <motion.div
@@ -488,9 +512,27 @@ export default function AdminDashboard() {
                   </CardTitle>
                   <CardDescription>Manage user accounts and roles across the system</CardDescription>
                 </div>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input placeholder="Search users..." className="pl-9 h-10 w-64 border-gray-200" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
+                  <div className="relative w-full sm:w-64">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                    <Input placeholder="Search users..." className="pl-9 h-10 w-full border-gray-200" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <label htmlFor="user-role-filter" className="shrink-0 text-sm font-medium text-gray-700 dark:text-gray-300">Role</label>
+                    <Select
+                      id="user-role-filter"
+                      aria-label="Filter users by role"
+                      value={roleFilter}
+                      onChange={(e) => setRoleFilter(e.target.value as typeof roleFilter)}
+                      className="h-10 w-full sm:w-48"
+                    >
+                      <option value="all">All Roles</option>
+                      <option value="admin">System Administrator</option>
+                      <option value="owner">Property Owner</option>
+                      <option value="agent">Agent</option>
+                      <option value="tenant">Tenant</option>
+                    </Select>
+                  </div>
                 </div>
               </div>
             </CardHeader>
@@ -756,15 +798,39 @@ export default function AdminDashboard() {
       {activeTab === "payments" && (
         <Card className="border border-gray-200">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-gray-900">
-              <CreditCard className="h-5 w-5 text-gray-600" />
-              Payments
-            </CardTitle>
-            <CardDescription>View and manage payment records</CardDescription>
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-gray-900">
+                  <CreditCard className="h-5 w-5 text-gray-600" />
+                  Payments
+                </CardTitle>
+                <CardDescription>View and manage payment records</CardDescription>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <select value={paymentPeriod} onChange={(e) => setPaymentPeriod(e.target.value as typeof paymentPeriod)}
+                  aria-label="Payment period"
+                  className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700">
+                  <option value="monthly">Monthly</option>
+                  <option value="quarterly">Quarterly</option>
+                  <option value="yearly">Yearly</option>
+                </select>
+                <Input aria-label="Payment reference date" type="date" value={paymentReferenceDate}
+                  onChange={(e) => setPaymentReferenceDate(e.target.value)} className="h-9 w-40" />
+                <select value={paymentTypeFilter} onChange={(e) => setPaymentTypeFilter(e.target.value as typeof paymentTypeFilter)}
+                  aria-label="Payment type"
+                  className="h-9 rounded-lg border border-gray-200 bg-white px-3 text-sm text-gray-700">
+                  <option value="all">All payment types</option>
+                  <option value="regular">Regular payment</option>
+                  <option value="advance">Advance payment</option>
+                </select>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
-            {payments.length === 0 ? (
-              <p className="text-center py-8 text-gray-500">No payments found</p>
+            {filteredPayments.length === 0 ? (
+              <p className="text-center py-8 text-gray-500">
+                {payments.length === 0 ? "No payments found" : "No payments match the selected filters"}
+              </p>
             ) : (
               <div className="overflow-x-auto">
                 <Table>
@@ -773,12 +839,13 @@ export default function AdminDashboard() {
                       <TableHead>Tenant</TableHead>
                       <TableHead>Unit Number</TableHead>
                       <TableHead>Amount Paid</TableHead>
+                      <TableHead>Payment Type</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Date</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {payments.map((p, i) => (
+                    {filteredPayments.map((p, i) => (
                       <motion.tr
                         key={p.id}
                         initial={{ opacity: 0, x: -20 }}
@@ -789,6 +856,11 @@ export default function AdminDashboard() {
                         <TableCell className="font-medium">{p.tenantName}</TableCell>
                         <TableCell className="text-text-secondary">{p.unitId}</TableCell>
                         <TableCell className="text-text-secondary">{formatCurrency(p.amountPaid || 0)}</TableCell>
+                        <TableCell>
+                          <span className="whitespace-nowrap text-sm text-gray-600">
+                            {isAdvancePayment(p) ? "Advance Payment" : "Regular Payment"}
+                          </span>
+                        </TableCell>
                         <TableCell>
                           <span className={cn(
                             "inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium",

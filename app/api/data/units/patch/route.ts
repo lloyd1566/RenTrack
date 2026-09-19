@@ -7,8 +7,8 @@ import {
 import { logAudit, getAdminSupabase } from "@/lib/db";
 
 const ALLOWED_UNIT_FIELDS = [
-  "unitNumber", "floor", "status", "rentAmount",
-  "tenantName", "tenantId", "imageUrl"
+  "propertyId", "unitNumber", "floor", "status", "rentAmount",
+  "tenantName", "tenantId", "imageUrl", "imageUrls"
 ];
 
 export async function PATCH(request: NextRequest) {
@@ -35,7 +35,13 @@ export async function PATCH(request: NextRequest) {
         await logAudit(auth.userId, "suspicious_update_attempt", { field: dbKey, unitId: id }, auth.ip, auth.userAgent);
         continue;
       }
-      updates[dbKey] = val;
+      if (dbKey === "image_urls") {
+        if (!Array.isArray(val) || val.some((url) => typeof url !== "string")) continue;
+        updates[dbKey] = Array.from(new Set(val)).slice(0, 20);
+        updates.image_url = updates[dbKey][0] || null;
+      } else {
+        updates[dbKey] = val;
+      }
     }
 
     if (Object.keys(updates).length === 0) {

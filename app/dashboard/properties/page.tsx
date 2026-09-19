@@ -18,6 +18,19 @@ import { toast } from "sonner";
 
 const staggerContainer = { hidden: {}, visible: { transition: { staggerChildren: 0.06, delayChildren: 0.1 } } };
 const fadeInUp = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.4 } } };
+const PROPERTY_FEATURES = ["1 Bedroom", "2 Bedrooms", "3 Bedrooms", "4+ Bedrooms", "1 Bathroom", "2 Bathrooms", "3+ Bathrooms", "Parking Space", "Furnished", "Air Conditioning", "Wi-Fi", "Laundry Area", "Kitchen", "Outdoor Area", "Gated Property"];
+const PROPERTY_CONDITIONS = ["Excellent – Ready to Move In", "Very Good – Well Maintained", "Good – Minor Wear and Tear", "Fair – Some Repairs Needed", "Needs Improvement – Repairs Required"];
+const AVAILABILITY_STATUSES = ["Available", "Occupied", "Reserved", "Under Maintenance"] as const;
+
+function FeaturePicker({ value, onChange }: { value: string[]; onChange: (features: string[]) => void }) {
+  return <div className="rounded-xl border border-border bg-surface-secondary p-3">
+    <select value="" onChange={(e) => e.target.value && onChange(value.includes(e.target.value) ? value : [...value, e.target.value])} className="h-10 w-full rounded-lg border border-border bg-white px-3 text-sm">
+      <option value="">Select features...</option>
+      {PROPERTY_FEATURES.filter((feature) => !value.includes(feature)).map((feature) => <option key={feature} value={feature}>{feature}</option>)}
+    </select>
+    {value.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{value.map((feature) => <button type="button" key={feature} onClick={() => onChange(value.filter((item) => item !== feature))} className="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-200">{feature} <span aria-hidden="true">x</span></button>)}</div>}
+  </div>;
+}
 
 export default function PropertiesPage() {
   const { user } = useAuth();
@@ -29,9 +42,10 @@ export default function PropertiesPage() {
   const [showViewModal, setShowViewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
-  const [formData, setFormData] = useState({ name: "", location: "", type: "house" as "house" | "condominium", units: 0, imageUrl: "" });
+  const [formData, setFormData] = useState({ name: "", location: "", type: "house" as "house" | "condominium", units: 0, features: [] as string[], condition: "", availabilityStatus: "Available" as typeof AVAILABILITY_STATUSES[number], imageUrl: "" });
   const [propertyImage, setPropertyImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string>("");
+  const [isSaving, setIsSaving] = useState(false);
 
   const canManage = user && (user.role === "admin" || user.role === "owner");
 
@@ -55,10 +69,13 @@ export default function PropertiesPage() {
 
   const handleDelete = async (id: string, name: string) => {
     if (confirm(`Delete "${name}"? This action cannot be undone.`)) {
-      await deleteProperty(id);
-      const props = await getProperties(user);
-      setProperties(props);
-      toast.success("Property deleted");
+      try {
+        await deleteProperty(id);
+        setProperties((current) => current.filter((property) => property.id !== id));
+        toast.success("Property deleted");
+      } catch {
+        toast.error("Failed to delete property");
+      }
     }
   };
 
@@ -86,7 +103,7 @@ export default function PropertiesPage() {
         setProperties(props);
       }
       setShowAddModal(false);
-      setFormData({ name: "", location: "", type: "house", units: 0, imageUrl: "" });
+      setFormData({ name: "", location: "", type: "house", units: 0, features: [], condition: "", availabilityStatus: "Available", imageUrl: "" });
       setPropertyImage(null);
       setImagePreview("");
       notifyAdmins({ title: "New Property Created", message: `${formData.name} was added by ${user.name}`, type: "property", read: false });
@@ -98,10 +115,12 @@ export default function PropertiesPage() {
   };
 
   const handleEdit = async () => {
+    if (isSaving) return;
     if (!selectedProperty || !formData.name || !formData.location) {
       toast.error("Please fill in all required fields");
       return;
     }
+    setIsSaving(true);
     try {
       const submitData = { ...formData };
       if (propertyImage) {
@@ -111,14 +130,15 @@ export default function PropertiesPage() {
           reader.readAsDataURL(propertyImage);
         });
       }
-      await fetch("/api/data/properties/patch", {
+      const response = await fetch("/api/data/properties/patch", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({ id: selectedProperty.id, data: submitData }),
       });
-      const props = await getProperties(user);
-      setProperties(props);
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.error || "Failed to update property");
+      setProperties((current) => current.map((property) => property.id === selectedProperty.id ? { ...property, ...submitData } : property));
       setShowEditModal(false);
       setSelectedProperty(null);
       setPropertyImage(null);
@@ -126,12 +146,14 @@ export default function PropertiesPage() {
       toast.success("Property updated successfully");
     } catch {
       toast.error("Failed to update property");
+    } finally {
+      setIsSaving(false);
     }
   };
 
   const openEdit = (property: Property) => {
     setSelectedProperty(property);
-    setFormData({ name: property.name, location: property.location, type: property.type, units: property.units, imageUrl: property.imageUrl || "" });
+    setFormData({ name: property.name, location: property.location, type: property.type, units: property.units, features: property.features || [], condition: property.condition || "", availabilityStatus: property.availabilityStatus || "Available", imageUrl: property.imageUrl || "" });
     setImagePreview(property.imageUrl || "");
     setPropertyImage(null);
     setShowEditModal(true);
@@ -156,7 +178,7 @@ export default function PropertiesPage() {
             <p className="text-white/70 text-sm mt-1.5">Manage your rental properties and their units</p>
           </div>
           {canManage && (
-            <Button onClick={() => { setFormData({ name: "", location: "", type: "house", units: 0, imageUrl: "" }); setPropertyImage(null); setImagePreview(""); setShowAddModal(true); }}
+            <Button onClick={() => { setFormData({ name: "", location: "", type: "house", units: 0, features: [], condition: "", availabilityStatus: "Available", imageUrl: "" }); setPropertyImage(null); setImagePreview(""); setShowAddModal(true); }}
               className="bg-white text-orange-700 hover:bg-orange-50 shadow-lg"><Plus className="h-4 w-4 mr-1.5" />Add Property</Button>
           )}
         </div>
@@ -287,6 +309,25 @@ export default function PropertiesPage() {
             </select>
           </div>
           <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">Property Features</label>
+            <FeaturePicker value={formData.features} onChange={(features) => setFormData({ ...formData, features })} />
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">Current Property Condition</label>
+              <select value={formData.condition} onChange={(e) => setFormData({ ...formData, condition: e.target.value })} className="h-12 w-full rounded-xl border border-border bg-surface px-4">
+                <option value="">Select condition...</option>
+                {PROPERTY_CONDITIONS.map((condition) => <option key={condition} value={condition}>{condition}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">Availability Status</label>
+              <select value={formData.availabilityStatus} onChange={(e) => setFormData({ ...formData, availabilityStatus: e.target.value as typeof AVAILABILITY_STATUSES[number] })} className="h-12 w-full rounded-xl border border-border bg-surface px-4">
+                {AVAILABILITY_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">Property Image</label>
             <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-blue-400 transition-colors" onClick={() => document.getElementById("property-image-upload")?.click()}>
               {imagePreview ? (
@@ -337,6 +378,11 @@ export default function PropertiesPage() {
                 <p className="text-xs text-text-secondary">Type</p>
                 <p className="text-sm font-semibold text-foreground capitalize mt-1">{selectedProperty.type}</p>
               </div>
+              <div className="space-y-3">
+                <div><p className="text-xs text-text-secondary">Availability</p><p className="text-sm font-semibold text-foreground mt-1">{selectedProperty.availabilityStatus || "Available"}</p></div>
+                <div><p className="text-xs text-text-secondary">Condition</p><p className="text-sm font-semibold text-foreground mt-1">{selectedProperty.condition || "Not specified"}</p></div>
+                <div><p className="text-xs text-text-secondary">Property Features</p><div className="mt-2 flex flex-wrap gap-2">{(selectedProperty.features || []).length ? selectedProperty.features?.map((feature) => <Badge key={feature} variant="secondary">{feature}</Badge>) : <span className="text-sm text-text-secondary">None selected</span>}</div></div>
+              </div>
               <div className="p-4 rounded-xl bg-surface-secondary">
                 <p className="text-xs text-text-secondary">Status</p>
                 <p className="text-sm font-semibold text-foreground capitalize mt-1">{selectedProperty.status}</p>
@@ -375,6 +421,25 @@ export default function PropertiesPage() {
             </select>
           </div>
           <div>
+            <label className="block text-sm font-medium text-foreground mb-1.5">Property Features</label>
+            <FeaturePicker value={formData.features} onChange={(features) => setFormData({ ...formData, features })} />
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">Current Property Condition</label>
+              <select value={formData.condition} onChange={(e) => setFormData({ ...formData, condition: e.target.value })} className="h-12 w-full rounded-xl border border-border bg-surface px-4">
+                <option value="">Select condition...</option>
+                {PROPERTY_CONDITIONS.map((condition) => <option key={condition} value={condition}>{condition}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-1.5">Availability Status</label>
+              <select value={formData.availabilityStatus} onChange={(e) => setFormData({ ...formData, availabilityStatus: e.target.value as typeof AVAILABILITY_STATUSES[number] })} className="h-12 w-full rounded-xl border border-border bg-surface px-4">
+                {AVAILABILITY_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
+              </select>
+            </div>
+          </div>
+          <div>
             <label className="block text-sm font-medium text-foreground mb-1.5">Property Image</label>
             <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center cursor-pointer hover:border-blue-400 transition-colors" onClick={() => document.getElementById("property-image-edit")?.click()}>
               {imagePreview ? (
@@ -403,7 +468,7 @@ export default function PropertiesPage() {
             )}
           </div>
           <div className="flex gap-3 pt-2">
-            <Button onClick={handleEdit} className="flex-1"><Check className="h-4 w-4 mr-1.5" />Save Changes</Button>
+            <Button onClick={handleEdit} disabled={isSaving} className="flex-1"><Check className="h-4 w-4 mr-1.5" />{isSaving ? "Saving..." : "Save Changes"}</Button>
             <Button variant="outline" onClick={() => setShowEditModal(false)} className="flex-1">Cancel</Button>
           </div>
         </div>

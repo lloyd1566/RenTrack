@@ -1,4 +1,4 @@
-import { initDatabase, findOrCreateAdmin } from "@/lib/db";
+import { initDatabase, findOrCreateAdmin, findOrCreateOwner } from "@/lib/db";
 import { NextRequest, NextResponse } from "next/server";
 import { withSecurityHeaders, withCorsHeaders } from "@/lib/api-security";
 
@@ -16,7 +16,10 @@ export async function GET(request: NextRequest) {
     }
 
     await initDatabase();
-    const admin = await findOrCreateAdmin();
+    await findOrCreateAdmin();
+    if (process.env.OWNER_PASSWORD) {
+      await findOrCreateOwner();
+    }
     const response = NextResponse.json({
       success: true,
       message: "Database initialized successfully",

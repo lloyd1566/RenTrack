@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getUpload } from "@/lib/db";
+import { getUpload, deleteUpload } from "@/lib/db";
 import { getSessionUserId, getCurrentUser } from "@/lib/security";
 import { withSecurityHeaders, withCorsHeaders } from "@/lib/security-headers";
 import { logAudit } from "@/lib/db";
@@ -49,5 +49,24 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     console.error("Upload fetch error:", error);
     const response = NextResponse.json({ success: false, error: "Failed to fetch file" }, { status: 500 });
     return withSecurityHeaders(withCorsHeaders(request, response));
+  }
+}
+
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const user = await getCurrentUser(request);
+    if (!user || !["admin", "owner", "agent"].includes(user.role)) {
+      return NextResponse.json({ success: false, error: "Not authorized" }, { status: 403 });
+    }
+    const { id } = await params;
+    const upload = await getUpload(id);
+    if (!upload || !["property", "unit"].includes(upload.type)) {
+      return NextResponse.json({ success: false, error: "Image not found" }, { status: 404 });
+    }
+    await deleteUpload(id);
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Upload delete error:", error);
+    return NextResponse.json({ success: false, error: "Failed to delete image" }, { status: 500 });
   }
 }

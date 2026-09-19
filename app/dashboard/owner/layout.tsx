@@ -21,14 +21,10 @@ import { Avatar } from "@/components/ui/avatar";
 
 const navItems = [
   { label: "Overview", tab: "overview", href: "/dashboard/owner#overview", icon: LayoutDashboard },
-  { label: "Property", tab: "properties", href: "/dashboard/owner#properties", icon: Home },
-  { label: "Rental Units", tab: "units", href: "/dashboard/owner#units", icon: ClipboardCheck },
-  { label: "Occupancy", tab: "occupancy", href: "/dashboard/owner#occupancy", icon: Home },
+  { label: "Units", tab: "units", href: "/dashboard/owner#units", icon: ClipboardCheck },
   { label: "Agents", tab: "agents", href: "/dashboard/owner#agents", icon: Users },
   { label: "Create Tenant", tab: "create-tenant", href: "/dashboard/owner#create-tenant", icon: UserPlus },
-  { label: "Payments", tab: "payments", href: "/dashboard/owner#payments", icon: CreditCard },
-  { label: "Pending Approvals", tab: "assignments", href: "/dashboard/owner#assignments", icon: FileText },
-  { label: "Receipts & Reports", tab: "reports", href: "/dashboard/owner#reports", icon: BarChart3 },
+  { label: "Financial Transactions", tab: "financial", href: "/dashboard/owner#financial", icon: CreditCard },
 ];
 
 function getTabFromHash() {
@@ -157,6 +153,18 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
       refreshNotificationsCount();
     } catch {
       // ignore
+    }
+
+    if (notification.title === "New Agent Applicant") {
+      router.push("/dashboard/owner#agents");
+    } else if (notification.title === "Agent application approved") {
+      router.push("/dashboard/owner#agents");
+    } else if (notification.type === "property") {
+      router.push(notification.title === "New Unit Added" ? "/dashboard/units" : "/dashboard/properties");
+    } else if (notification.type === "payment") {
+      router.push("/dashboard/owner#financial");
+    } else if (notification.type === "tenant") {
+      router.push("/dashboard/owner#create-tenant");
     }
   };
 

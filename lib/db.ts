@@ -149,7 +149,11 @@ export async function initDatabase() {
   )`);
 
   statements.push(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS image_url TEXT`);
+  statements.push(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS image_urls JSONB DEFAULT '[]'::jsonb`);
   statements.push(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS agent_id TEXT REFERENCES users(id)`);
+  statements.push(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS features JSONB DEFAULT '[]'::jsonb`);
+  statements.push(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS condition TEXT`);
+  statements.push(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS availability_status TEXT DEFAULT 'Available'`);
 
   statements.push(`CREATE TABLE IF NOT EXISTS units (
     id TEXT PRIMARY KEY,
@@ -161,8 +165,10 @@ export async function initDatabase() {
     tenant_name TEXT,
     tenant_id TEXT,
     lease_end DATE,
-    image_url TEXT
+    image_url TEXT,
+    image_urls JSONB DEFAULT '[]'::jsonb
   )`);
+  statements.push(`ALTER TABLE units ADD COLUMN IF NOT EXISTS image_urls JSONB DEFAULT '[]'::jsonb`);
 
   statements.push(`CREATE TABLE IF NOT EXISTS tenants (
     id TEXT PRIMARY KEY,
@@ -233,6 +239,23 @@ export async function initDatabase() {
     message TEXT,
     type TEXT DEFAULT 'system' CHECK (type IN ('payment', 'tenant', 'property', 'system', 'id_verification')),
     read BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+  )`);
+
+  statements.push(`CREATE TABLE IF NOT EXISTS agent_applications (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    phone TEXT,
+    address TEXT NOT NULL CHECK (address IN ('Cebu', 'Manila', 'Davao', 'Butuan')),
+    gender TEXT,
+    birthdate DATE,
+    resume_data BYTEA,
+    resume_name TEXT,
+    resume_mime_type TEXT,
+    status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+    reviewed_by TEXT REFERENCES users(id),
+    reviewed_at TIMESTAMPTZ,
     created_at TIMESTAMPTZ DEFAULT NOW()
   )`);
 
@@ -385,13 +408,15 @@ export async function createUser(name: string, email: string, password: string, 
 
 export async function findUserByEmail(email: string) {
   const { data, error } = await getAdminSupabase().from("users").select("*").eq("email", email.toLowerCase()).single();
-  if (error || !data) return null;
+  if (error && error.code !== "PGRST116") throw new Error(`Failed to query user: ${error.message}`);
+  if (!data) return null;
   return mapUserRow(data);
 }
 
 export async function findUserById(id: string) {
   const { data, error } = await getAdminSupabase().from("users").select("*").eq("id", id).single();
-  if (error || !data) return null;
+  if (error && error.code !== "PGRST116") throw new Error(`Failed to query user: ${error.message}`);
+  if (!data) return null;
   return mapUserRow(data);
 }
 
@@ -532,15 +557,23 @@ export async function logAudit(userId: string, action: string, details?: Record<
 export async function findOrCreateAdmin() {
   const name = "System Administrator";
   const email = process.env.ADMIN_EMAIL || "admin@renttrack.com";
-  const password = process.env.ADMIN_PASSWORD || `Admin${Date.now().toString(36)}`;
+  const password = process.env.ADMIN_PASSWORD;
   const role = "admin";
   const phone = "+63 900 000 0000";
 
+  if (!password) {
+    throw new Error("Missing ADMIN_PASSWORD. Set a strong built-in administrator password in .env.local or Vercel before logging in.");
+  }
+
   const adminClient = getAdminSupabase();
-  const { data: existing } = await adminClient.from("users").select("*").eq("email", email).single();
+  const { data: existing, error: lookupError } = await adminClient.from("users").select("*").eq("email", email).single();
+  if (lookupError && lookupError.code !== "PGRST116") {
+    throw new Error(`Failed to query admin: ${lookupError.message}`);
+  }
   const admin = existing as any;
 
   if (admin) {
+    const resetBuiltInPassword = process.env.FORCE_BUILTIN_PASSWORD_RESET === "true";
     if (admin.role !== role) {
       const { error } = await adminClient.from("users").update({ role, phone, email_verified: true, verification_token: null, verification_expires_at: null }).eq("id", admin.id);
       if (error) throw new Error(`Failed to update admin: ${error.message}`);
@@ -548,6 +581,12 @@ export async function findOrCreateAdmin() {
     } else {
       const { error } = await adminClient.from("users").update({ email_verified: true, verification_token: null, verification_expires_at: null }).eq("id", admin.id);
       if (error) throw new Error(`Failed to update admin: ${error.message}`);
+    }
+    if (resetBuiltInPassword) {
+      const passwordHash = await bcrypt.hash(password, 10);
+      const { error } = await adminClient.from("users").update({ password: passwordHash }).eq("id", admin.id);
+      if (error) throw new Error(`Failed to reset built-in admin password: ${error.message}`);
+      console.log("Built-in administrator password reset for:", email);
     }
     await logAudit(admin.id, "admin_ready", { email }, "system", "system");
     console.log("Admin account ready:", email);
@@ -583,7 +622,13 @@ export async function getAllUsers() {
 export async function getProperties() {
   const { data, error } = await getAdminSupabase().from("properties").select("*").order("created_at", { ascending: false });
   if (error) throw error;
-  return (data || []).map((row: any) => snakeToCamel(row));
+  return (data || []).map((row: any) => {
+    const property = snakeToCamel(row);
+    property.imageUrls = Array.isArray(row.image_urls) && row.image_urls.length > 0
+      ? Array.from(new Set(row.image_urls.filter((url: unknown): url is string => typeof url === "string")))
+      : row.image_url ? [row.image_url] : [];
+    return property;
+  });
 }
 
 export async function createProperty(data: any, userId: string) {
@@ -597,10 +642,13 @@ export async function createProperty(data: any, userId: string) {
     occupied_units: 0,
     monthly_revenue: 0,
     status: "active",
-    assignment_status: data.unitId ? "confirmed" : "",
     created_by: userId,
     image_url: data.imageUrl || null,
+    image_urls: Array.isArray(data.imageUrls) ? Array.from(new Set(data.imageUrls)) : (data.imageUrl ? [data.imageUrl] : []),
     agent_id: data.agentId || null,
+    features: Array.isArray(data.features) ? data.features : [],
+    condition: data.condition || null,
+    availability_status: data.availabilityStatus || "Available",
     created_at: new Date().toISOString(),
   });
   if (error) throw error;
@@ -620,7 +668,13 @@ export async function deleteProperty(id: string) {
 export async function getUnits() {
   const { data, error } = await getAdminSupabase().from("units").select("*").order("unit_number");
   if (error) throw error;
-  return (data || []).map((row: any) => snakeToCamel(row));
+  return (data || []).map((row: any) => {
+    const unit = snakeToCamel(row);
+    unit.imageUrls = Array.isArray(row.image_urls) && row.image_urls.length > 0
+      ? Array.from(new Set(row.image_urls.filter((url: unknown): url is string => typeof url === "string")))
+      : row.image_url ? [row.image_url] : [];
+    return unit;
+  });
 }
 
 export async function createUnit(data: any) {
@@ -632,10 +686,11 @@ export async function createUnit(data: any) {
     floor: data.floor || null,
     status: data.status || "vacant",
     rent_amount: data.rentAmount || 0,
-    image_url: data.imageUrl || null,
+    image_url: data.imageUrl || (Array.isArray(data.imageUrls) ? data.imageUrls[0] : null) || null,
+    image_urls: Array.isArray(data.imageUrls) ? Array.from(new Set(data.imageUrls)) : data.imageUrl ? [data.imageUrl] : [],
   });
   if (error) throw error;
-  return { id, ...data, status: data.status || "vacant" };
+  return { id, ...data, imageUrls: Array.isArray(data.imageUrls) ? Array.from(new Set(data.imageUrls)) : data.imageUrl ? [data.imageUrl] : [], status: data.status || "vacant" };
 }
 
 export async function clearTenantUnitAssignment(tenantId: string, tenantName?: string | null, forcedUnitId?: string | null) {
@@ -958,6 +1013,53 @@ export async function createNotification(data: any) {
   return { id, ...data, read: false, createdAt: new Date().toISOString() };
 }
 
+export async function createAgentApplication(data: {
+  name: string; email: string; phone?: string; address: string; gender?: string; birthdate?: string;
+  resumeData?: Buffer; resumeName?: string; resumeMimeType?: string;
+}) {
+  const id = `agent_app_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  const { data: application, error } = await getAdminSupabase().from("agent_applications").insert({
+    id,
+    name: data.name,
+    email: data.email,
+    phone: data.phone || null,
+    address: data.address,
+    gender: data.gender || null,
+    birthdate: data.birthdate || null,
+    resume_data: data.resumeData || null,
+    resume_name: data.resumeName || null,
+    resume_mime_type: data.resumeMimeType || null,
+  }).select("id, name, email, phone, address, gender, birthdate, resume_name, resume_mime_type, status, reviewed_by, reviewed_at, created_at").single();
+  if (error) throw error;
+  return snakeToCamel(application);
+}
+
+export async function getAgentApplications(status?: string) {
+  let request = getAdminSupabase().from("agent_applications")
+    .select("id, name, email, phone, address, gender, birthdate, resume_name, resume_mime_type, status, reviewed_by, reviewed_at, created_at")
+    .order("created_at", { ascending: false });
+  if (status) request = request.eq("status", status);
+  const { data, error } = await request;
+  if (error) throw error;
+  return (data || []).map(snakeToCamel);
+}
+
+export async function getAgentApplicationResume(id: string) {
+  const { data, error } = await getAdminSupabase().from("agent_applications")
+    .select("resume_data, resume_name, resume_mime_type").eq("id", id).single();
+  if (error) throw error;
+  return data;
+}
+
+export async function reviewAgentApplication(id: string, status: "approved" | "rejected", reviewerId: string) {
+  const { data, error } = await getAdminSupabase().from("agent_applications")
+    .update({ status, reviewed_by: reviewerId, reviewed_at: new Date().toISOString() })
+    .eq("id", id).eq("status", "pending")
+    .select("id, name, email, status").single();
+  if (error) throw error;
+  return snakeToCamel(data);
+}
+
 export async function markNotificationRead(id: string) {
   const { error } = await getAdminSupabase().from("notifications").update({ read: true }).eq("id", id);
   if (error) throw error;
@@ -1101,6 +1203,11 @@ export async function getUpload(id: string) {
   }
 
   return { ...data, data: Buffer.from(raw, "base64") };
+}
+
+export async function deleteUpload(id: string) {
+  const { error } = await getAdminSupabase().from("uploads").delete().eq("id", id);
+  if (error) throw error;
 }
 
 export async function updateUserAvatar(userId: string, url: string) {
@@ -1294,21 +1401,33 @@ export async function backupDatabase() {
 export async function findOrCreateOwner() {
   const name = "Property Owner";
   const email = process.env.OWNER_EMAIL || "renttrackowner@gmail.com";
-  const password = process.env.OWNER_PASSWORD || `Owner${Date.now().toString(36)}`;
+  const password = process.env.OWNER_PASSWORD;
   const role = "owner";
   const phone = "+63 900 000 0001";
+
+  if (!password) {
+    throw new Error("Missing OWNER_PASSWORD. Set a strong built-in owner password in .env.local or Vercel before logging in.");
+  }
 
   const adminClient = getAdminSupabase();
   const { data: existing } = await adminClient.from("users").select("*").eq("email", email).single();
   const owner = existing as any;
 
   if (owner) {
+    const resetBuiltInPassword = process.env.FORCE_BUILTIN_PASSWORD_RESET === "true";
     if (owner.role !== role) {
-      const { error } = await adminClient.from("users").update({ role, phone, email_verified: true }).eq("id", owner.id);
+      const { error } = await adminClient.from("users").update({ role, phone, email_verified: true, verification_token: null, verification_expires_at: null }).eq("id", owner.id);
       if (error) throw new Error(`Failed to update owner: ${error.message}`);
       console.log("Owner role corrected for:", email);
     } else {
-      console.log("Owner account already exists:", email);
+      const { error } = await adminClient.from("users").update({ email_verified: true, verification_token: null, verification_expires_at: null }).eq("id", owner.id);
+      if (error) throw new Error(`Failed to update owner: ${error.message}`);
+    }
+    if (resetBuiltInPassword) {
+      const passwordHash = await bcrypt.hash(password, 10);
+      const { error } = await adminClient.from("users").update({ password: passwordHash }).eq("id", owner.id);
+      if (error) throw new Error(`Failed to reset built-in owner password: ${error.message}`);
+      console.log("Built-in owner password reset for:", email);
     }
     return { id: owner.id, email, name: owner.name };
   }
@@ -1373,4 +1492,3 @@ export async function setSystemConfig(key: string, value: string) {
   const { error } = await getAdminSupabase().from("system_config").upsert({ key, value, updated_at: new Date().toISOString() });
   if (error) throw error;
 }
-

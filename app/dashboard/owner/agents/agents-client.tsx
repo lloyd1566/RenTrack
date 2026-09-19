@@ -1,14 +1,15 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, UserPlus, Mail, Phone, MapPin, X, Eye, EyeOff, Trash2, MessageSquare, Pencil, Clock3, Shield } from "lucide-react";
+import { Users, UserPlus, Mail, Phone, MapPin, X, Eye, EyeOff, Trash2, MessageSquare, Pencil, Clock3, Shield, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/select";
-import { getAgents, registerAgent, deleteUser, getAgentStats, updateUser, UserRecord, addNotification } from "@/lib/data";
+import { getAgents, registerAgent, deleteUser, getAgentStats, updateUser, UserRecord, getAgentApplications, reviewAgentApplication, AgentApplication } from "@/lib/data";
 import { useAuth } from "@/lib/auth";
 import { getInitials } from "@/lib/utils";
 import { toast } from "sonner";
@@ -55,6 +56,7 @@ function isRecentlyOnline(lastSeenAt?: string | null, isOnline?: boolean) {
 }
 
 export default function OwnerAgentsPage() {
+  const searchParams = useSearchParams();
   const { user } = useAuth();
   const [agents, setAgents] = useState<UserRecord[]>([]);
   const [agentStats, setAgentStats] = useState<Record<string, { properties: number; tenants: number; payments: number }>>({});
@@ -64,7 +66,17 @@ export default function OwnerAgentsPage() {
   const [editingAgent, setEditingAgent] = useState<UserRecord | null>(null);
   const [messagingAgent, setMessagingAgent] = useState<UserRecord | null>(null);
   const [editForm, setEditForm] = useState({ name: "", email: "", phone: "", address: "" });
-  const [lastRegisteredAgent, setLastRegisteredAgent] = useState<UserRecord & { needsOtp?: boolean; devOtp?: string } | null>(null);
+  const [applications, setApplications] = useState<AgentApplication[]>([]);
+  const [agentView, setAgentView] = useState<"agents" | "applicants">("agents");
+  const [selectedApplication, setSelectedApplication] = useState<AgentApplication | null>(null);
+  const [agentSearch, setAgentSearch] = useState("");
+
+  useEffect(() => {
+    const requestedView = searchParams.get("view");
+    if (requestedView === "agents" || requestedView === "applicants") {
+      setAgentView(requestedView);
+    }
+  }, [searchParams]);
 
   const [agentForm, setAgentForm] = useState({
     name: "",
@@ -72,11 +84,9 @@ export default function OwnerAgentsPage() {
     password: "",
     phone: "",
     address: "",
-    experience: "",
     aboutMe: "",
     gender: "",
     birthdate: "",
-    country: "",
     languages: "",
     hobbies: "",
   });
@@ -89,6 +99,7 @@ export default function OwnerAgentsPage() {
     try {
       const agentRecords = await getAgents();
       setAgents(agentRecords);
+      setApplications(await getAgentApplications("pending"));
 
       const stats: Record<string, { properties: number; tenants: number; payments: number }> = {};
       await Promise.all(
@@ -111,7 +122,7 @@ export default function OwnerAgentsPage() {
   }, [loadData]);
 
   const openRegister = () => {
-    setAgentForm({ name: "", email: "", password: "", phone: "", address: "", experience: "", aboutMe: "", gender: "", birthdate: "", country: "", languages: "", hobbies: "" });
+    setAgentForm({ name: "", email: "", password: "", phone: "", address: "", aboutMe: "", gender: "", birthdate: "", languages: "", hobbies: "" });
     setShowAgentPassword(false);
     setIsRegisterOpen(true);
   };
@@ -119,12 +130,12 @@ export default function OwnerAgentsPage() {
   const closeRegister = () => {
     setIsRegisterOpen(false);
     setShowAgentPassword(false);
-    setAgentForm({ name: "", email: "", password: "", phone: "", address: "", experience: "", aboutMe: "", gender: "", birthdate: "", country: "", languages: "", hobbies: "" });
-    setLastRegisteredAgent(null);
+    setAgentForm({ name: "", email: "", password: "", phone: "", address: "", aboutMe: "", gender: "", birthdate: "", languages: "", hobbies: "" });
   };
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     if (!agentForm.name || !agentForm.email || !agentForm.password) {
       toast.error("Name, email, and password are required");
       return;
@@ -138,18 +149,8 @@ export default function OwnerAgentsPage() {
     try {
       const agent = await registerAgent(agentForm);
       setAgents([agent, ...agents]);
-      setLastRegisteredAgent(agent);
-      setAgentForm({ name: "", email: "", password: "", phone: "", address: "", experience: "", aboutMe: "", gender: "", birthdate: "", country: "", languages: "", hobbies: "" });
+      setAgentForm({ name: "", email: "", password: "", phone: "", address: "", aboutMe: "", gender: "", birthdate: "", languages: "", hobbies: "" });
       toast.success("Agent registered successfully!");
-      if (user?.id) {
-        await addNotification({
-          userId: user.id,
-          title: "ID Verification Required",
-          message: `Agent ${agent.name} has been registered. Please verify their identity by requesting ID upload.`,
-          type: "id_verification",
-          read: false,
-        }).catch(() => {});
-      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to register agent";
       if (process.env.NODE_ENV !== "production") {
@@ -184,7 +185,7 @@ export default function OwnerAgentsPage() {
 
   const handleSaveEdit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingAgent) return;
+    if (!editingAgent || isSubmitting) return;
     setIsSubmitting(true);
     try {
       const updated = await updateUser(editingAgent.id, editForm);
@@ -204,6 +205,32 @@ export default function OwnerAgentsPage() {
     setMessagingAgent(agent);
   };
 
+  const handleReviewApplication = async (status: "approved" | "rejected") => {
+    if (!selectedApplication || isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      const result = await reviewAgentApplication(selectedApplication.id, status);
+      if (!result?.success) throw new Error(result?.error || "Unable to review application");
+
+      setApplications((current) => current.filter((item) => item.id !== selectedApplication.id));
+      if (status === "approved" && result.agent) {
+        setAgents((current) => [result.agent, ...current]);
+        if (result.emailSent) {
+          toast.success("Applicant approved and agent account created. Credentials were emailed.");
+        } else {
+          toast.error(`Agent account was created, but the credentials email failed. Temporary password: ${result.temporaryPassword}`);
+        }
+      } else {
+        toast.success("Applicant rejected");
+      }
+      setSelectedApplication(null);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to review application");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const formatLoginTime = (value?: string | null) => {
     if (!value) return "Not logged in yet";
     const date = new Date(value);
@@ -217,20 +244,44 @@ export default function OwnerAgentsPage() {
     }).format(date);
   };
 
+  const filteredAgents = agents.filter((agent) => `${agent.name} ${agent.email} ${agent.phone || ""} ${agent.address || ""}`.toLowerCase().includes(agentSearch.trim().toLowerCase()));
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }} className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">Agents</h2>
+          <h2 className="text-2xl font-bold text-foreground">{agentView === "agents" ? "Agents" : "Agent Applicants"}</h2>
           <p className="text-text-secondary text-sm mt-1">Manage agents for your properties</p>
         </div>
         <div className="flex items-center gap-2">
+          <select value={agentView} onChange={(event) => setAgentView(event.target.value as typeof agentView)} className="h-9 rounded-lg border border-border bg-surface px-3 text-sm">
+            <option value="agents">List of Agents</option>
+            <option value="applicants">List of Applicants ({applications.length})</option>
+          </select>
           <Button onClick={openRegister}>
             <UserPlus className="h-4 w-4 mr-1.5" />
             Register Agent
           </Button>
         </div>
       </div>
+
+      {agentView === "applicants" && (
+        <div className="space-y-3">
+          {applications.length === 0 ? <div className="rounded-2xl border border-border p-10 text-center text-text-secondary">No pending applicants.</div> : applications.map((application) => (
+            <button type="button" key={application.id} onClick={() => setSelectedApplication(application)} className="flex w-full items-center justify-between rounded-2xl border border-border bg-surface p-4 text-left hover:bg-surface-secondary">
+              <div><p className="font-semibold text-foreground">{application.name}</p><p className="text-sm text-text-secondary">{application.email} · {application.address}</p></div>
+              <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">New applicant</Badge>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {agentView === "agents" && (
+        <div className="relative max-w-md">
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
+          <Input value={agentSearch} onChange={(event) => setAgentSearch(event.target.value)} placeholder="Search agents by name, email, or location" className="pl-9" />
+        </div>
+      )}
 
       {/* Register Modal */}
       <AnimatePresence>
@@ -262,7 +313,7 @@ export default function OwnerAgentsPage() {
                 </button>
               </div>
               <form onSubmit={handleRegister} className="max-h-[calc(90vh-90px)] overflow-y-auto p-4 space-y-2">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div className="min-w-0">
                     <label className="text-[10px] font-medium text-text-secondary mb-0.5 block">Full Name *</label>
                     <Input placeholder="e.g. Juan Dela Cruz" value={agentForm.name} onChange={(e) => setAgentForm({ ...agentForm, name: e.target.value })} required />
@@ -286,11 +337,9 @@ export default function OwnerAgentsPage() {
                   </div>
                   <div className="min-w-0">
                     <label className="text-[10px] font-medium text-text-secondary mb-0.5 block">Address</label>
-                    <Input placeholder="e.g. Manila, Philippines" value={agentForm.address} onChange={(e) => setAgentForm({ ...agentForm, address: e.target.value })} />
-                  </div>
-                  <div className="min-w-0">
-                    <label className="text-[10px] font-medium text-text-secondary mb-0.5 block">Experience</label>
-                    <Input placeholder="e.g. 2 Years" value={agentForm.experience} onChange={(e) => setAgentForm({ ...agentForm, experience: e.target.value })} />
+                    <Select value={agentForm.address} onChange={(e) => setAgentForm({ ...agentForm, address: e.target.value })}>
+                      <option value="">Select city</option><option value="Cebu">Cebu</option><option value="Manila">Manila</option><option value="Davao">Davao</option><option value="Butuan">Butuan</option>
+                    </Select>
                   </div>
                   <div className="min-w-0">
                     <label className="text-[10px] font-medium text-text-secondary mb-0.5 block">Gender</label>
@@ -305,10 +354,6 @@ export default function OwnerAgentsPage() {
                     <label className="text-[10px] font-medium text-text-secondary mb-0.5 block">Birthdate</label>
                     <Input type="date" value={agentForm.birthdate} onChange={(e) => setAgentForm({ ...agentForm, birthdate: e.target.value })} />
                   </div>
-                  <div className="min-w-0">
-                    <label className="text-[10px] font-medium text-text-secondary mb-0.5 block">Country</label>
-                    <Input placeholder="e.g. Philippines" value={agentForm.country} onChange={(e) => setAgentForm({ ...agentForm, country: e.target.value })} />
-                  </div>
                 </div>
                 <div className="flex gap-2 pt-1">
                   <Button type="submit" disabled={isSubmitting} className="flex-1 h-8 text-[10px]">
@@ -317,30 +362,21 @@ export default function OwnerAgentsPage() {
                   <Button type="button" variant="outline" onClick={closeRegister} className="flex-1 h-8 text-[10px]">Cancel</Button>
                 </div>
               </form>
-              {lastRegisteredAgent && lastRegisteredAgent.needsOtp && (
-                <div className="p-4 border-t border-border bg-blue-50/50">
-                  <p className="text-xs font-medium text-blue-900 mb-1">Verification required</p>
-                  <p className="text-[10px] text-blue-700 mb-2">
-                    A verification code has been sent to <span className="font-medium">{lastRegisteredAgent.email}</span>.
-                    The agent must verify their email before logging in.
-                  </p>
-                  {lastRegisteredAgent.devOtp && (
-                    <div className="mt-2 p-2 bg-white rounded-lg border border-blue-200">
-                      <p className="text-[10px] text-blue-600 font-medium">Dev mode code: {lastRegisteredAgent.devOtp}</p>
-                    </div>
-                  )}
-                  <a
-                    href={`/verify-otp?email=${encodeURIComponent(lastRegisteredAgent.email)}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-block mt-2 text-[10px] text-blue-600 hover:text-blue-800 underline"
-                  >
-                    Open verification page
-                  </a>
-                </div>
-              )}
             </motion.div>
           </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {selectedApplication && (
+          <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/40 p-4">
+            <motion.div initial={{ opacity: 0, scale: .95 }} animate={{ opacity: 1, scale: 1 }} className="w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl">
+              <div className="flex items-start justify-between"><div><h3 className="text-lg font-bold">Applicant Information</h3><Badge className="mt-2 bg-amber-100 text-amber-700">Pending review</Badge></div><button onClick={() => setSelectedApplication(null)}><X className="h-5 w-5" /></button></div>
+              <div className="mt-4 grid grid-cols-2 gap-3 text-sm"><p><b>Name</b><br />{selectedApplication.name}</p><p><b>Email</b><br />{selectedApplication.email}</p><p><b>Phone</b><br />{selectedApplication.phone || "N/A"}</p><p><b>Location</b><br />{selectedApplication.address}</p><p><b>Gender</b><br />{selectedApplication.gender || "N/A"}</p><p><b>Date Applied</b><br />{selectedApplication.createdAt ? new Date(selectedApplication.createdAt).toLocaleDateString("en-PH", { year: "numeric", month: "long", day: "numeric" }) : "N/A"}</p></div>
+              <a href={`/api/agent-applications/${selectedApplication.id}/resume`} target="_blank" rel="noreferrer" className="mt-5 block rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-center text-sm font-medium text-blue-700">View Resume</a>
+              <div className="mt-5 flex gap-2"><Button className="flex-1" disabled={isSubmitting} onClick={() => handleReviewApplication("approved")}>{isSubmitting ? "Creating account..." : "Approve & Create Account"}</Button><Button variant="outline" className="flex-1" disabled={isSubmitting} onClick={() => handleReviewApplication("rejected")}>Reject</Button></div>
+            </motion.div>
+          </div>
         )}
       </AnimatePresence>
 
@@ -380,15 +416,15 @@ export default function OwnerAgentsPage() {
       </AnimatePresence>
 
       {/* Agents Grid */}
-      <motion.div variants={staggerContainer} initial="hidden" animate="visible" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {agents.length === 0 ? (
+      {agentView === "agents" && <motion.div variants={staggerContainer} initial="hidden" animate="visible" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {filteredAgents.length === 0 ? (
           <div className="col-span-full text-center py-16">
             <Users className="h-12 w-12 text-text-tertiary mx-auto mb-4" />
             <p className="text-text-secondary font-medium">No agents yet</p>
             <p className="text-text-tertiary text-sm mt-1">Register your first agent to get started</p>
           </div>
         ) : (
-          agents.map((agent, i) => (
+          filteredAgents.map((agent, i) => (
             <motion.div key={agent.id} variants={fadeInUp} transition={{ delay: i * 0.05 }} className="p-5 rounded-2xl border border-border bg-white/60 dark:bg-slate-800/60 backdrop-blur-xl shadow-lg hover:shadow-xl transition-all duration-300">
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
@@ -483,9 +519,6 @@ export default function OwnerAgentsPage() {
                     </p>
                   </div>
                 </div>
-                {agent.experience && (
-                  <div className="text-[10px] text-text-tertiary">Experience: {agent.experience}</div>
-                )}
                 {agent.gender && (
                   <div className="text-[10px] text-text-tertiary">Gender: {agent.gender}</div>
                 )}
@@ -532,7 +565,7 @@ export default function OwnerAgentsPage() {
             </motion.div>
           ))
         )}
-      </motion.div>
+      </motion.div>}
 
       {/* Edit Agent Modal */}
       {editingAgent && (
@@ -643,7 +676,6 @@ export default function OwnerAgentsPage() {
                          </span>
                        </motion.div>
                      )}
-                    {viewingAgent.experience && <span className="text-[10px] text-text-tertiary">{viewingAgent.experience}</span>}
                   </div>
                 </div>
               </div>

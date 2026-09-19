@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { findUserByEmail, findUserById, createLoginOtp, initDatabase, findOrCreateAdmin } from "@/lib/db";
+import { findUserByEmail, findUserById, createLoginOtp, initDatabase } from "@/lib/db";
 import { sendEmail, getSiteUrl } from "@/lib/mail";
 import { withSecurityHeaders, withCorsHeaders, validateApiRequest, getClientIp } from "@/lib/api-security";
 import { checkVerifyRateLimit, MAX_VERIFY_ATTEMPTS } from "@/lib/auth-security";
@@ -7,7 +7,6 @@ import { checkVerifyRateLimit, MAX_VERIFY_ATTEMPTS } from "@/lib/auth-security";
 export async function POST(request: NextRequest) {
   try {
     await initDatabase();
-    await findOrCreateAdmin();
 
     const validation = validateApiRequest(request);
     if (validation) return validation;

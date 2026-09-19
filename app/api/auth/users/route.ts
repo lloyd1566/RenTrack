@@ -57,11 +57,11 @@ export async function POST(request: NextRequest) {
       const loginUrl = `${getSiteUrl(request.nextUrl.origin)}/login`;
       await sendEmail({
         to: user.email,
-        subject: "Your RentTrack account has been created",
-        text: `Hello ${user.name},\n\nYour RentTrack account has been created.\n\nUsername: ${user.email}\nPassword: ${password}\nRole: ${user.role}\n\nSign in at: ${loginUrl}\n\nPlease change your password after signing in.`,
+        subject: role === "agent" ? "Your RentTrack agent account is ready" : "Your RentTrack account has been created",
+        text: `Hello ${user.name},\n\nYour RentTrack account has been created.\n\nUsername: ${user.email}\nPassword: ${password}\nRole: ${user.role}${role === "agent" ? "\n\nBefore your first sign-in, request a verification code from the verification page." : ""}\n\nSign in at: ${loginUrl}\n\nPlease change your password after signing in.`,
         html: createRentTrackEmailTemplate({
-          title: "Your account is ready",
-          body: `Hello ${user.name},\n\nYour RentTrack account has been created by an administrator.`,
+          title: role === "agent" ? "Your agent account is ready" : "Your account is ready",
+          body: `Hello ${user.name},\n\nYour RentTrack account has been created by an owner or administrator.${role === "agent" ? " Request a verification code when you are ready to verify your email." : ""}`,
           messageBlock: `Username: ${user.email}\nPassword: ${password}\nRole: ${user.role}`,
           ctaLabel: "Sign in to RentTrack",
           ctaUrl: loginUrl,

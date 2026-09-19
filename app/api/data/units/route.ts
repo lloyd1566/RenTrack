@@ -40,6 +40,10 @@ export async function POST(request: NextRequest) {
       { key: "tenantId", type: "string", maxLength: 100 },
       { key: "imageUrl", type: "string", maxLength: 5000000 },
     ]);
+    if (Array.isArray(body.imageUrls)) {
+      sanitized.imageUrls = Array.from(new Set(body.imageUrls.filter((url: unknown): url is string => typeof url === "string")).values()).slice(0, 20);
+      sanitized.imageUrl = sanitized.imageUrls[0] || sanitized.imageUrl;
+    }
 
     if (!sanitized.propertyId || !sanitized.unitNumber) {
       return NextResponse.json({ success: false, error: "Property ID and unit number are required" }, { status: 400 });

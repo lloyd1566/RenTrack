@@ -63,7 +63,7 @@ export default function TenantDashboard() {
           animate={{ scale: [1, 1.05, 1] }}
           transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
         >
-          <div className="absolute inset-0 bg-cover bg-center opacity-55" style={{ backgroundImage: "url('/images/favicon/Butuan City.webp')" }} />
+          <div className="absolute inset-0 bg-cover bg-center opacity-55" style={{ backgroundImage: "url('/images/favicon/Agusan del Norte.jpg')" }} />
           <div className="absolute inset-0 bg-gradient-to-r from-blue-950/90 via-blue-900/75 to-blue-900/20" />
         </motion.div>
         <div className="absolute inset-0 bg-gradient-to-b from-transparent via-transparent to-white/10" />

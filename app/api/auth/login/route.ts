@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { findUserByEmail, initDatabase, findOrCreateAdmin, logAudit, updateUserPresence } from "@/lib/db";
+import { findUserByEmail, logAudit, updateUserPresence } from "@/lib/db";
 import { regenerateSession } from "@/lib/security";
 import { checkRateLimit, recordFailedAttempt, clearRateLimit } from "@/lib/auth-security";
 import { validateApiRequest, withRateLimit } from "@/lib/api-security";
@@ -13,9 +13,6 @@ export async function POST(request: NextRequest) {
 
     const rateLimit = await withRateLimit(request, `login:${getClientIp(request)}`);
     if (rateLimit) return rateLimit;
-
-    await initDatabase();
-    await findOrCreateAdmin();
 
     const body = await request.json();
     const { email, password } = body;
@@ -67,8 +64,10 @@ export async function POST(request: NextRequest) {
 
     clearRateLimit(rateLimitKey);
 
-    await updateUserPresence(user.id, { markLogin: true });
-    await logAudit(user.id, "login_success", { email: user.email, role: user.role }, getClientIp(request), request.headers.get("user-agent") || "unknown").catch(() => {});
+    void Promise.allSettled([
+      updateUserPresence(user.id, { markLogin: true }),
+      logAudit(user.id, "login_success", { email: user.email, role: user.role }, getClientIp(request), request.headers.get("user-agent") || "unknown"),
+    ]);
 
     const safeUser = { ...user };
     delete safeUser.password;

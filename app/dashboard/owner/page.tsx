@@ -7,7 +7,7 @@ import {
   CreditCard, FileText, BarChart3, FileSpreadsheet, RefreshCw,
   CheckCircle2, Send as SendIcon, UserPlus, User,
   Eye, Download, Printer, ChevronRight, X, Loader2, Plus, Camera, Users, Trash2,
-  Shield, ShieldOff, LogOut,
+  Shield, ShieldOff, LogOut, MoreVertical, Search,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -20,7 +20,7 @@ import {
   addTenant, updateTenantAssignment, verifyPayment, addProperty, addUnit,
   deleteProperty, deleteUnit, updateProperty, updateUnit,
   getConversations, sendMessage, notifyAdmins, updateTenantStatus,
-  Property, Unit, TenantRecord, Payment, Conversation,
+  Property, Unit, TenantRecord, Payment, Conversation, UserRecord, getAgents,
 } from "@/lib/data";
 import OwnerAgentsPage from "./agents/agents-client";
 import { cn, formatCurrency, formatDate, getInitials } from "@/lib/utils";
@@ -29,8 +29,10 @@ import MessagingModal from "@/components/messaging-modal";
 import ProfilePanel from "@/components/profile-panel";
 import CreateTenantModal from "@/components/create-tenant-modal";
 import ReceiptModal from "@/components/receipt-modal";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import UnitImageCarousel from "@/components/unit-image-carousel";
 
-type Step = "overview" | "properties" | "units" | "assignments" | "agents" | "create-tenant" | "contracts" | "occupancy" | "payments" | "receivables" | "reports" | "profile" | "move-out-requests";
+type Step = "overview" | "properties" | "units" | "assignments" | "agents" | "create-tenant" | "contracts" | "occupancy" | "payments" | "receivables" | "reports" | "financial" | "profile" | "move-out-requests";
 
 const flowSteps: { key: Step; label: string; icon: React.ElementType }[] = [
   { key: "overview", label: "Overview", icon: LayoutDashboard },
@@ -44,9 +46,48 @@ const flowSteps: { key: Step; label: string; icon: React.ElementType }[] = [
   { key: "payments", label: "Payments", icon: CreditCard },
   { key: "receivables", label: "Receivables", icon: CreditCard },
   { key: "reports", label: "Receipts & Reports", icon: BarChart3 },
+  { key: "financial", label: "Financial Transactions", icon: CreditCard },
   { key: "move-out-requests", label: "Move-Out Requests", icon: LogOut },
   { key: "profile", label: "My Profile", icon: User },
 ];
+
+const PROPERTY_FEATURES = [
+  "1 Bedroom", "2 Bedrooms", "3 Bedrooms", "4+ Bedrooms",
+  "1 Bathroom", "2 Bathrooms", "3+ Bathrooms", "Parking Space",
+  "Furnished", "Air Conditioning", "Wi-Fi", "Laundry Area",
+  "Kitchen", "Outdoor Area", "Gated Property",
+];
+const PROPERTY_CONDITIONS = [
+  "Excellent – Ready to Move In",
+  "Very Good – Well Maintained",
+  "Good – Minor Wear and Tear",
+  "Fair – Some Repairs Needed",
+  "Needs Improvement – Repairs Required",
+];
+const AVAILABILITY_STATUSES = ["Available", "Occupied", "Reserved", "Under Maintenance"] as const;
+
+function FeaturePicker({ value, onChange }: { value: string[]; onChange: (features: string[]) => void }) {
+  const toggleFeature = (feature: string) => {
+    onChange(value.includes(feature) ? value.filter((item) => item !== feature) : [...value, feature]);
+  };
+  return (
+    <div className="space-y-3">
+      <select value="" onChange={(e) => e.target.value && toggleFeature(e.target.value)} className="h-10 w-full rounded-lg border border-border bg-white px-3 text-sm">
+        <option value="">Select features...</option>
+        {PROPERTY_FEATURES.filter((feature) => !value.includes(feature)).map((feature) => <option key={feature} value={feature}>{feature}</option>)}
+      </select>
+      {value.length > 0 && (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {value.map((feature) => (
+            <button type="button" key={feature} onClick={() => toggleFeature(feature)} className="rounded-full bg-blue-100 px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-200">
+              {feature} <span aria-hidden="true">x</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function OwnerDashboard() {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -56,17 +97,20 @@ export default function OwnerDashboard() {
   const [tenants, setTenants] = useState<TenantRecord[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
   const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [agents, setAgents] = useState<UserRecord[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<any>(null);
   const [isMessagingOpen, setIsMessagingOpen] = useState(false);
   const [moveOutRequests, setMoveOutRequests] = useState<any[]>([]);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showCreateProperty, setShowCreateProperty] = useState(false);
+  const [showAddUnit, setShowAddUnit] = useState(false);
+  const [newUnitForm, setNewUnitForm] = useState({ propertyId: "", unitNumber: "", floor: "", status: "vacant" as Unit["status"], rentAmount: "", imageUrl: "", imageUrls: [] as string[] });
   const [createStep, setCreateStep] = useState(1);
-  const [propertyForm, setPropertyForm] = useState({ name: "", address: "", city: "", province: "", type: "house" as "house" | "condominium", description: "", imageUrl: "" });
-  const [unitsForm, setUnitsForm] = useState({ unitNumber: "", floor: "", status: "vacant" as "vacant" | "occupied" | "maintenance", rentAmount: 0, imageUrl: "" });
+  const [propertyForm, setPropertyForm] = useState({ name: "", address: "", city: "", province: "", type: "house" as "house" | "condominium", features: [] as string[], condition: "", availabilityStatus: "Available" as typeof AVAILABILITY_STATUSES[number], imageUrl: "", imageUrls: [] as string[] });
+  const [unitsForm, setUnitsForm] = useState({ unitNumber: "", floor: "", status: "vacant" as "vacant" | "occupied" | "maintenance", rentAmount: "", imageUrl: "", imageUrls: [] as string[] });
   const [isUploadingPropertyImage, setIsUploadingPropertyImage] = useState(false);
   const [isUploadingUnitImage, setIsUploadingUnitImage] = useState(false);
-  const [termsForm, setTermsForm] = useState({ securityDeposit: 0, advancePayment: 0, duration: "12 months", paymentDueDate: "5th", rentalTerms: "" });
+  const [termsForm, setTermsForm] = useState({ securityDeposit: "", advancePayment: "", duration: "12 months", paymentDueDate: "5th", rentalTerms: "" });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [reviewAssignment, setReviewAssignment] = useState<TenantRecord | null>(null);
   const [returnReason, setReturnReason] = useState("");
@@ -74,29 +118,40 @@ export default function OwnerDashboard() {
   const [viewingReport, setViewingReport] = useState<"rental" | "property" | null>(null);
   const [editingProperty, setEditingProperty] = useState<Property | null>(null);
   const [editingUnit, setEditingUnit] = useState<Unit | null>(null);
-  const [editPropertyForm, setEditPropertyForm] = useState({ name: "", location: "", type: "house" as "house" | "condominium", status: "active" as "active" | "inactive", imageUrl: "" });
-  const [editUnitForm, setEditUnitForm] = useState({ unitNumber: "", floor: "", status: "vacant" as "vacant" | "occupied" | "maintenance", rentAmount: 0, imageUrl: "" });
+  const [editPropertyForm, setEditPropertyForm] = useState({ name: "", location: "", type: "house" as "house" | "condominium", status: "active" as "active" | "inactive", features: [] as string[], condition: "", availabilityStatus: "Available" as typeof AVAILABILITY_STATUSES[number], imageUrl: "", imageUrls: [] as string[] });
+  const [editUnitPropertyId, setEditUnitPropertyId] = useState<string | null>(null);
+  const [editUnitForm, setEditUnitForm] = useState({ unitNumber: "", floor: "", status: "vacant" as "vacant" | "occupied" | "maintenance", rentAmount: "", imageUrl: "", imageUrls: [] as string[] });
   const [isUploadingEditPropertyImage, setIsUploadingEditPropertyImage] = useState(false);
   const [isUploadingEditUnitImage, setIsUploadingEditUnitImage] = useState(false);
   const [createTenantSubmitting, setCreateTenantSubmitting] = useState(false);
   const [showCreateTenantModal, setShowCreateTenantModal] = useState(false);
   const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
+  // Data is fetched once into state; these UI filters operate on that cached data instantly.
+  const [unitsView, setUnitsView] = useState<"properties" | "units" | "occupancy">("units");
+  const [unitPropertyFilter, setUnitPropertyFilter] = useState("all");
+  const [unitStatusFilter, setUnitStatusFilter] = useState("all");
+  const [tenantFilter, setTenantFilter] = useState("all");
+  const [tenantSearch, setTenantSearch] = useState("");
+  const [financialView, setFinancialView] = useState<"payments" | "approvals" | "receipts">("payments");
+  const [financialStatusFilter, setFinancialStatusFilter] = useState("all");
 
   const loadData = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      const [props, unitsData, tenantsData, paymentsData, convs] = await Promise.all([
+      const [props, unitsData, tenantsData, paymentsData, convs, agentsData] = await Promise.all([
         getProperties(user),
         getUnits(user),
         getTenants(user),
         getPayments(user),
         getConversations(),
+        getAgents(),
       ]);
       setProperties(props);
       setUnits(unitsData);
       setTenants(tenantsData);
       setPayments(paymentsData);
       setConversations(convs);
+      setAgents(agentsData);
 
       const moveOutRes = await fetch("/api/move-out");
       const moveOutData = await moveOutRes.json();
@@ -126,6 +181,10 @@ export default function OwnerDashboard() {
     }
     setIsSubmitting(true);
     try {
+      if (!unitsForm.unitNumber || !unitsForm.rentAmount || Number(unitsForm.rentAmount) < 0) {
+        toast.error("Provide a unit number and a valid rental rate");
+        return;
+      }
       const newProperty = await addProperty({
         name: propertyForm.name,
         location: `${propertyForm.address}, ${propertyForm.city}, ${propertyForm.province}`,
@@ -134,25 +193,30 @@ export default function OwnerDashboard() {
         occupiedUnits: 0,
         monthlyRevenue: 0,
         status: "active",
-        imageUrl: propertyForm.imageUrl || propertyForm.description || undefined,
+        imageUrl: propertyForm.imageUrl || undefined,
+        imageUrls: propertyForm.imageUrls,
+        features: propertyForm.features,
+        condition: propertyForm.condition || undefined,
+        availabilityStatus: propertyForm.availabilityStatus,
       }, user?.id || "");
       await addUnit({
         propertyId: newProperty.id,
         unitNumber: unitsForm.unitNumber,
-        floor: unitsForm.floor ? parseInt(unitsForm.floor) : undefined,
+        floor: unitsForm.floor ? Number(unitsForm.floor) : undefined,
         status: unitsForm.status,
-        rentAmount: unitsForm.rentAmount,
+        rentAmount: Number(unitsForm.rentAmount),
         imageUrl: unitsForm.imageUrl || undefined,
+        imageUrls: unitsForm.imageUrls,
       });
       toast.success("Property created successfully!");
       setShowCreateProperty(false);
       setCreateStep(1);
-      setPropertyForm({ name: "", address: "", city: "", province: "", type: "house", description: "", imageUrl: "" });
-      setUnitsForm({ unitNumber: "", floor: "", status: "vacant", rentAmount: 0, imageUrl: "" });
-      setTermsForm({ securityDeposit: 0, advancePayment: 0, duration: "12 months", paymentDueDate: "5th", rentalTerms: "" });
-      loadData();
-    } catch {
-      toast.error("Failed to create property");
+      setPropertyForm({ name: "", address: "", city: "", province: "", type: "house", features: [], condition: "", availabilityStatus: "Available", imageUrl: "", imageUrls: [] });
+      setUnitsForm({ unitNumber: "", floor: "", status: "vacant", rentAmount: "", imageUrl: "", imageUrls: [] });
+      setTermsForm({ securityDeposit: "", advancePayment: "", duration: "12 months", paymentDueDate: "5th", rentalTerms: "" });
+      await loadData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to create property");
     } finally {
       setIsSubmitting(false);
     }
@@ -236,62 +300,84 @@ export default function OwnerDashboard() {
   };
 
   const handlePropertyImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const localUrl = URL.createObjectURL(file);
-    setPropertyForm({ ...propertyForm, imageUrl: localUrl });
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
     setIsUploadingPropertyImage(true);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("type", "property");
-      const res = await fetch("/api/auth/upload", { method: "POST", credentials: "include", body: formData });
-      const result = await res.json();
-      if (result.success) {
-        URL.revokeObjectURL(localUrl);
-        setPropertyForm({ ...propertyForm, imageUrl: result.url });
-        toast.success("Property image uploaded");
-      } else {
-        URL.revokeObjectURL(localUrl);
-        setPropertyForm({ ...propertyForm, imageUrl: "" });
-        toast.error(result.error || "Failed to upload image");
-      }
-    } catch {
-      URL.revokeObjectURL(localUrl);
-      setPropertyForm({ ...propertyForm, imageUrl: "" });
-      toast.error("An error occurred");
+      const urls = await Promise.all(files.map(async (file) => {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("type", "property");
+        const res = await fetch("/api/auth/upload", { method: "POST", credentials: "include", body: formData });
+        const result = await res.json();
+        if (!result.success) throw new Error(result.error || "Failed to upload image");
+        return result.url as string;
+      }));
+      setPropertyForm((current) => ({ ...current, imageUrl: current.imageUrl || urls[0], imageUrls: [...current.imageUrls, ...urls] }));
+      toast.success(`${urls.length} property image${urls.length === 1 ? "" : "s"} uploaded`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to upload images");
     } finally {
       setIsUploadingPropertyImage(false);
+      e.target.value = "";
     }
   };
 
   const handleUnitImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const localUrl = URL.createObjectURL(file);
-    setUnitsForm({ ...unitsForm, imageUrl: localUrl });
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
     setIsUploadingUnitImage(true);
     try {
-      const formData = new FormData();
-      formData.append("file", file);
-      formData.append("type", "unit");
-      const res = await fetch("/api/auth/upload", { method: "POST", credentials: "include", body: formData });
-      const result = await res.json();
-      if (result.success) {
-        URL.revokeObjectURL(localUrl);
-        setUnitsForm({ ...unitsForm, imageUrl: result.url });
-        toast.success("Unit image uploaded");
-      } else {
-        URL.revokeObjectURL(localUrl);
-        setUnitsForm({ ...unitsForm, imageUrl: "" });
-        toast.error(result.error || "Failed to upload image");
-      }
-    } catch {
-      URL.revokeObjectURL(localUrl);
-      setUnitsForm({ ...unitsForm, imageUrl: "" });
-      toast.error("An error occurred");
+      const urls = await Promise.all(files.map(async (file) => {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("type", "unit");
+        const res = await fetch("/api/auth/upload", { method: "POST", credentials: "include", body: formData });
+        const result = await res.json();
+        if (!result.success) throw new Error(result.error || "Failed to upload image");
+        return result.url as string;
+      }));
+      setUnitsForm((current) => ({ ...current, imageUrl: current.imageUrl || urls[0], imageUrls: [...current.imageUrls, ...urls] }));
+      toast.success(`${urls.length} unit image${urls.length === 1 ? "" : "s"} uploaded`);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to upload images");
     } finally {
       setIsUploadingUnitImage(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleRemoveEditUnitImage = async (imageUrl: string) => {
+    setEditUnitForm((current) => {
+      const imageUrls = current.imageUrls.filter((url) => url !== imageUrl);
+      return { ...current, imageUrls, imageUrl: imageUrls[0] || "" };
+    });
+    const uploadId = imageUrl.match(/\/api\/auth\/upload\/([^/?#]+)/)?.[1];
+    if (uploadId) {
+      try {
+        const response = await fetch(`/api/auth/upload/${uploadId}`, { method: "DELETE", credentials: "include" });
+        const result = await response.json();
+        if (!result.success) throw new Error(result.error || "Failed to delete image");
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Failed to delete image");
+      }
+    }
+  };
+
+  const handleRemoveEditPropertyImage = async (imageUrl: string) => {
+    setEditPropertyForm((current) => {
+      const imageUrls = current.imageUrls.filter((url) => url !== imageUrl);
+      return { ...current, imageUrls, imageUrl: imageUrls[0] || "" };
+    });
+    const uploadId = imageUrl.match(/\/api\/auth\/upload\/([^/?#]+)/)?.[1];
+    if (uploadId) {
+      try {
+        const response = await fetch(`/api/auth/upload/${uploadId}`, { method: "DELETE", credentials: "include" });
+        const result = await response.json();
+        if (!result.success) throw new Error(result.error || "Failed to delete image");
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Failed to delete image");
+      }
     }
   };
 
@@ -350,33 +436,58 @@ export default function OwnerDashboard() {
       location: property.location,
       type: property.type,
       status: property.status,
+      features: property.features || [],
+      condition: property.condition || "",
+      availabilityStatus: property.availabilityStatus || "Available",
       imageUrl: property.imageUrl || "",
+      imageUrls: property.imageUrls || (property.imageUrl ? [property.imageUrl] : []),
     });
   };
 
   const handleEditUnit = (unit: Unit) => {
+    const property = properties.find((item) => item.id === unit.propertyId);
     setEditingUnit(unit);
+    setEditUnitPropertyId(property?.id || null);
+    if (property) {
+      setEditPropertyForm({
+        name: property.name,
+        location: property.location,
+        type: property.type,
+        status: property.status,
+        features: property.features || [],
+        condition: property.condition || "",
+        availabilityStatus: property.availabilityStatus || "Available",
+        imageUrl: property.imageUrl || "",
+        imageUrls: property.imageUrls || (property.imageUrl ? [property.imageUrl] : []),
+      });
+    }
     setEditUnitForm({
       unitNumber: unit.unitNumber,
       floor: unit.floor?.toString() || "",
       status: unit.status,
-      rentAmount: unit.rentAmount,
+      rentAmount: unit.rentAmount.toString(),
       imageUrl: unit.imageUrl || "",
+      imageUrls: unit.imageUrls || (unit.imageUrl ? [unit.imageUrl] : []),
     });
   };
 
   const handleSaveProperty = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingProperty) return;
+    if (!editingProperty || isSubmitting) return;
     setIsSubmitting(true);
     try {
-      await updateProperty(editingProperty.id, {
+      const updatedProperty = await updateProperty(editingProperty.id, {
         name: editPropertyForm.name,
         location: editPropertyForm.location,
         type: editPropertyForm.type,
         status: editPropertyForm.status,
+        features: editPropertyForm.features,
+        condition: editPropertyForm.condition || undefined,
+        availabilityStatus: editPropertyForm.availabilityStatus,
         imageUrl: editPropertyForm.imageUrl || undefined,
+        imageUrls: editPropertyForm.imageUrls,
       });
+      if (!updatedProperty) throw new Error("Failed to update property");
       setProperties(properties.map(p => p.id === editingProperty.id ? { ...p, ...editPropertyForm } : p));
       toast.success("Property updated");
       setEditingProperty(null);
@@ -417,21 +528,51 @@ export default function OwnerDashboard() {
 
   const handleSaveUnit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!editingUnit) return;
+    if (!editingUnit || isSubmitting) return;
     setIsSubmitting(true);
     try {
-      await updateUnit(editingUnit.id, {
+      if (!editUnitForm.unitNumber.trim() || editUnitForm.rentAmount === "") {
+        toast.error("Unit number and monthly rent are required");
+        return;
+      }
+      const unitUpdate = updateUnit(editingUnit.id, {
         unitNumber: editUnitForm.unitNumber,
         floor: editUnitForm.floor ? parseInt(editUnitForm.floor) : undefined,
         status: editUnitForm.status,
-        rentAmount: editUnitForm.rentAmount,
+        rentAmount: Number(editUnitForm.rentAmount),
         imageUrl: editUnitForm.imageUrl || undefined,
+        imageUrls: editUnitForm.imageUrls,
       });
-      setUnits(units.map(u => u.id === editingUnit.id ? { ...u, ...editUnitForm, floor: editUnitForm.floor ? parseInt(editUnitForm.floor) : undefined } : u));
+      const propertyUpdate = editUnitPropertyId ? updateProperty(editUnitPropertyId, {
+        name: editPropertyForm.name,
+        location: editPropertyForm.location,
+        type: editPropertyForm.type,
+        status: editPropertyForm.status,
+        features: editPropertyForm.features,
+        condition: editPropertyForm.condition || undefined,
+        availabilityStatus: editPropertyForm.availabilityStatus,
+        imageUrl: editPropertyForm.imageUrl || undefined,
+        imageUrls: editPropertyForm.imageUrls,
+      }) : Promise.resolve(null);
+      const [updatedUnitResult, updatedPropertyResult] = await Promise.all([unitUpdate, propertyUpdate]);
+      if (!updatedUnitResult || (editUnitPropertyId && !updatedPropertyResult)) throw new Error("Failed to update unit and property");
+      const updatedUnit: Unit = {
+        ...editingUnit,
+        unitNumber: editUnitForm.unitNumber,
+        floor: editUnitForm.floor ? parseInt(editUnitForm.floor) : undefined,
+        status: editUnitForm.status,
+        rentAmount: Number(editUnitForm.rentAmount),
+        imageUrl: editUnitForm.imageUrl || undefined,
+        imageUrls: editUnitForm.imageUrls,
+      };
+      setUnits((current) => current.map((unit) => unit.id === updatedUnit.id ? updatedUnit : unit));
+      if (editUnitPropertyId) {
+        setProperties((current) => current.map((property) => property.id === editUnitPropertyId ? { ...property, ...editPropertyForm, imageUrls: editPropertyForm.imageUrls } : property));
+      }
       toast.success("Unit updated");
       setEditingUnit(null);
-    } catch {
-      toast.error("Failed to update unit");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Failed to update unit and property");
     } finally {
       setIsSubmitting(false);
     }
@@ -465,6 +606,66 @@ export default function OwnerDashboard() {
   const activeTenants = tenants.filter((t) => t.status === "active");
   const pendingPayments = payments.filter((p) => p.status === "pending");
   const overduePayments = payments.filter((p) => p.status === "overdue");
+  const filteredUnits = units.filter((unit) =>
+    (unitPropertyFilter === "all" || unit.propertyId === unitPropertyFilter) &&
+    (unitStatusFilter === "all" || unit.status === unitStatusFilter)
+  );
+  const filteredTenants = tenants.filter((tenant) =>
+    (tenantFilter === "all" || tenant.status === tenantFilter) &&
+    `${tenant.name} ${tenant.email} ${tenant.phone || ""}`.toLowerCase().includes(tenantSearch.trim().toLowerCase())
+  );
+  const filteredPayments = payments.filter((payment) =>
+    financialStatusFilter === "all" || payment.status === financialStatusFilter
+  );
+  const agentCommissions = properties.reduce<Record<string, { name: string; collected: number; commission: number }>>((summary, property) => {
+    if (!property.agentId) return summary;
+    const collected = payments.filter((payment) => payment.propertyName === property.name && payment.status === "paid").reduce((total, payment) => total + payment.amountPaid, 0);
+    const current = summary[property.agentId] || { name: agents.find((agent) => agent.id === property.agentId)?.name || "Assigned agent", collected: 0, commission: 0 };
+    current.collected += collected;
+    current.commission += collected * 0.05;
+    summary[property.agentId] = current;
+    return summary;
+  }, {});
+
+  const downloadFinancialExport = () => {
+    const rows = filteredPayments.map((payment) => [payment.id, payment.tenantName, payment.propertyName, payment.amountPaid, payment.balance, payment.status, payment.paymentDate, payment.paymentMethod]);
+    const csv = [["Transaction ID", "Tenant", "Property", "Amount paid", "Balance", "Status", "Date", "Method"], ...rows]
+      .map((row) => row.map((value) => `"${String(value ?? "").replace(/"/g, '""')}"`).join(",")).join("\n");
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(new Blob([csv], { type: "application/vnd.ms-excel;charset=utf-8;" }));
+    link.download = `financial-transactions-${new Date().toISOString().slice(0, 10)}.xls`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
+
+  const handleAddUnit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!newUnitForm.propertyId || !newUnitForm.unitNumber || Number(newUnitForm.rentAmount) < 0) {
+      toast.error("Choose a property and provide the unit details");
+      return;
+    }
+    setIsSubmitting(true);
+    try {
+      const newUnit = await addUnit({
+        propertyId: newUnitForm.propertyId,
+        unitNumber: newUnitForm.unitNumber,
+        floor: newUnitForm.floor ? Number(newUnitForm.floor) : undefined,
+        status: newUnitForm.status,
+        rentAmount: Number(newUnitForm.rentAmount),
+        imageUrl: newUnitForm.imageUrl || undefined,
+        imageUrls: newUnitForm.imageUrls,
+      });
+      setUnits((current) => [...current, newUnit]);
+      setProperties((current) => current.map((property) => property.id === newUnitForm.propertyId ? { ...property, units: property.units + 1 } : property));
+      setShowAddUnit(false);
+      setNewUnitForm({ propertyId: "", unitNumber: "", floor: "", status: "vacant", rentAmount: "", imageUrl: "", imageUrls: [] });
+      toast.success("Rental unit added");
+    } catch {
+      toast.error("Failed to add rental unit");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="w-full px-4 sm:px-6 lg:px-8">
@@ -472,7 +673,7 @@ export default function OwnerDashboard() {
             {activeTab === "overview" && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
                 <div>
-                  <div className="flex items-center justify-between">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <h1 className="text-4xl font-bold text-foreground">Owner Dashboard</h1>
                       <p className="text-lg text-text-secondary mt-1">Welcome back, {user?.name?.split(" ")[0] || "Owner"}</p>
@@ -614,9 +815,7 @@ export default function OwnerDashboard() {
                                 </Button>
                               </div>
                             </div>
-                           {property.imageUrl && (
-                             <img src={property.imageUrl} alt={property.name} className="w-full h-40 object-cover rounded-xl mb-4 border border-border" />
-                           )}
+                           <UnitImageCarousel images={property.imageUrls || (property.imageUrl ? [property.imageUrl] : [])} alt={property.name} fallbackImage="/images/landing/feature-property.jpg" className="mb-4 h-40 w-full rounded-xl border border-border" />
                           <div className="flex items-center gap-4 text-sm text-text-secondary mb-4">
                             <span className="flex items-center gap-1.5"><Home className="h-4 w-4" />{property.units} units</span>
                             <span className="flex items-center gap-1.5"><ClipboardCheck className="h-4 w-4" />{vacant.length} vacant</span>
@@ -654,41 +853,65 @@ export default function OwnerDashboard() {
             {/* RENTAL UNITS */}
             {activeTab === "units" && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
-                <div>
-                  <h1 className="text-3xl font-bold text-foreground">Rental Units</h1>
-                  <p className="text-base text-text-secondary mt-1">Manage all rental units across your properties</p>
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                  <div>
+                    <h1 className="text-3xl font-bold text-foreground">Units</h1>
+                    <p className="text-base text-text-secondary mt-1">Properties, rental units, and occupancy in one place</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="outline" title={properties.length === 0 ? "Create a property first, then add its first unit" : "Add a rental unit"} onClick={() => { if (properties.length === 0) { setShowCreateProperty(true); setCreateStep(1); return; } setNewUnitForm((current) => ({ ...current, propertyId: unitPropertyFilter !== "all" ? unitPropertyFilter : properties[0].id })); setShowAddUnit(true); }}><Plus className="mr-1.5 h-4 w-4" />Add Unit</Button>
+                    <select value={unitsView} onChange={(event) => setUnitsView(event.target.value as typeof unitsView)} className="h-10 rounded-xl border border-border bg-white px-3 text-sm font-medium">
+                      <option value="properties">Property portfolio</option>
+                      <option value="units">Rental units</option>
+                      <option value="occupancy">Occupancy</option>
+                    </select>
+                    <select value={unitPropertyFilter} onChange={(event) => setUnitPropertyFilter(event.target.value)} className="h-10 rounded-xl border border-border bg-white px-3 text-sm">
+                      <option value="all">All properties</option>
+                      {properties.map((property) => <option key={property.id} value={property.id}>{property.name}</option>)}
+                    </select>
+                    <select value={unitStatusFilter} onChange={(event) => setUnitStatusFilter(event.target.value)} className="h-10 rounded-xl border border-border bg-white px-3 text-sm">
+                      <option value="all">All statuses</option><option value="vacant">Vacant</option><option value="occupied">Occupied</option><option value="maintenance">Maintenance</option>
+                    </select>
+                  </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                  {units.map((unit) => {
+                {unitsView === "properties" && <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {properties.filter((property) => unitPropertyFilter === "all" || property.id === unitPropertyFilter).map((property) => {
+                    const propertyUnits = units.filter((unit) => unit.propertyId === property.id);
+                    return <Card key={property.id}><CardContent className="p-6"><h3 className="text-lg font-semibold">{property.name}</h3><p className="mt-1 text-sm text-text-secondary">{property.location}</p><div className="mt-4 grid grid-cols-3 gap-2 text-center text-sm"><div><p className="font-bold">{propertyUnits.length}</p><p className="text-text-tertiary">Units</p></div><div><p className="font-bold text-blue-600">{propertyUnits.filter((unit) => unit.status === "occupied").length}</p><p className="text-text-tertiary">Occupied</p></div><div><p className="font-bold text-green-600">{propertyUnits.filter((unit) => unit.status === "vacant").length}</p><p className="text-text-tertiary">Vacant</p></div></div></CardContent></Card>;
+                  })}
+                </div>}
+                {unitsView === "units" && <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                  {filteredUnits.map((unit) => {
                     const property = properties.find((p) => p.id === unit.propertyId);
                     return (
-                      <Card key={unit.id} className="hover:shadow-lg transition-shadow">
-                        <CardContent className="p-6">
-                           <div className="flex items-start justify-between mb-4">
-                             <div>
-                                <h3 className="text-lg font-semibold text-foreground">Unit Number {unit.unitNumber}</h3>
-                               <p className="text-sm text-text-secondary mt-1">{property?.name || "Unknown Property"}</p>
-                               <p className="text-sm text-text-tertiary">{property?.location || ""}</p>
-                             </div>
-                               <div className="flex items-center gap-2">
-                                 <Badge variant={unit.status === "vacant" ? "success" : unit.status === "occupied" ? "outline" : "warning"} className="text-sm font-semibold capitalize">{unit.status}</Badge>
-                                 <Button size="sm" variant="outline" onClick={() => handleEditUnit(unit)}>
-                                   <Eye className="h-4 w-4 mr-1" />
-                                   Edit
-                                 </Button>
-                                 <Button size="sm" variant="destructive" onClick={() => handleDeleteUnit(unit)}>
-                                   <Trash2 className="h-4 w-4 mr-1" />
-                                   Delete
-                                 </Button>
-                               </div>
-                           </div>
-                           {unit.imageUrl && (
-                             <img src={unit.imageUrl} alt={`Unit ${unit.unitNumber}`} className="w-full h-40 object-cover rounded-xl mb-4 border border-border" />
-                           )}
-                          <div className="flex items-center justify-between p-3 rounded-lg bg-surface-secondary">
-                            <span className="text-sm font-medium">Monthly Rent</span>
-                            <span className="text-sm font-semibold text-foreground">{formatCurrency(unit.rentAmount || 0)}/mo</span>
+                      <Card key={unit.id} className="group overflow-hidden border-border/80 bg-white shadow-sm transition-all hover:-translate-y-1 hover:shadow-xl">
+                        <CardContent className="p-0">
+                          <div className="relative h-44 overflow-hidden bg-surface-secondary">
+                            <UnitImageCarousel images={unit.imageUrls || (unit.imageUrl ? [unit.imageUrl] : [])} alt={`Unit ${unit.unitNumber}`} className="h-full w-full" />
+                            <div className="absolute inset-x-0 top-0 flex items-start justify-between p-4">
+                              <Badge variant={unit.status === "vacant" ? "success" : unit.status === "occupied" ? "outline" : "warning"} className="bg-white/95 text-sm font-semibold capitalize shadow-sm">{unit.status}</Badge>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button size="icon" variant="outline" aria-label={`Actions for unit ${unit.unitNumber}`} className="h-9 w-9 bg-white/95 shadow-sm"><MoreVertical className="h-4 w-4" /></Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end" side="right">
+                                  <DropdownMenuItem onSelect={() => handleEditUnit(unit)} icon={<Eye className="h-4 w-4" />}>Edit unit and property</DropdownMenuItem>
+                                  <DropdownMenuItem onSelect={() => handleDeleteUnit(unit)} icon={<Trash2 className="h-4 w-4 text-red-500" />} className="text-red-600 hover:bg-red-50">Delete unit</DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </div>
                           </div>
+                          <div className="p-6">
+                            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-text-tertiary">Unit Number</p>
+                            <h3 className="mt-1 text-2xl font-bold text-foreground">{unit.unitNumber}</h3>
+                            <div className="mt-3 space-y-1 text-sm">
+                              <p className="font-medium text-text-secondary">{property?.name || "Unknown Property"}</p>
+                              <p className="text-text-tertiary">{property?.location || "Location not set"}</p>
+                            </div>
+                            <div className="mt-5 flex items-center justify-between rounded-xl bg-surface-secondary p-4">
+                              <span className="text-sm font-medium text-text-secondary">Monthly Rent</span>
+                              <span className="text-lg font-bold text-foreground">{formatCurrency(unit.rentAmount || 0)}<span className="text-sm font-medium text-text-secondary">/mo</span></span>
+                            </div>
                            {unit.tenantName && (
                              <div className="mt-3 flex items-center gap-2 text-sm text-text-secondary">
                                <Avatar src={unit.tenantName ? (tenants.find(t => t.name === unit.tenantName)?.avatarUrl || "") : ""} fallback={getInitials(unit.tenantName)} size="sm" />
@@ -700,12 +923,13 @@ export default function OwnerDashboard() {
                                  })()}
                                </div>
                              </div>
-                           )}
+                          )}
+                          </div>
                         </CardContent>
                       </Card>
                     );
                   })}
-                  {units.length === 0 && (
+                  {filteredUnits.length === 0 && (
                     <Card className="col-span-full">
                       <CardContent className="p-12 text-center">
                         <Home className="h-12 w-12 text-text-tertiary mx-auto mb-3" />
@@ -714,7 +938,10 @@ export default function OwnerDashboard() {
                       </CardContent>
                     </Card>
                   )}
-                </div>
+                </div>}
+                {unitsView === "occupancy" && <Card><CardHeader><CardTitle className="text-lg">Occupancy summary</CardTitle><CardDescription>Filtered unit availability by property</CardDescription></CardHeader><CardContent className="space-y-3">
+                  {properties.filter((property) => unitPropertyFilter === "all" || property.id === unitPropertyFilter).map((property) => { const propertyUnits = filteredUnits.filter((unit) => unit.propertyId === property.id); const occupied = propertyUnits.filter((unit) => unit.status === "occupied").length; const rate = propertyUnits.length ? Math.round((occupied / propertyUnits.length) * 100) : 0; return <div key={property.id} className="rounded-xl border border-border p-4"><div className="flex justify-between gap-4"><div><p className="font-medium">{property.name}</p><p className="text-xs text-text-secondary">{occupied} of {propertyUnits.length} units occupied</p></div><p className="font-bold text-blue-600">{rate}%</p></div><div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-blue-600" style={{ width: `${rate}%` }} /></div></div>; })}
+                </CardContent></Card>}
               </motion.div>
             )}
 
@@ -841,9 +1068,9 @@ export default function OwnerDashboard() {
                       <h1 className="text-3xl font-bold text-foreground">Tenants</h1>
                       <p className="text-base text-text-secondary mt-1">Manage tenants you have created</p>
                     </div>
-                    <Button onClick={() => setShowCreateTenantModal(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
+                    <div className="flex flex-wrap items-center justify-end gap-2"><div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" /><Input value={tenantSearch} onChange={(event) => setTenantSearch(event.target.value)} placeholder="Search tenants" className="h-10 w-48 pl-9" /></div><select value={tenantFilter} onChange={(event) => setTenantFilter(event.target.value)} className="h-10 rounded-xl border border-border bg-white px-3 text-sm"><option value="all">All tenants</option><option value="active">Active</option><option value="inactive">Blocked</option></select><Button onClick={() => setShowCreateTenantModal(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
                       <UserPlus className="h-4 w-4 mr-2" /> Create Tenant
-                    </Button>
+                    </Button></div>
                   </div>
                 </div>
                 <Card>
@@ -853,14 +1080,14 @@ export default function OwnerDashboard() {
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-3">
-                      {tenants.length === 0 ? (
+                      {filteredTenants.length === 0 ? (
                         <div className="text-center py-12">
                           <Users className="h-12 w-12 text-text-tertiary mx-auto mb-3" />
                           <p className="text-text-secondary font-medium">No tenants yet</p>
                            <p className="text-xs text-text-tertiary mt-1">Click &quot;Create Tenant&quot; to register a new tenant</p>
                         </div>
                       ) : (
-                        tenants.map((tenant) => (
+                        filteredTenants.map((tenant) => (
                           <div key={tenant.id} className="flex items-center justify-between p-4 rounded-xl border border-border hover:bg-surface-secondary transition-colors">
                             <div className="flex items-center gap-3">
                               <Avatar src={tenant.avatarUrl} fallback={getInitials(tenant.name)} size="sm" />
@@ -1155,6 +1382,19 @@ export default function OwnerDashboard() {
               </motion.div>
             )}
 
+            {/* FINANCIAL TRANSACTIONS */}
+            {activeTab === "financial" && (
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 0 + 1, y: 0 }} className="space-y-6">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+                  <div><h1 className="text-3xl font-bold text-foreground">Financial Transactions</h1><p className="mt-1 text-base text-text-secondary">Payments, pending approvals, receipts, reports, and agent commission</p></div>
+                  <div className="flex flex-wrap gap-2"><select value={financialView} onChange={(event) => setFinancialView(event.target.value as typeof financialView)} className="h-10 rounded-xl border border-border bg-white px-3 text-sm"><option value="payments">Payments</option><option value="approvals">Pending approvals</option><option value="receipts">Receipts & reports</option></select><select value={financialStatusFilter} onChange={(event) => setFinancialStatusFilter(event.target.value)} className="h-10 rounded-xl border border-border bg-white px-3 text-sm"><option value="all">All statuses</option><option value="paid">Paid</option><option value="pending">Pending</option><option value="overdue">Overdue</option><option value="partial">Partial</option></select><Button variant="outline" onClick={downloadFinancialExport}><Download className="mr-2 h-4 w-4" />Excel</Button><Button variant="outline" onClick={() => window.print()}><Printer className="mr-2 h-4 w-4" />PDF</Button></div>
+                </div>
+                {financialView === "payments" && <Card><CardHeader><CardTitle>Payment records</CardTitle><CardDescription>{filteredPayments.length} transaction{filteredPayments.length === 1 ? "" : "s"} match your filters</CardDescription></CardHeader><CardContent className="space-y-3">{filteredPayments.slice().reverse().map((payment) => <div key={payment.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border p-4"><div><p className="font-medium">{payment.tenantName}</p><p className="text-xs text-text-secondary">{payment.propertyName} · {formatDate(payment.paymentDate)} · {payment.paymentMethod.replace("_", " ")}</p></div><div className="flex items-center gap-3"><div className="text-right"><p className="font-semibold">{formatCurrency(payment.amountPaid)}</p><Badge variant={payment.status === "paid" ? "success" : payment.status === "pending" ? "warning" : "destructive"} className="capitalize">{payment.status}</Badge></div>{payment.receiptUrl && <Button size="sm" variant="outline" onClick={() => setViewingReceipt(payment)}>Receipt</Button>}</div></div>)}{filteredPayments.length === 0 && <p className="py-8 text-center text-text-secondary">No transactions match this filter.</p>}</CardContent></Card>}
+                {financialView === "approvals" && <Card><CardHeader><CardTitle>Pending approvals</CardTitle><CardDescription>Tenant assignments awaiting owner approval</CardDescription></CardHeader><CardContent className="space-y-3">{pendingAssignments.map((tenant) => <div key={tenant.id} className="flex items-center justify-between rounded-xl border border-amber-200 bg-amber-50 p-4"><div><p className="font-medium">{tenant.name}</p><p className="text-xs text-text-secondary">{tenant.propertyName} · Unit {tenant.unitNumber}</p></div><Button size="sm" onClick={() => setReviewAssignment(tenant)}>Review</Button></div>)}{pendingAssignments.length === 0 && <p className="py-8 text-center text-text-secondary">No pending approvals.</p>}</CardContent></Card>}
+                {financialView === "receipts" && <div className="space-y-5"><Card><CardHeader><CardTitle>Receipt breakdown</CardTitle><CardDescription>Amounts shown are based on the currently filtered transactions.</CardDescription></CardHeader><CardContent className="grid gap-4 sm:grid-cols-3"><div><p className="text-sm text-text-secondary">Collected</p><p className="text-2xl font-bold text-green-600">{formatCurrency(filteredPayments.filter((payment) => payment.status === "paid").reduce((total, payment) => total + payment.amountPaid, 0))}</p></div><div><p className="text-sm text-text-secondary">Outstanding</p><p className="text-2xl font-bold text-amber-600">{formatCurrency(filteredPayments.filter((payment) => payment.status !== "paid").reduce((total, payment) => total + payment.balance, 0))}</p></div><div><p className="text-sm text-text-secondary">Receipts attached</p><p className="text-2xl font-bold">{filteredPayments.filter((payment) => payment.receiptUrl).length}</p></div></CardContent></Card><Card><CardHeader><CardTitle>Agent commission</CardTitle><CardDescription>Calculated at 5% of paid rent collected on properties assigned to each agent.</CardDescription></CardHeader><CardContent className="space-y-3">{Object.entries(agentCommissions).map(([id, commission]) => <div key={id} className="flex items-center justify-between rounded-xl border border-border p-4"><div><p className="font-medium">{commission.name}</p><p className="text-xs text-text-secondary">Collected rent: {formatCurrency(commission.collected)}</p></div><p className="text-lg font-bold text-blue-600">{formatCurrency(commission.commission)}</p></div>)}{Object.keys(agentCommissions).length === 0 && <p className="py-6 text-center text-text-secondary">No agent-linked paid rent yet.</p>}</CardContent></Card></div>}
+              </motion.div>
+            )}
+
             {/* REPORTS */}
             {activeTab === "reports" && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
@@ -1208,24 +1448,38 @@ export default function OwnerDashboard() {
               />
             )}
 
+            {/* Add Unit Modal */}
+            {showAddUnit && (
+              <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
+                <div className="absolute inset-0 bg-black/50" onClick={() => setShowAddUnit(false)} />
+                <form onSubmit={handleAddUnit} className="relative w-full max-w-lg rounded-2xl border border-border bg-white p-6 shadow-2xl">
+                  <div className="mb-5 flex items-start justify-between"><div><h3 className="text-lg font-semibold">Add Rental Unit</h3><p className="text-sm text-text-secondary">Add another unit to an existing property.</p></div><button type="button" onClick={() => setShowAddUnit(false)} className="rounded-lg p-2 hover:bg-surface-secondary"><X className="h-4 w-4" /></button></div>
+                  <div className="space-y-4"><div><label className="mb-1.5 block text-sm font-medium">Property *</label><select required value={newUnitForm.propertyId} onChange={(event) => setNewUnitForm({ ...newUnitForm, propertyId: event.target.value })} className="h-10 w-full rounded-xl border border-border bg-white px-3 text-sm"><option value="">Select a property</option>{properties.map((property) => <option key={property.id} value={property.id}>{property.name}</option>)}</select></div><div className="grid grid-cols-2 gap-3"><div><label className="mb-1.5 block text-sm font-medium">Unit number *</label><Input required value={newUnitForm.unitNumber} onChange={(event) => setNewUnitForm({ ...newUnitForm, unitNumber: event.target.value })} placeholder="101" /></div><div><label className="mb-1.5 block text-sm font-medium">Floor</label><Input type="number" min="0" value={newUnitForm.floor} onChange={(event) => setNewUnitForm({ ...newUnitForm, floor: event.target.value })} placeholder="1" /></div></div><div className="grid grid-cols-2 gap-3"><div><label className="mb-1.5 block text-sm font-medium">Monthly rent *</label><Input required type="number" min="0" value={newUnitForm.rentAmount} onChange={(event) => setNewUnitForm({ ...newUnitForm, rentAmount: event.target.value })} placeholder="15000" /></div><div><label className="mb-1.5 block text-sm font-medium">Status</label><select value={newUnitForm.status} onChange={(event) => setNewUnitForm({ ...newUnitForm, status: event.target.value as Unit["status"] })} className="h-10 w-full rounded-xl border border-border bg-white px-3 text-sm"><option value="vacant">Vacant</option><option value="occupied">Occupied</option><option value="maintenance">Maintenance</option></select></div></div><div><label className="mb-1.5 block text-sm font-medium">Unit photos</label><Input type="file" accept="image/*" multiple onChange={async (event) => { const files = Array.from(event.target.files || []); if (!files.length) return; try { const urls = await Promise.all(files.map(async (file) => { const upload = new FormData(); upload.append("file", file); upload.append("type", "unit"); const response = await fetch("/api/auth/upload", { method: "POST", credentials: "include", body: upload }); const result = await response.json(); if (!result.success) throw new Error(result.error || "Upload failed"); return result.url as string; })); setNewUnitForm((current) => ({ ...current, imageUrl: current.imageUrl || urls[0], imageUrls: [...current.imageUrls, ...urls] })); event.target.value = ""; toast.success(`${urls.length} image${urls.length === 1 ? "" : "s"} uploaded`); } catch (error) { toast.error(error instanceof Error ? error.message : "Upload failed"); } }} /></div>{newUnitForm.imageUrls.length > 0 && <div className="flex flex-wrap gap-2">{newUnitForm.imageUrls.map((url, index) => <img key={`${url}-${index}`} src={url} alt={`Preview ${index + 1}`} className="h-16 w-16 rounded-lg object-cover" />)}</div>}</div>
+                  <div className="mt-6 flex justify-end gap-3"><Button type="button" variant="outline" onClick={() => setShowAddUnit(false)}>Cancel</Button><Button type="submit" disabled={isSubmitting}>{isSubmitting ? "Adding..." : "Add Unit"}</Button></div>
+                </form>
+              </div>
+            )}
+
             {/* Create Property Modal */}
             {showCreateProperty && (
               <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
                 <div className="absolute inset-0 bg-black/50" onClick={() => { setShowCreateProperty(false); setCreateStep(1); }} />
                 <div className="relative w-full max-w-2xl rounded-2xl border border-border bg-white shadow-2xl max-h-[90vh] overflow-y-auto">
-                  <div className="p-6 border-b border-border flex items-center justify-between">
+                  <div className="border-b border-border px-6 py-4">
+                    <div className="flex items-center justify-between">
                     <div>
                       <h3 className="text-lg font-semibold text-foreground">Create Property</h3>
-                      <p className="text-sm text-text-secondary">Step {createStep} of 5</p>
+                      <p className="text-sm text-text-secondary">Complete the property and its first rental unit</p>
                     </div>
                     <button onClick={() => { setShowCreateProperty(false); setCreateStep(1); }} className="h-8 w-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-foreground hover:bg-surface-secondary transition-colors">
                       <X className="h-4 w-4" />
                     </button>
+                    </div>
                   </div>
                   <form onSubmit={handleCreateProperty} className="p-6 space-y-4">
                     {createStep === 1 && (
-                      <div className="space-y-4">
-                        <h4 className="text-base font-medium text-foreground">Property Details</h4>
+                      <div className="space-y-5">
+                        <div><h4 className="text-base font-semibold text-foreground">Property Details</h4><p className="mt-1 text-sm text-text-secondary">Start with the property’s location and type.</p></div>
                         <div>
                           <label className="block text-sm font-medium mb-1.5">Property Name *</label>
                           <Input value={propertyForm.name} onChange={(e) => setPropertyForm({ ...propertyForm, name: e.target.value })} required />
@@ -1234,7 +1488,7 @@ export default function OwnerDashboard() {
                           <label className="block text-sm font-medium mb-1.5">Address *</label>
                           <Input value={propertyForm.address} onChange={(e) => setPropertyForm({ ...propertyForm, address: e.target.value })} required />
                         </div>
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                           <div>
                             <label className="block text-sm font-medium mb-1.5">City *</label>
                             <Input value={propertyForm.city} onChange={(e) => setPropertyForm({ ...propertyForm, city: e.target.value })} required />
@@ -1244,16 +1498,33 @@ export default function OwnerDashboard() {
                             <Input value={propertyForm.province} onChange={(e) => setPropertyForm({ ...propertyForm, province: e.target.value })} required />
                           </div>
                         </div>
-                        <div>
-                          <label className="block text-sm font-medium mb-1.5">Property Type</label>
-                          <select value={propertyForm.type} onChange={(e) => setPropertyForm({ ...propertyForm, type: e.target.value as "house" | "condominium" })} className="h-10 px-3 rounded-xl border border-border bg-surface-secondary text-sm">
-                            <option value="house">House</option>
-                            <option value="condominium">Condominium</option>
-                          </select>
+                        <div className="rounded-xl border border-border bg-surface-secondary/40 p-4">
+                          <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-secondary">Classification & availability</p>
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                          <div>
+                            <label className="block text-sm font-medium mb-1.5">Property Type</label>
+                            <select value={propertyForm.type} onChange={(e) => setPropertyForm({ ...propertyForm, type: e.target.value as "house" | "condominium" })} className="h-10 w-full rounded-xl border border-border bg-white px-3 text-sm">
+                              <option value="house">House</option><option value="condominium">Condominium</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-1.5">Current Property Condition</label>
+                            <select value={propertyForm.condition} onChange={(e) => setPropertyForm({ ...propertyForm, condition: e.target.value })} className="h-10 w-full rounded-xl border border-border bg-white px-3 text-sm">
+                              <option value="">Select condition...</option>
+                              {PROPERTY_CONDITIONS.map((condition) => <option key={condition} value={condition}>{condition}</option>)}
+                            </select>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium mb-1.5">Availability Status</label>
+                            <select value={propertyForm.availabilityStatus} onChange={(e) => setPropertyForm({ ...propertyForm, availabilityStatus: e.target.value as typeof AVAILABILITY_STATUSES[number] })} className="h-10 w-full rounded-xl border border-border bg-white px-3 text-sm">
+                              {AVAILABILITY_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
+                            </select>
+                          </div>
+                        </div>
                         </div>
                         <div>
-                          <label className="block text-sm font-medium mb-1.5">Description</label>
-                          <textarea value={propertyForm.description} onChange={(e) => setPropertyForm({ ...propertyForm, description: e.target.value })} className="w-full h-24 px-3 py-2 rounded-xl border border-border bg-surface-secondary text-sm resize-none" />
+                          <label className="block text-sm font-medium mb-1.5">Property Features</label>
+                          <FeaturePicker value={propertyForm.features} onChange={(features) => setPropertyForm({ ...propertyForm, features })} />
                         </div>
                         <div>
                           <label className="block text-sm font-medium mb-1.5">Property Image</label>
@@ -1261,10 +1532,10 @@ export default function OwnerDashboard() {
                             <label className="flex items-center gap-2 px-4 py-2 rounded-xl border border-border bg-surface-secondary cursor-pointer hover:bg-surface-tertiary transition-colors">
                               <Camera className="h-4 w-4" />
                               <span className="text-sm">{propertyForm.imageUrl ? "Change Image" : "Upload Image"}</span>
-                              <input type="file" accept="image/*" className="hidden" onChange={handlePropertyImageUpload} disabled={isUploadingPropertyImage} />
+                              <input type="file" accept="image/*" multiple className="hidden" onChange={handlePropertyImageUpload} disabled={isUploadingPropertyImage} />
                             </label>
                             {isUploadingPropertyImage && <span className="text-xs text-text-secondary">Uploading...</span>}
-                             {propertyForm.imageUrl && <img src={propertyForm.imageUrl} alt="Preview" className="h-24 w-24 rounded-lg object-cover border border-border" />}
+                             {propertyForm.imageUrls.length > 0 && <div className="flex flex-wrap gap-2">{propertyForm.imageUrls.map((url, index) => <img key={`${url}-${index}`} src={url} alt={`Property preview ${index + 1}`} className="h-20 w-20 rounded-lg object-cover border border-border" />)}</div>}
                           </div>
                         </div>
                       </div>
@@ -1294,10 +1565,10 @@ export default function OwnerDashboard() {
                             <label className="flex items-center gap-2 px-4 py-2 rounded-xl border border-border bg-surface-secondary cursor-pointer hover:bg-surface-tertiary transition-colors">
                               <Camera className="h-4 w-4" />
                               <span className="text-sm">{unitsForm.imageUrl ? "Change Image" : "Upload Image"}</span>
-                              <input type="file" accept="image/*" className="hidden" onChange={handleUnitImageUpload} disabled={isUploadingUnitImage} />
+                              <input type="file" accept="image/*" multiple className="hidden" onChange={handleUnitImageUpload} disabled={isUploadingUnitImage} />
                             </label>
                             {isUploadingUnitImage && <span className="text-xs text-text-secondary">Uploading...</span>}
-                             {unitsForm.imageUrl && <img src={unitsForm.imageUrl} alt="Preview" className="h-24 w-24 rounded-lg object-cover border border-border" />}
+                            {unitsForm.imageUrls.length > 0 && <div className="flex flex-wrap gap-2">{unitsForm.imageUrls.map((url, index) => <img key={`${url}-${index}`} src={url} alt={`Unit preview ${index + 1}`} className="h-20 w-20 rounded-lg object-cover border border-border" />)}</div>}
                           </div>
                         </div>
                       </div>
@@ -1307,15 +1578,15 @@ export default function OwnerDashboard() {
                         <h4 className="text-base font-medium text-foreground">Rental Rate and Terms</h4>
                         <div>
                           <label className="block text-sm font-medium mb-1.5">Monthly Rental Rate (₱) *</label>
-                          <Input type="number" value={unitsForm.rentAmount} onChange={(e) => setUnitsForm({ ...unitsForm, rentAmount: Number(e.target.value) })} required />
+                          <Input type="number" value={unitsForm.rentAmount} onChange={(e) => setUnitsForm({ ...unitsForm, rentAmount: e.target.value })} required />
                         </div>
                         <div>
                           <label className="block text-sm font-medium mb-1.5">Security Deposit (₱)</label>
-                          <Input type="number" value={termsForm.securityDeposit} onChange={(e) => setTermsForm({ ...termsForm, securityDeposit: Number(e.target.value) })} />
+                          <Input type="number" value={termsForm.securityDeposit} onChange={(e) => setTermsForm({ ...termsForm, securityDeposit: e.target.value })} />
                         </div>
                         <div>
                           <label className="block text-sm font-medium mb-1.5">Advance Payment (₱)</label>
-                          <Input type="number" value={termsForm.advancePayment} onChange={(e) => setTermsForm({ ...termsForm, advancePayment: Number(e.target.value) })} />
+                          <Input type="number" value={termsForm.advancePayment} onChange={(e) => setTermsForm({ ...termsForm, advancePayment: e.target.value })} />
                         </div>
                         <div className="grid grid-cols-2 gap-3">
                           <div>
@@ -1350,9 +1621,12 @@ export default function OwnerDashboard() {
                           <p className="text-sm"><span className="font-medium">Name:</span> {propertyForm.name}</p>
                           <p className="text-sm"><span className="font-medium">Address:</span> {propertyForm.address}, {propertyForm.city}, {propertyForm.province}</p>
                           <p className="text-sm"><span className="font-medium">Type:</span> {propertyForm.type}</p>
+                          <p className="text-sm"><span className="font-medium">Features:</span> {propertyForm.features.length ? propertyForm.features.join(", ") : "None selected"}</p>
+                          <p className="text-sm"><span className="font-medium">Condition:</span> {propertyForm.condition || "Not specified"}</p>
+                          <p className="text-sm"><span className="font-medium">Availability:</span> {propertyForm.availabilityStatus}</p>
                           <p className="text-sm"><span className="font-medium">Unit:</span> {unitsForm.unitNumber} (Floor {unitsForm.floor || "N/A"})</p>
-                           <p className="text-sm"><span className="font-medium">Rent:</span> {formatCurrency(unitsForm.rentAmount)}/mo</p>
-                           <p className="text-sm"><span className="font-medium">Deposit:</span> {formatCurrency(termsForm.securityDeposit)}</p>
+                           <p className="text-sm"><span className="font-medium">Rent:</span> {formatCurrency(Number(unitsForm.rentAmount) || 0)}/mo</p>
+                           <p className="text-sm"><span className="font-medium">Deposit:</span> {formatCurrency(Number(termsForm.securityDeposit) || 0)}</p>
                           <p className="text-sm"><span className="font-medium">Duration:</span> {termsForm.duration}</p>
                         </div>
                       </div>
@@ -1600,8 +1874,27 @@ export default function OwnerDashboard() {
                       </div>
                     </div>
                     <div>
+                      <label className="block text-sm font-medium mb-1.5">Property Features</label>
+                      <FeaturePicker value={editPropertyForm.features} onChange={(features) => setEditPropertyForm({ ...editPropertyForm, features })} />
+                    </div>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                      <div>
+                        <label className="block text-sm font-medium mb-1.5">Current Property Condition</label>
+                        <select value={editPropertyForm.condition} onChange={(e) => setEditPropertyForm({ ...editPropertyForm, condition: e.target.value })} className="h-10 w-full rounded-xl border border-border bg-surface-secondary px-3 text-sm">
+                          <option value="">Select condition...</option>
+                          {PROPERTY_CONDITIONS.map((condition) => <option key={condition} value={condition}>{condition}</option>)}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1.5">Availability Status</label>
+                        <select value={editPropertyForm.availabilityStatus} onChange={(e) => setEditPropertyForm({ ...editPropertyForm, availabilityStatus: e.target.value as typeof AVAILABILITY_STATUSES[number] })} className="h-10 w-full rounded-xl border border-border bg-surface-secondary px-3 text-sm">
+                          {AVAILABILITY_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
+                        </select>
+                      </div>
+                    </div>
+                    <div>
                       <label className="block text-sm font-medium mb-1.5">Number of Units</label>
-                      <div className="flex items-center gap-3">
+                      <div className="flex flex-wrap items-center gap-3">
                         <Button type="button" variant="outline" onClick={() => changePropertyUnitCount(-1)} aria-label="Decrease units">− Decrease Unit</Button>
                         <span className="min-w-12 text-center rounded-lg bg-surface-secondary px-3 py-2 text-sm font-semibold">{units.filter((unit) => unit.propertyId === editingProperty.id).length}</span>
                         <Button type="button" variant="outline" onClick={() => changePropertyUnitCount(1)} aria-label="Increase units">+ Increase Unit</Button>
@@ -1613,32 +1906,33 @@ export default function OwnerDashboard() {
                       <div className="flex items-center gap-3">
                         <label className="flex items-center gap-2 px-4 py-2 rounded-xl border border-border bg-surface-secondary cursor-pointer hover:bg-surface-tertiary transition-colors">
                           <Camera className="h-4 w-4" />
-                          <span className="text-sm">{editPropertyForm.imageUrl ? "Change Image" : "Upload Image"}</span>
-                          <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (!file) return;
+                          <span className="text-sm">Add Property Images</span>
+                          <input type="file" accept="image/*" multiple className="hidden" onChange={async (e) => {
+                            const files = Array.from(e.target.files || []);
+                            if (!files.length) return;
                             setIsUploadingEditPropertyImage(true);
                             try {
-                              const formData = new FormData();
-                              formData.append("file", file);
-                              formData.append("type", "property");
-                              const res = await fetch("/api/auth/upload", { method: "POST", credentials: "include", body: formData });
-                              const result = await res.json();
-                              if (result.success) {
-                                setEditPropertyForm({ ...editPropertyForm, imageUrl: result.url });
-                                toast.success("Property image uploaded");
-                              } else {
-                                toast.error(result.error || "Failed to upload image");
-                              }
-                            } catch {
-                              toast.error("An error occurred");
+                              const urls = await Promise.all(files.map(async (file) => {
+                                const formData = new FormData();
+                                formData.append("file", file);
+                                formData.append("type", "property");
+                                const res = await fetch("/api/auth/upload", { method: "POST", credentials: "include", body: formData });
+                                const result = await res.json();
+                                if (!result.success) throw new Error(result.error || "Failed to upload image");
+                                return result.url as string;
+                              }));
+                              setEditPropertyForm((current) => ({ ...current, imageUrl: current.imageUrl || urls[0], imageUrls: Array.from(new Set([...current.imageUrls, ...urls])) }));
+                              toast.success(`${urls.length} property image${urls.length === 1 ? "" : "s"} uploaded`);
+                            } catch (error) {
+                              toast.error(error instanceof Error ? error.message : "Failed to upload images");
                             } finally {
                               setIsUploadingEditPropertyImage(false);
+                              e.target.value = "";
                             }
                           }} disabled={isUploadingEditPropertyImage} />
                         </label>
                         {isUploadingEditPropertyImage && <span className="text-xs text-text-secondary">Uploading...</span>}
-                        {editPropertyForm.imageUrl && <img src={editPropertyForm.imageUrl} alt="Preview" className="h-24 w-24 rounded-lg object-cover border border-border" />}
+                        {editPropertyForm.imageUrls.map((url, index) => <div key={`${url}-${index}`} className="relative"><img src={url} alt={`Property preview ${index + 1}`} className="h-20 w-20 rounded-lg object-cover border border-border" /><button type="button" onClick={() => void handleRemoveEditPropertyImage(url)} aria-label={`Remove property image ${index + 1}`} className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-white"><X className="h-3 w-3" /></button></div>)}
                       </div>
                     </div>
                     <div className="flex gap-3 pt-2">
@@ -1663,6 +1957,56 @@ export default function OwnerDashboard() {
                     </button>
                   </div>
                   <form onSubmit={handleSaveUnit} className="p-6 space-y-4">
+                    <div className="rounded-xl border border-border bg-surface-secondary/40 p-4">
+                      <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-text-secondary">Property details</p>
+                      <div className="space-y-3">
+                        <div><label className="block text-sm font-medium mb-1.5">Property Name *</label><Input value={editPropertyForm.name} onChange={(e) => setEditPropertyForm({ ...editPropertyForm, name: e.target.value })} required /></div>
+                        <div><label className="block text-sm font-medium mb-1.5">Property Location *</label><Input value={editPropertyForm.location} onChange={(e) => setEditPropertyForm({ ...editPropertyForm, location: e.target.value })} required /></div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div><label className="block text-sm font-medium mb-1.5">Property Type</label><select value={editPropertyForm.type} onChange={(e) => setEditPropertyForm({ ...editPropertyForm, type: e.target.value as "house" | "condominium" })} className="h-10 w-full rounded-xl border border-border bg-white px-3 text-sm"><option value="house">House</option><option value="condominium">Condominium</option></select></div>
+                          <div><label className="block text-sm font-medium mb-1.5">Availability</label><select value={editPropertyForm.availabilityStatus} onChange={(e) => setEditPropertyForm({ ...editPropertyForm, availabilityStatus: e.target.value as typeof AVAILABILITY_STATUSES[number] })} className="h-10 w-full rounded-xl border border-border bg-white px-3 text-sm">{AVAILABILITY_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}</select></div>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                          <div><label className="block text-sm font-medium mb-1.5">Condition</label><select value={editPropertyForm.condition} onChange={(e) => setEditPropertyForm({ ...editPropertyForm, condition: e.target.value })} className="h-10 w-full rounded-xl border border-border bg-white px-3 text-sm"><option value="">Select condition...</option>{PROPERTY_CONDITIONS.map((condition) => <option key={condition} value={condition}>{condition}</option>)}</select></div>
+                          <div><label className="block text-sm font-medium mb-1.5">Record Status</label><select value={editPropertyForm.status} onChange={(e) => setEditPropertyForm({ ...editPropertyForm, status: e.target.value as "active" | "inactive" })} className="h-10 w-full rounded-xl border border-border bg-white px-3 text-sm"><option value="active">Active</option><option value="inactive">Inactive</option></select></div>
+                        </div>
+                        <div><label className="block text-sm font-medium mb-1.5">Features</label><FeaturePicker value={editPropertyForm.features} onChange={(features) => setEditPropertyForm({ ...editPropertyForm, features })} /></div>
+                        <div>
+                          <label className="block text-sm font-medium mb-1.5">Property Image</label>
+                          <div className="flex flex-wrap items-center gap-3">
+                            <label className="flex cursor-pointer items-center gap-2 rounded-xl border border-border bg-white px-4 py-2 hover:bg-surface-secondary">
+                              <Camera className="h-4 w-4" />
+                              <span className="text-sm">Add Property Images</span>
+                              <input type="file" accept="image/*" multiple className="hidden" disabled={isUploadingEditPropertyImage} onChange={async (event) => {
+                                const files = Array.from(event.target.files || []);
+                                if (!files.length) return;
+                                setIsUploadingEditPropertyImage(true);
+                                try {
+                                  const urls = await Promise.all(files.map(async (file) => {
+                                    const uploadData = new FormData();
+                                    uploadData.append("file", file);
+                                    uploadData.append("type", "property");
+                                    const response = await fetch("/api/auth/upload", { method: "POST", credentials: "include", body: uploadData });
+                                    const result = await response.json();
+                                    if (!result.success) throw new Error(result.error || "Failed to upload image");
+                                    return result.url as string;
+                                  }));
+                                  setEditPropertyForm((current) => ({ ...current, imageUrl: current.imageUrl || urls[0], imageUrls: Array.from(new Set([...current.imageUrls, ...urls])) }));
+                                  toast.success(`${urls.length} property image${urls.length === 1 ? "" : "s"} attached`);
+                                } catch (error) {
+                                  toast.error(error instanceof Error ? error.message : "Failed to upload images");
+                                } finally {
+                                  setIsUploadingEditPropertyImage(false);
+                                  event.target.value = "";
+                                }
+                              }} />
+                            </label>
+                            {isUploadingEditPropertyImage && <span className="text-xs text-text-secondary">Uploading...</span>}
+                            {editPropertyForm.imageUrls.map((url, index) => <div key={`${url}-${index}`} className="relative"><img src={url} alt={`Property preview ${index + 1}`} className="h-20 w-20 rounded-lg border border-border object-cover" /><button type="button" onClick={() => void handleRemoveEditPropertyImage(url)} aria-label={`Remove property image ${index + 1}`} className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-white"><X className="h-3 w-3" /></button></div>)}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
                     <div>
                       <label className="block text-sm font-medium mb-1.5">Unit Number *</label>
                       <Input value={editUnitForm.unitNumber} onChange={(e) => setEditUnitForm({ ...editUnitForm, unitNumber: e.target.value })} required />
@@ -1683,7 +2027,7 @@ export default function OwnerDashboard() {
                     </div>
                     <div>
                       <label className="block text-sm font-medium mb-1.5">Monthly Rent (₱) *</label>
-                      <Input type="number" value={editUnitForm.rentAmount} onChange={(e) => setEditUnitForm({ ...editUnitForm, rentAmount: Number(e.target.value) })} required />
+                      <Input type="number" min="0" value={editUnitForm.rentAmount} onChange={(e) => setEditUnitForm({ ...editUnitForm, rentAmount: e.target.value })} required />
                     </div>
                     <div>
                       <label className="block text-sm font-medium mb-1.5">Unit Image</label>
@@ -1691,31 +2035,32 @@ export default function OwnerDashboard() {
                         <label className="flex items-center gap-2 px-4 py-2 rounded-xl border border-border bg-surface-secondary cursor-pointer hover:bg-surface-tertiary transition-colors">
                           <Camera className="h-4 w-4" />
                           <span className="text-sm">{editUnitForm.imageUrl ? "Change Image" : "Upload Image"}</span>
-                          <input type="file" accept="image/*" className="hidden" onChange={async (e) => {
-                            const file = e.target.files?.[0];
-                            if (!file) return;
+                          <input type="file" accept="image/*" multiple className="hidden" onChange={async (e) => {
+                            const files = Array.from(e.target.files || []);
+                            if (files.length === 0) return;
                             setIsUploadingEditUnitImage(true);
                             try {
-                              const formData = new FormData();
-                              formData.append("file", file);
-                              formData.append("type", "unit");
-                              const res = await fetch("/api/auth/upload", { method: "POST", credentials: "include", body: formData });
-                              const result = await res.json();
-                              if (result.success) {
-                                setEditUnitForm({ ...editUnitForm, imageUrl: result.url });
-                                toast.success("Unit image uploaded");
-                              } else {
-                                toast.error(result.error || "Failed to upload image");
-                              }
-                            } catch {
-                              toast.error("An error occurred");
+                              const urls = await Promise.all(files.map(async (file) => {
+                                const formData = new FormData();
+                                formData.append("file", file);
+                                formData.append("type", "unit");
+                                const res = await fetch("/api/auth/upload", { method: "POST", credentials: "include", body: formData });
+                                const result = await res.json();
+                                if (!result.success) throw new Error(result.error || "Failed to upload image");
+                                return result.url as string;
+                              }));
+                              setEditUnitForm((current) => ({ ...current, imageUrl: current.imageUrl || urls[0], imageUrls: [...current.imageUrls, ...urls] }));
+                              toast.success(`${urls.length} unit image${urls.length === 1 ? "" : "s"} uploaded`);
+                            } catch (error) {
+                              toast.error(error instanceof Error ? error.message : "Failed to upload images");
                             } finally {
                               setIsUploadingEditUnitImage(false);
+                              e.target.value = "";
                             }
                           }} disabled={isUploadingEditUnitImage} />
                         </label>
                         {isUploadingEditUnitImage && <span className="text-xs text-text-secondary">Uploading...</span>}
-                        {editUnitForm.imageUrl && <img src={editUnitForm.imageUrl} alt="Preview" className="h-24 w-24 rounded-lg object-cover border border-border" />}
+                        {editUnitForm.imageUrls.length > 0 && <div className="flex flex-wrap gap-2">{editUnitForm.imageUrls.map((url, index) => <div key={`${url}-${index}`} className="group relative"><img src={url} alt={`Unit preview ${index + 1}`} className="h-20 w-20 rounded-lg object-cover border border-border" /><button type="button" onClick={() => void handleRemoveEditUnitImage(url)} aria-label={`Remove unit image ${index + 1}`} className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-red-600 text-white shadow hover:bg-red-700"><X className="h-3 w-3" /></button></div>)}</div>}
                       </div>
                     </div>
                     <div className="flex gap-3 pt-2">

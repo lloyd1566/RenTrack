@@ -19,6 +19,7 @@ function VerifyOtpContent() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isResending, setIsResending] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [hasRequestedCode, setHasRequestedCode] = useState(false);
   const [status, setStatus] = useState<"form" | "loading" | "success" | "error">("form");
   const [message, setMessage] = useState("");
   const { refreshUser } = useAuth();
@@ -80,6 +81,7 @@ function VerifyOtpContent() {
       if (result.success) {
         toast.success("Verification code sent! Please check your email.");
         setResendCooldown(60);
+        setHasRequestedCode(true);
       } else {
         toast.error(result.error || "Failed to resend verification code");
       }
@@ -212,7 +214,7 @@ function VerifyOtpContent() {
                     disabled={isResending || resendCooldown > 0}
                     onClick={handleResend}
                   >
-                    {isResending ? "Sending..." : resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : "Resend verification code"}
+                    {isResending ? "Sending..." : resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : hasRequestedCode ? "Resend verification code" : "Send verification code"}
                   </Button>
                 </form>
                 <p className="text-[10px] text-center text-text-tertiary mt-3">

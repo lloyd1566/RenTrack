@@ -16,7 +16,11 @@ export interface Property {
   createdAt: string;
   createdBy: string;
   imageUrl?: string;
+  imageUrls?: string[];
   agentId?: string;
+  features?: string[];
+  condition?: string;
+  availabilityStatus?: "Available" | "Occupied" | "Reserved" | "Under Maintenance";
 }
 
 export interface Unit {
@@ -30,6 +34,7 @@ export interface Unit {
   tenantId?: string;
   leaseEnd?: string;
   imageUrl?: string;
+  imageUrls?: string[];
 }
 
 export interface TenantRecord {
@@ -131,6 +136,20 @@ export interface Notification {
   createdAt: string;
 }
 
+export interface AgentApplication {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  address: "Cebu" | "Manila" | "Davao" | "Butuan";
+  gender?: string;
+  birthdate?: string;
+  resumeName?: string;
+  resumeMimeType?: string;
+  status: "pending" | "approved" | "rejected";
+  createdAt: string;
+}
+
 export interface AuditLog {
   id: string;
   userId?: string;
@@ -203,6 +222,9 @@ export async function getProperties(_user?: any): Promise<Property[]> {
 
 export async function addProperty(data: Omit<Property, "id" | "createdAt" | "createdBy">, _userId: string): Promise<Property> {
   const result = await apiPost("/api/data/properties", data);
+  if (!result.success || !result.property) {
+    throw new Error(result.error || "Failed to create property");
+  }
   return result.property || result;
 }
 
@@ -225,6 +247,9 @@ export async function getUnits(_user?: any): Promise<Unit[]> {
 
 export async function addUnit(data: Omit<Unit, "id">): Promise<Unit> {
   const result = await apiPost("/api/data/units", data);
+  if (!result.success || !result.unit) {
+    throw new Error(result.error || "Failed to create unit");
+  }
   return result.unit || result;
 }
 
@@ -442,10 +467,11 @@ export async function registerAgent(data: {
   languages?: string;
   hobbies?: string;
 }): Promise<UserRecord & { needsOtp?: boolean; devOtp?: string }> {
-  const result = await apiPost("/api/auth/signup", { ...data, role: "agent" });
+  const result = await apiPost("/api/auth/users", { ...data, role: "agent" });
   if (result && result.success) {
     return {
-      id: result.userId,
+      ...(result.user || {}),
+      id: result.user?.id || result.userId,
       name: data.name,
       email: data.email,
       role: "agent",
@@ -463,7 +489,17 @@ export async function registerAgent(data: {
       devOtp: result.devOtp,
     } as UserRecord & { needsOtp?: boolean; devOtp?: string };
   }
+
   throw new Error(result?.error || result?.message || "Failed to register agent");
+}
+
+export async function getAgentApplications(status?: string): Promise<AgentApplication[]> {
+  const result = await apiGet(`/api/agent-applications${status ? `?status=${encodeURIComponent(status)}` : ""}`);
+  return result.success ? result.applications : [];
+}
+
+export async function reviewAgentApplication(id: string, status: "approved" | "rejected") {
+  return apiPatch("/api/agent-applications", { id, status });
 }
 
 // ─── Dashboard Data ────────────────────────────────────────────────────────

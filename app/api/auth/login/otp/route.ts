@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { findUserByEmail, initDatabase, findOrCreateAdmin } from "@/lib/db";
+import { findUserByEmail, initDatabase } from "@/lib/db";
 import { regenerateSession } from "@/lib/security";
 import { withSecurityHeaders, withCorsHeaders, getClientIp } from "@/lib/security-headers";
 import { logAudit } from "@/lib/db";
@@ -8,7 +8,6 @@ import bcrypt from "bcryptjs";
 export async function POST(request: NextRequest) {
   try {
     await initDatabase();
-    await findOrCreateAdmin();
 
     const { email, password } = await request.json();
     if (!email || !password) {

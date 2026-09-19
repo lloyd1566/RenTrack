@@ -49,11 +49,9 @@ export default function OwnerAgentsPage() {
     password: "",
     phone: "",
     address: "",
-    experience: "",
     aboutMe: "",
     gender: "",
     birthdate: "",
-    country: "",
     languages: "",
     hobbies: "",
   });
@@ -87,7 +85,7 @@ export default function OwnerAgentsPage() {
   }, [loadData]);
 
   const openRegister = () => {
-    setAgentForm({ name: "", email: "", password: "", phone: "", address: "", experience: "", aboutMe: "", gender: "", birthdate: "", country: "", languages: "", hobbies: "" });
+    setAgentForm({ name: "", email: "", password: "", phone: "", address: "", aboutMe: "", gender: "", birthdate: "", languages: "", hobbies: "" });
     setShowAgentPassword(false);
     setIsRegisterOpen(true);
   };
@@ -95,7 +93,7 @@ export default function OwnerAgentsPage() {
   const closeRegister = () => {
     setIsRegisterOpen(false);
     setShowAgentPassword(false);
-    setAgentForm({ name: "", email: "", password: "", phone: "", address: "", experience: "", aboutMe: "", gender: "", birthdate: "", country: "", languages: "", hobbies: "" });
+    setAgentForm({ name: "", email: "", password: "", phone: "", address: "", aboutMe: "", gender: "", birthdate: "", languages: "", hobbies: "" });
   };
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -214,7 +212,7 @@ export default function OwnerAgentsPage() {
                 </button>
               </div>
               <form onSubmit={handleRegister} className="max-h-[calc(90vh-90px)] overflow-y-auto p-4 space-y-2">
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                   <div className="min-w-0">
                     <label className="text-[10px] font-medium text-text-secondary mb-0.5 block">Full Name *</label>
                     <Input placeholder="e.g. Juan Dela Cruz" value={agentForm.name} onChange={(e) => setAgentForm({ ...agentForm, name: e.target.value })} required />
@@ -238,11 +236,9 @@ export default function OwnerAgentsPage() {
                   </div>
                   <div className="min-w-0">
                     <label className="text-[10px] font-medium text-text-secondary mb-0.5 block">Address</label>
-                    <Input placeholder="e.g. Manila, Philippines" value={agentForm.address} onChange={(e) => setAgentForm({ ...agentForm, address: e.target.value })} />
-                  </div>
-                  <div className="min-w-0">
-                    <label className="text-[10px] font-medium text-text-secondary mb-0.5 block">Experience</label>
-                    <Input placeholder="e.g. 2 Years" value={agentForm.experience} onChange={(e) => setAgentForm({ ...agentForm, experience: e.target.value })} />
+                    <Select value={agentForm.address} onChange={(e) => setAgentForm({ ...agentForm, address: e.target.value })}>
+                      <option value="">Select city</option><option value="Cebu">Cebu</option><option value="Manila">Manila</option><option value="Davao">Davao</option><option value="Butuan">Butuan</option>
+                    </Select>
                   </div>
                   <div className="min-w-0">
                     <label className="text-[10px] font-medium text-text-secondary mb-0.5 block">Gender</label>
@@ -256,10 +252,6 @@ export default function OwnerAgentsPage() {
                   <div className="min-w-0">
                     <label className="text-[10px] font-medium text-text-secondary mb-0.5 block">Birthdate</label>
                     <Input type="date" value={agentForm.birthdate} onChange={(e) => setAgentForm({ ...agentForm, birthdate: e.target.value })} />
-                  </div>
-                  <div className="min-w-0">
-                    <label className="text-[10px] font-medium text-text-secondary mb-0.5 block">Country</label>
-                    <Input placeholder="e.g. Philippines" value={agentForm.country} onChange={(e) => setAgentForm({ ...agentForm, country: e.target.value })} />
                   </div>
                 </div>
                 <div className="flex gap-2 pt-1">
@@ -345,9 +337,6 @@ export default function OwnerAgentsPage() {
                     <MapPin className="h-3.5 w-3.5" />
                     <span className="truncate">{agent.address}</span>
                   </div>
-                )}
-                {agent.experience && (
-                  <div className="text-[10px] text-text-tertiary">Experience: {agent.experience}</div>
                 )}
                 {agent.gender && (
                   <div className="text-[10px] text-text-tertiary">Gender: {agent.gender}</div>
@@ -475,7 +464,6 @@ export default function OwnerAgentsPage() {
                   <p className="text-sm text-text-secondary">{viewingAgent.email}</p>
                   <div className="flex items-center gap-2 mt-2">
                     <Badge variant="outline" className="text-[10px] font-medium capitalize">agent</Badge>
-                    {viewingAgent.experience && <span className="text-[10px] text-text-tertiary">{viewingAgent.experience}</span>}
                   </div>
                 </div>
               </div>

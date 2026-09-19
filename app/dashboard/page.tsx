@@ -109,7 +109,7 @@ export default function DashboardOverview() {
         <div className="relative overflow-hidden rounded-xl p-4 sm:p-6 text-white shadow-xl">
           <div
             className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-            style={{ backgroundImage: "url('/images/favicon/Butuan City.webp')" }}
+            style={{ backgroundImage: "url('/images/favicon/Agusan del Norte.jpg')" }}
           />
           <div className="absolute inset-0 bg-gradient-to-r from-blue-900/80 to-indigo-900/80 dark:from-slate-900/90 dark:to-slate-900/90" />
           <div className="relative flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">

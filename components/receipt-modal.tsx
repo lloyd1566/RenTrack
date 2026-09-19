@@ -10,6 +10,11 @@ interface ReceiptModalProps {
     tenantName?: string;
     paymentDate?: string;
     id?: string;
+    propertyName?: string;
+    amountPaid?: number;
+    amountDue?: number;
+    balance?: number;
+    paymentMethod?: string;
   };
 }
 
@@ -72,6 +77,13 @@ export default function ReceiptModal({ isOpen, onClose, receiptUrl, payment }: R
         </div>
 
         <div className="bg-slate-50 p-3 sm:p-5">
+          <div className="mb-3 grid grid-cols-2 gap-3 rounded-[22px] border border-slate-200 bg-white p-4 text-sm sm:grid-cols-4">
+            <div><p className="text-xs text-slate-500">Tenant</p><p className="font-medium text-slate-900">{payment?.tenantName || "—"}</p></div>
+            <div><p className="text-xs text-slate-500">Property</p><p className="font-medium text-slate-900">{payment?.propertyName || "—"}</p></div>
+            <div><p className="text-xs text-slate-500">Paid</p><p className="font-medium text-emerald-700">₱{Number(payment?.amountPaid || 0).toLocaleString()}</p></div>
+            <div><p className="text-xs text-slate-500">Balance</p><p className="font-medium text-slate-900">₱{Number(payment?.balance || 0).toLocaleString()}</p></div>
+            <div className="col-span-2 sm:col-span-4"><p className="text-xs text-slate-500">Payment breakdown</p><p className="font-medium text-slate-900">Amount due: ₱{Number(payment?.amountDue || 0).toLocaleString()} · Method: {(payment?.paymentMethod || "Not specified").replace("_", " ")}</p></div>
+          </div>
           <div className="overflow-hidden rounded-[22px] border border-slate-200 bg-white shadow-[0_18px_40px_rgba(15,23,42,0.08)]">
             {isPdf ? (
               <iframe
