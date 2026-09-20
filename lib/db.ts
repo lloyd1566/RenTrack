@@ -81,8 +81,15 @@ export async function query(text: string, params?: any[]) {
   }
 }
 
+let dbInitialized = false;
+let initDbPromise: Promise<void> | null = null;
+
 export async function initDatabase() {
-  const statements: string[] = [];
+  if (dbInitialized) return;
+  if (initDbPromise) return initDbPromise;
+
+  initDbPromise = (async () => {
+    const statements: string[] = [];
 
   statements.push(`CREATE TABLE IF NOT EXISTS users (
     id TEXT PRIMARY KEY,
@@ -381,7 +388,11 @@ export async function initDatabase() {
     console.error("Failed to reload PostgREST schema:", err);
   }
 
-  console.log("✅ Database tables initialized");
+    console.log("✅ Database tables initialized");
+    dbInitialized = true;
+  })();
+
+  return initDbPromise;
 }
 
 export async function createUser(name: string, email: string, password: string, role: string, phone?: string, paymentPin?: string, address?: string) {
@@ -1015,9 +1026,16 @@ export async function createNotification(data: any) {
 
 export async function createAgentApplication(data: {
   name: string; email: string; phone?: string; address: string; gender?: string; birthdate?: string;
-  resumeData?: Buffer; resumeName?: string; resumeMimeType?: string;
+  resumeData?: Buffer | string; resumeName?: string; resumeMimeType?: string;
 }) {
   const id = `agent_app_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  let resumeBase64: string | null = null;
+  if (data.resumeData) {
+    resumeBase64 = Buffer.isBuffer(data.resumeData)
+      ? data.resumeData.toString("base64")
+      : String(data.resumeData);
+  }
+
   const { data: application, error } = await getAdminSupabase().from("agent_applications").insert({
     id,
     name: data.name,
@@ -1026,11 +1044,14 @@ export async function createAgentApplication(data: {
     address: data.address,
     gender: data.gender || null,
     birthdate: data.birthdate || null,
-    resume_data: data.resumeData || null,
+    resume_data: resumeBase64,
     resume_name: data.resumeName || null,
     resume_mime_type: data.resumeMimeType || null,
   }).select("id, name, email, phone, address, gender, birthdate, resume_name, resume_mime_type, status, reviewed_by, reviewed_at, created_at").single();
-  if (error) throw error;
+  if (error) {
+    console.error("createAgentApplication insert error:", error);
+    throw error;
+  }
   return snakeToCamel(application);
 }
 
@@ -1047,8 +1068,32 @@ export async function getAgentApplications(status?: string) {
 export async function getAgentApplicationResume(id: string) {
   const { data, error } = await getAdminSupabase().from("agent_applications")
     .select("resume_data, resume_name, resume_mime_type").eq("id", id).single();
-  if (error) throw error;
-  return data;
+  if (error || !data) throw error || new Error("Resume not found");
+
+  let raw = data.resume_data || "";
+  let buffer: Buffer;
+  if (typeof raw === "string") {
+    if (raw.startsWith("\\x")) {
+      const hex = raw.slice(2);
+      const decodedUtf8 = Buffer.from(hex, "hex").toString("utf-8");
+      if (/^[A-Za-z0-9+/=]+$/.test(decodedUtf8) && decodedUtf8.length % 4 === 0) {
+        buffer = Buffer.from(decodedUtf8, "base64");
+      } else {
+        buffer = Buffer.from(hex, "hex");
+      }
+    } else {
+      buffer = Buffer.from(raw, "base64");
+    }
+  } else if (Buffer.isBuffer(raw)) {
+    buffer = raw;
+  } else {
+    buffer = Buffer.alloc(0);
+  }
+
+  return {
+    ...data,
+    resume_data: buffer,
+  };
 }
 
 export async function reviewAgentApplication(id: string, status: "approved" | "rejected", reviewerId: string) {

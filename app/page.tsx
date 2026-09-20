@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { Bell, Shield, MapPin, Home, Search, Menu, ChevronRight, Star, Phone, Mail, KeyRound, CreditCard, BarChart3, Building2, Users, X, UserPlus, BedDouble, Bath, Car, Grid2X2, Ruler, Wifi, Snowflake, Sofa, Utensils, WashingMachine, TreePine, LockKeyhole } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 import UnitImageCarousel from "@/components/unit-image-carousel";
 
 const DestinationsMap = dynamic(() => import("@/components/destinations-map"), { ssr: false });
@@ -264,11 +265,17 @@ export default function LandingPage() {
 
   const submitAgentApplication = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!agentResume) return;
+    if (agentApplicationSending) return;
+    if (!agentResume) {
+      toast.error("Please upload your resume (PDF or Word document)");
+      return;
+    }
     setAgentApplicationSending(true);
     try {
       const form = new FormData();
-      Object.entries(agentApplication).forEach(([key, value]) => form.append(key, value));
+      Object.entries(agentApplication).forEach(([key, value]) => {
+        if (value) form.append(key, value);
+      });
       form.append("resume", agentResume);
       const response = await fetch("/api/agent-applications", { method: "POST", body: form });
       const result = await response.json();
@@ -277,8 +284,9 @@ export default function LandingPage() {
       setAgentApplication({ name: "", email: "", phone: "", address: "", gender: "", birthdate: "" });
       setAgentResume(null);
       setShowApplicationSuccess(true);
+      toast.success("Application submitted successfully! Our team will review your application.");
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Application failed");
+      toast.error(error instanceof Error ? error.message : "Application failed");
     } finally {
       setAgentApplicationSending(false);
     }

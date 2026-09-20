@@ -8,7 +8,6 @@ const LOCATIONS = ["Cebu", "Manila", "Davao", "Butuan"];
 
 export async function POST(request: NextRequest) {
   try {
-    await initDatabase();
     const form = await request.formData();
     const name = String(form.get("name") || "").trim();
     const email = String(form.get("email") || "").trim().toLowerCase();
@@ -22,19 +21,40 @@ export async function POST(request: NextRequest) {
     }
     const existing = await getAdminSupabase().from("agent_applications").select("id, status").eq("email", email).eq("status", "pending").maybeSingle();
     if (existing.data) return NextResponse.json({ success: false, error: "You already have a pending application" }, { status: 409 });
+
+    const phone = String(form.get("phone") || "").trim() || undefined;
+    const gender = String(form.get("gender") || "").trim() || undefined;
+    const birthdate = String(form.get("birthdate") || "").trim() || undefined;
+
     const application = await createAgentApplication({
-      name, email, address, phone: String(form.get("phone") || "").trim(),
-      gender: String(form.get("gender") || "").trim(), birthdate: String(form.get("birthdate") || "").trim(),
-      resumeData: Buffer.from(await resume.arrayBuffer()), resumeName: resume.name, resumeMimeType: resume.type,
+      name,
+      email,
+      address,
+      phone,
+      gender,
+      birthdate,
+      resumeData: Buffer.from(await resume.arrayBuffer()),
+      resumeName: resume.name,
+      resumeMimeType: resume.type,
     });
-    const owners = await getAdminSupabase().from("users").select("id").in("role", ["owner", "admin"]);
-    await Promise.all((owners.data || []).map((owner: { id: string }) => createNotification({
-      userId: owner.id, title: "New Agent Applicant", message: `${name} applied to become an agent in ${address}.`, type: "system", read: false,
-    })));
+
+    // Send owner notifications in background without blocking response
+    void (async () => {
+      try {
+        const owners = await getAdminSupabase().from("users").select("id").in("role", ["owner", "admin"]);
+        await Promise.all((owners.data || []).map((owner: { id: string }) => createNotification({
+          userId: owner.id, title: "New Agent Applicant", message: `${name} applied to become an agent in ${address}.`, type: "system", read: false,
+        })));
+      } catch (notifError) {
+        console.warn("Owner notification failed:", notifError);
+      }
+    })();
+
     return NextResponse.json({ success: true, application });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Agent application error:", error);
-    return NextResponse.json({ success: false, error: "Unable to submit application" }, { status: 500 });
+    const errorMessage = error?.message || (typeof error === "string" ? error : "Unable to submit application");
+    return NextResponse.json({ success: false, error: errorMessage }, { status: 500 });
   }
 }
 
