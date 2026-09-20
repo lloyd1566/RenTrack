@@ -191,6 +191,159 @@ html {
   box-shadow: var(--shadow-card-hover);
 }
 
+.nav-letter-animate,
+.nav-link-letter {
+  animation: nav-letter-reveal 650ms cubic-bezier(.16, 1, .3, 1) both;
+}
+
+.nav-link-letter:nth-child(1) { animation-delay: 80ms; }
+.nav-link-letter:nth-child(2) { animation-delay: 140ms; }
+.nav-link-letter:nth-child(3) { animation-delay: 200ms; }
+.nav-link-letter:nth-child(4) { animation-delay: 260ms; }
+.nav-link-letter:nth-child(5) { animation-delay: 320ms; }
+
+@keyframes nav-letter-reveal {
+  from { opacity: 0; transform: translateY(-8px); letter-spacing: .08em; }
+  to { opacity: 1; transform: translateY(0); letter-spacing: 0; }
+}
+
+.destinations-map {
+  animation: map-enter 650ms cubic-bezier(.16, 1, .3, 1) both;
+}
+
+.destinations-map .maplibregl-ctrl-group {
+  overflow: hidden;
+  border: 1px solid rgb(226 232 240 / 0.9);
+  border-radius: 10px;
+  box-shadow: 0 8px 20px rgb(15 23 42 / 0.12);
+}
+
+.destinations-map .maplibregl-ctrl button {
+  width: 34px;
+  height: 34px;
+}
+
+.destination-map-marker {
+  position: relative;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  opacity: 1;
+  transition: opacity 180ms ease;
+}
+
+.destination-map-marker__dot {
+  animation: marker-enter 550ms var(--marker-delay) cubic-bezier(.16, 1, .3, 1) both;
+}
+
+.destination-map-marker__dot {
+  position: absolute;
+  top: 5px;
+  left: 5px;
+  width: 24px;
+  height: 24px;
+  border: 3px solid white;
+  border-radius: 9999px;
+  background: #2563eb;
+  box-shadow: 0 3px 10px rgb(30 64 175 / 0.55);
+  transition: transform 180ms ease, background 180ms ease;
+}
+
+.destination-map-marker__pulse {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 30px;
+  height: 30px;
+  border-radius: 9999px;
+  background: rgb(37 99 235 / 0.32);
+  animation: marker-pulse 2.4s calc(var(--marker-delay) + 580ms) ease-out infinite;
+}
+
+.destination-map-marker__label {
+  animation-delay: calc(var(--marker-delay) + 120ms);
+}
+
+.destination-map-marker__label {
+  position: absolute;
+  top: 36px;
+  left: 50%;
+  padding: 3px 7px;
+  border: 1px solid rgb(255 255 255 / 0.9);
+  border-radius: 9999px;
+  background: rgb(15 23 42 / 0.84);
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  transform: translateX(-50%);
+  box-shadow: 0 4px 12px rgb(15 23 42 / 0.22);
+  opacity: 0;
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.destination-map-marker:hover .destination-map-marker__label,
+.destination-map-marker:focus-visible .destination-map-marker__label,
+.destination-map-marker:focus .destination-map-marker__label {
+  opacity: 1;
+  transform: translateX(-50%) translateY(2px);
+}
+
+.destination-map-marker:hover .destination-map-marker__dot,
+.destination-map-marker:focus-visible .destination-map-marker__dot {
+  transform: scale(1.22);
+  background: #1d4ed8;
+}
+
+.destination-map-popup {
+  display: grid;
+  min-width: 140px;
+  gap: 4px;
+  color: #0f172a;
+}
+
+.destination-map-popup strong { font-size: 15px; }
+.destination-map-popup span { color: #475569; font-size: 12px; }
+.destination-map-popup a { margin-top: 4px; color: #2563eb; font-size: 12px; font-weight: 700; }
+
+.destinations-map .maplibregl-popup {
+  animation: popup-enter 220ms ease-out both;
+}
+
+@keyframes map-enter {
+  from { opacity: 0; transform: scale(.985); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes marker-enter {
+  from { opacity: 0; transform: scale(.25) translateY(10px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes marker-pulse {
+  0% { transform: scale(.65); opacity: .75; }
+  75%, 100% { transform: scale(1.65); opacity: 0; }
+}
+
+@keyframes popup-enter {
+  from { opacity: 0; transform: translateY(6px) scale(.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-letter-animate,
+  .nav-link-letter,
+  .destinations-map,
+  .destination-map-marker,
+  .destination-map-marker__dot,
+  .destination-map-marker__pulse,
+  .destinations-map .maplibregl-popup { animation: none; }
+}
+
 /* Smooth scroll */
 html {
   scroll-behavior: smooth;

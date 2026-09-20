@@ -39,11 +39,18 @@ function VerifyEmailContent() {
   }, [token]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+    <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-surface px-4">
+      <motion.div
+        animate={{ scale: [1, 1.08, 1] }}
+        transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat"
+        style={{ backgroundImage: "url('/images/favicon/Landing page and login page.png')" }}
+      />
+      <div className="absolute inset-0 bg-gradient-to-br from-primary-900/85 via-primary-900/70 to-secondary-900/80" />
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8 text-center"
+        className="relative z-10 w-full max-w-md rounded-2xl border border-white/20 bg-white/95 p-8 text-center shadow-2xl"
       >
         {status === "loading" && (
           <>
@@ -100,8 +107,8 @@ function VerifyEmailContent() {
 export default function VerifyEmailPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-        <div className="w-full max-w-md bg-white rounded-2xl shadow-lg p-8 text-center">
+      <div className="min-h-screen flex items-center justify-center bg-surface px-4">
+        <div className="w-full max-w-md rounded-2xl bg-white p-8 text-center shadow-lg">
           <Loader2 className="h-12 w-12 text-blue-600 mx-auto mb-4 animate-spin" />
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Loading...</h2>
         </div>

@@ -6,7 +6,12 @@ export async function GET(request: NextRequest) {
   try {
     // This endpoint is used by the public landing-page contact/chat forms.
     // Return only the fields a visitor needs; never expose account secrets.
-    const users = await getAllUsers();
+    const users = await Promise.race([
+      getAllUsers(),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("Agent lookup timed out")), 1500);
+      }),
+    ]);
     const agents = users.filter((u: any) => u.role === "agent");
     const safeAgents = agents.map((u: any) => ({
       id: u.id,
@@ -24,8 +29,10 @@ export async function GET(request: NextRequest) {
     const response = NextResponse.json({ success: true, users: safeAgents });
     return withSecurityHeaders(withCorsHeaders(request, response));
   } catch (error) {
-    console.error("Get agents error:", error);
-    const response = NextResponse.json({ success: false, error: "Failed to fetch agents" }, { status: 500 });
+    console.warn("Agents unavailable:", error instanceof Error ? error.message : error);
+    // Agent contact data is optional on the public landing page. Keep the page usable
+    // when the upstream database is temporarily unavailable.
+    const response = NextResponse.json({ success: true, users: [], degraded: true });
     return withSecurityHeaders(withCorsHeaders(request, response));
   }
 }

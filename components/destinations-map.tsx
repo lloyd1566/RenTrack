@@ -1,136 +1,101 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import L from "leaflet";
+import { Map, Marker, NavigationControl, Popup, type Map as MapLibreMap, type LngLatBoundsLike } from "maplibre-gl";
 
-import "leaflet/dist/leaflet.css";
+import "maplibre-gl/dist/maplibre-gl.css";
 
-const philippinesBounds: L.LatLngBoundsExpression = [
-  [4.5, 116.7],
-  [21.3, 126.8],
+const philippinesBounds: LngLatBoundsLike = [
+  [116.7, 4.5],
+  [126.8, 21.3],
 ];
 
 const destinations = [
-  { name: "Manila", region: "National Capital Region", coordinates: [14.5995, 120.9842] as L.LatLngTuple },
-  { name: "Cebu", region: "Central Visayas", coordinates: [10.3157, 123.8854] as L.LatLngTuple },
-  { name: "Butuan", region: "Agusan del Norte", coordinates: [8.9475, 125.5406] as L.LatLngTuple },
-  { name: "Davao", region: "Davao Region", coordinates: [7.1907, 125.4553] as L.LatLngTuple },
+  { name: "Manila", region: "National Capital Region", coordinates: [120.9842, 14.5995] as [number, number] },
+  { name: "Cebu", region: "Central Visayas", coordinates: [123.8854, 10.3157] as [number, number] },
+  { name: "Butuan", region: "Agusan del Norte", coordinates: [125.5406, 8.9475] as [number, number] },
+  { name: "Davao", region: "Davao Region", coordinates: [125.4553, 7.1907] as [number, number] },
 ];
 
-function destinationIcon(index: number) {
-  return L.divIcon({
-    className: "destination-marker-wrapper",
-    html: `<span class="destination-marker" style="--marker-delay: ${index * 0.32}s"><span class="destination-marker__pulse"></span><span class="destination-marker__dot"></span></span>`,
-    iconSize: [30, 30],
-    iconAnchor: [15, 15],
-  });
+const mapStyle = {
+  version: 8 as const,
+  sources: {
+    openstreetmap: {
+      type: "raster" as const,
+      tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
+      tileSize: 256,
+      attribution: "&copy; OpenStreetMap contributors",
+    },
+  },
+  layers: [
+    {
+      id: "openstreetmap",
+      type: "raster" as const,
+      source: "openstreetmap",
+      paint: { "raster-saturation": -0.05, "raster-contrast": 0.04 },
+    },
+  ],
+};
+
+function createDestinationMarker(index: number) {
+  const marker = document.createElement("button");
+  marker.type = "button";
+  marker.className = "destination-map-marker";
+  marker.style.setProperty("--marker-delay", `${index * 120}ms`);
+  marker.setAttribute("aria-label", `View properties in ${destinations[index].name}`);
+  marker.innerHTML = `<span class="destination-map-marker__pulse"></span><span class="destination-map-marker__dot"></span><span class="destination-map-marker__label">${destinations[index].name}</span>`;
+  return marker;
 }
 
 export default function DestinationsMap() {
   const containerRef = useRef<HTMLDivElement>(null);
+  const mapRef = useRef<MapLibreMap | null>(null);
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container || container.dataset.leafletMounted === "true") return;
+    if (!container || mapRef.current) return;
 
-    container.dataset.leafletMounted = "true";
-    const map = L.map(container, {
-      zoomControl: true,
-      scrollWheelZoom: false,
+    const map = new Map({
+      container,
+      style: mapStyle,
+      center: [121.8, 11.5],
+      zoom: 5.5,
       maxBounds: philippinesBounds,
-      maxBoundsViscosity: 1,
       minZoom: 5,
+      maxZoom: 12,
+      scrollZoom: false,
+      dragRotate: false,
+      pitchWithRotate: false,
+      attributionControl: { compact: true },
     });
-
-    map.fitBounds(philippinesBounds, { padding: [12, 12] });
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
-    }).addTo(map);
+    mapRef.current = map;
+    map.addControl(new NavigationControl({ showCompass: false }), "top-right");
+    map.once("load", () => map.fitBounds(philippinesBounds, { padding: 36, maxZoom: 6.5 }));
 
     destinations.forEach((destination, index) => {
-      L.marker(destination.coordinates, { icon: destinationIcon(index) })
-        .bindPopup(`
-          <div style="min-width:128px;text-align:center">
-            <p style="margin:0;font-weight:700;color:#0f172a">${destination.name}</p>
-            <p style="margin:2px 0 0;font-size:12px;color:#475569">${destination.region}</p>
-            <a href="#properties" style="display:inline-block;margin-top:8px;font-size:12px;font-weight:600;color:#2563eb">View properties</a>
-          </div>
-        `)
+      const popup = new Popup({ offset: 18, closeButton: true, maxWidth: "220px" }).setHTML(`
+        <div class="destination-map-popup">
+          <strong>${destination.name}</strong>
+          <span>${destination.region}</span>
+          <a href="#properties">View properties</a>
+        </div>
+      `);
+
+      new Marker({ element: createDestinationMarker(index), anchor: "center" })
+        .setLngLat(destination.coordinates)
+        .setPopup(popup)
         .addTo(map);
     });
 
-    const resizeObserver = new ResizeObserver(() => map.invalidateSize());
+    const resizeObserver = new ResizeObserver(() => map.resize());
     resizeObserver.observe(container);
 
     return () => {
       resizeObserver.disconnect();
       map.remove();
-      container.dataset.leafletMounted = "false";
+      mapRef.current = null;
     };
   }, []);
 
-  return (
-    <>
-      <div ref={containerRef} className="destinations-leaflet-map h-full w-full" aria-label="Interactive map of the Philippines" />
-      <style jsx global>{`
-        .destinations-leaflet-map {
-          animation: map-enter 700ms cubic-bezier(.16, 1, .3, 1) both;
-        }
-        .destinations-leaflet-map .leaflet-tile-pane {
-          animation: map-tiles-enter 900ms ease-out both;
-        }
-        .destination-marker-wrapper {
-          background: transparent;
-          border: 0;
-        }
-        .destination-marker {
-          position: relative;
-          display: block;
-          width: 30px;
-          height: 30px;
-          cursor: pointer;
-          animation: marker-enter 550ms calc(var(--marker-delay) + 120ms) cubic-bezier(.16, 1, .3, 1) both;
-        }
-        .destination-marker__dot {
-          position: absolute;
-          inset: 5px;
-          border: 3px solid white;
-          border-radius: 9999px;
-          background: #2563eb;
-          box-shadow: 0 3px 10px rgba(30, 64, 175, .55);
-          transition: transform 180ms ease, background 180ms ease;
-        }
-        .destination-marker__pulse {
-          position: absolute;
-          inset: 2px;
-          border-radius: 9999px;
-          background: rgba(37, 99, 235, .32);
-          animation: marker-pulse 2.4s calc(var(--marker-delay) + 700ms) ease-out infinite;
-        }
-        .destination-marker:hover .destination-marker__dot {
-          transform: scale(1.22);
-          background: #1d4ed8;
-        }
-        @keyframes map-enter {
-          from { opacity: 0; transform: scale(.96); }
-          to { opacity: 1; transform: scale(1); }
-        }
-        @keyframes map-tiles-enter {
-          from { opacity: 0; filter: saturate(.65) contrast(.9); }
-          to { opacity: 1; filter: saturate(1.06) contrast(1.02); }
-        }
-        @keyframes marker-enter {
-          from { opacity: 0; transform: scale(.25) translateY(12px); }
-          to { opacity: 1; transform: scale(1) translateY(0); }
-        }
-        @keyframes marker-pulse {
-          0% { transform: scale(.65); opacity: .75; }
-          75%, 100% { transform: scale(1.65); opacity: 0; }
-        }
-        @media (prefers-reduced-motion: reduce) {
-          .destinations-leaflet-map, .destinations-leaflet-map .leaflet-tile-pane, .destination-marker, .destination-marker__pulse { animation: none; }
-        }
-      `}</style>
-    </>
-  );
+  return <div ref={containerRef} className="destinations-map h-full w-full" aria-label="Interactive map of the Philippines" />;
 }

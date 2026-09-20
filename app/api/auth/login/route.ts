@@ -42,7 +42,12 @@ export async function POST(request: NextRequest) {
       return withSecurityHeaders(withCorsHeaders(request, response));
     }
 
-    const user = await findUserByEmail(sanitizedEmail);
+    const user = await Promise.race([
+      findUserByEmail(sanitizedEmail),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("Database lookup timed out")), 5000);
+      }),
+    ]);
     if (!user) {
       recordFailedAttempt(rateLimitKey);
       const response = NextResponse.json({ success: false, error: "Invalid email or password" }, { status: 401 });
@@ -75,18 +80,28 @@ export async function POST(request: NextRequest) {
     regenerateSession(response, user.id);
     return withSecurityHeaders(withCorsHeaders(request, response));
   } catch (error: any) {
-    console.error("Login error:", error);
+    console.error("Login error:", error instanceof Error ? error.message : error);
     const rawMessage = typeof error === "object" && error && "message" in error ? String((error as any).message) : "Login failed";
     const lowerMessage = rawMessage.toLowerCase();
+    const isDatabaseUnavailable = lowerMessage.includes("fetch failed")
+      || lowerMessage.includes("enotfound")
+      || lowerMessage.includes("econnrefused")
+      || lowerMessage.includes("database lookup timed out")
+      || lowerMessage.includes("exceed_egress_quota")
+      || lowerMessage.includes("service for this project is restricted");
     const friendlyMessage =
-      lowerMessage.includes("does not exist") || lowerMessage.includes("relation") || lowerMessage.includes("table")
+      lowerMessage.includes("exceed_egress_quota") || lowerMessage.includes("service for this project is restricted")
+        ? "Supabase has restricted this project because it exceeded its egress quota. Remove the spend cap or upgrade the Supabase plan, then try again."
+        : isDatabaseUnavailable
+        ? "Login service is temporarily unavailable. Please check the Supabase URL/network connection and try again."
+        : lowerMessage.includes("does not exist") || lowerMessage.includes("relation") || lowerMessage.includes("table")
         ? "Database not initialized yet. Run scripts/supabase-schema.sql in Supabase SQL Editor first."
         : lowerMessage.includes("missing")
         ? `${rawMessage} — set this in Vercel: Project Settings → Environment Variables → NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, SUPABASE_SERVICE_ROLE_KEY`
         : lowerMessage.includes("invalid")
         ? "Invalid email or password"
         : rawMessage || "Login failed";
-    const response = NextResponse.json({ success: false, error: friendlyMessage }, { status: 500 });
+    const response = NextResponse.json({ success: false, error: friendlyMessage }, { status: isDatabaseUnavailable ? 503 : 500 });
     return withSecurityHeaders(withCorsHeaders(request, response));
   }
 }

@@ -9,12 +9,17 @@ import { logAudit } from "@/lib/db";
 
 export async function GET(request: NextRequest) {
   try {
-    const units = await getUnits();
+    const units = await Promise.race([
+      getUnits(),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("Unit lookup timed out")), 1500);
+      }),
+    ]);
     console.log("Units GET count:", units.length);
     return NextResponse.json({ success: true, units: units.map(u => sanitizeResponse(u)) });
   } catch (error) {
-    console.error("Get units error:", error);
-    return NextResponse.json({ success: false, error: "Failed to fetch units" }, { status: 500 });
+    console.warn("Units unavailable:", error instanceof Error ? error.message : error);
+    return NextResponse.json({ success: true, units: [], degraded: true });
   }
 }
 

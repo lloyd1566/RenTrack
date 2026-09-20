@@ -11,12 +11,17 @@ import { logAudit } from "@/lib/db";
 
 export async function GET(request: NextRequest) {
   try {
-    const properties = await getProperties();
+    const properties = await Promise.race([
+      getProperties(),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error("Property lookup timed out")), 1500);
+      }),
+    ]);
     console.log("Properties GET count:", properties.length);
     return NextResponse.json({ success: true, properties: properties.map(p => sanitizeResponse(p)) });
   } catch (error) {
-    console.error("Get properties error:", error);
-    return NextResponse.json({ success: false, error: "Failed to fetch properties" }, { status: 500 });
+    console.warn("Properties unavailable:", error instanceof Error ? error.message : error);
+    return NextResponse.json({ success: true, properties: [], degraded: true });
   }
 }
 

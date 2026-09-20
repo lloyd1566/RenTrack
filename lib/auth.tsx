@@ -85,6 +85,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     (async () => {
+      if (!localStorage.getItem(SESSION_KEY)) {
+        setIsLoading(false);
+        return;
+      }
+
       try {
         const result = await apiGet("/api/auth/me");
         if (result.success) {

@@ -94,12 +94,12 @@ function VerifyOtpContent() {
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden bg-surface">
-      {/* Background image — Butuan City */}
+      {/* Match the login experience so verification feels like one account flow. */}
       <motion.div
         animate={{ scale: [1, 1.08, 1] }}
         transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
         className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-        style={{ backgroundImage: "url('/images/favicon/Butuan\\ City.webp')" }}
+        style={{ backgroundImage: "url('/images/favicon/Landing page and login page.png')" }}
       />
       <div className="absolute inset-0 bg-gradient-to-br from-primary-900/85 via-primary-900/70 to-secondary-900/80" />
 
