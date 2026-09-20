@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -285,38 +285,38 @@ export default function LandingPage() {
   };
 
   return (
-    <main className="relative min-h-screen overflow-x-hidden bg-slate-50 text-slate-900 pt-16">
+    <main className="relative min-h-screen overflow-x-hidden bg-slate-50 text-slate-900">
       {/* â”€â”€â”€ Navigation â”€â”€â”€ */}
-      <nav className="fixed left-0 right-0 top-0 z-50 border-b border-slate-200 bg-white shadow-sm">
-        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+      <nav className="fixed left-0 right-0 top-0 z-50 border-b border-slate-200/80 bg-white/80 shadow-sm backdrop-blur-md transition-colors duration-300 hover:bg-white/90">
+        <div className="w-full px-4 sm:px-6 lg:px-8">
           <div className="relative flex h-16 items-center justify-between">
-            <Link href="/" className="flex items-center gap-2">
+            <Link href="/" className="nav-letter-animate flex items-center gap-2 transition-transform duration-300 hover:scale-[1.02]">
               <div className="relative h-8 w-8">
                    <img src="/images/landing/logo.png" alt="RentTrack" className="w-full h-full object-contain rounded-full" />
               </div>
-              <span className="text-lg font-bold text-slate-900">Rent<span className="text-blue-600">Track</span></span>
+              <span className="text-lg font-bold text-slate-700 drop-shadow-sm">Rent<span className="text-slate-500">Track</span></span>
             </Link>
 
-            <div className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-7 md:flex">
+            <div className="absolute left-1/2 hidden -translate-x-1/2 items-center gap-5 md:flex lg:gap-7">
               {navItems.map((item) => (
-                <a key={item.label} href={item.href} className="text-sm font-medium text-slate-600 transition-colors hover:text-blue-600">
+                <a key={item.label} href={item.href} className="nav-link-letter text-sm font-medium text-slate-600 transition-colors duration-200 hover:text-slate-950">
                   {item.label}
                 </a>
               ))}
             </div>
 
-            <div className="hidden md:flex items-center gap-3">
-              <button type="button" onClick={() => setShowAgentApplication(true)} className="inline-flex h-9 items-center justify-center rounded-lg border border-blue-200 bg-blue-50 px-4 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-100">
+            <div className="hidden items-center gap-2 md:flex">
+              <button type="button" onClick={() => setShowAgentApplication(true)} className="inline-flex h-9 items-center justify-center rounded-lg border border-white/35 bg-white/90 px-3 text-sm font-semibold text-blue-700 transition-all duration-200 hover:bg-white hover:shadow-md">
                 <UserPlus className="mr-1.5 h-4 w-4" />Apply as Agent
               </button>
               <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                <Link href="/login?mode=signin" className="inline-flex h-9 items-center justify-center rounded-lg bg-blue-600 px-5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-blue-700">
+                <Link href="/login?mode=signin" className="inline-flex h-9 items-center justify-center rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white shadow-md shadow-blue-950/20 transition-colors hover:bg-blue-500">
                   Sign In
                 </Link>
               </motion.div>
             </div>
 
-            <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="rounded-lg p-2 text-slate-700 transition-colors hover:bg-blue-50 hover:text-blue-600 md:hidden">
+            <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="rounded-lg p-2 text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-950 md:hidden">
               <Menu className="h-5 w-5" />
             </button>
           </div>
@@ -619,7 +619,7 @@ export default function LandingPage() {
             <p className="mt-3 text-gray-600 max-w-2xl mx-auto">Explore rental properties in the Philippines&apos; most sought-after locations</p>
           </div>
 
-          <div className="relative mx-auto aspect-square w-full max-w-[42rem] overflow-hidden rounded-2xl border border-gray-200 bg-slate-100 shadow-lg shadow-blue-950/10">
+          <div className="relative mx-auto h-[22rem] w-full max-w-5xl overflow-hidden rounded-2xl border border-gray-200 bg-slate-100 shadow-lg shadow-blue-950/10 sm:h-[28rem] lg:h-[32rem]">
             <DestinationsMap />
           </div>
         </div>
@@ -765,7 +765,7 @@ export default function LandingPage() {
                   <p className="mt-2 flex items-center gap-1.5 text-sm text-gray-600"><MapPin className="h-4 w-4 shrink-0" />{selectedProperty.location || selectedProperty.propertyName || "Location not specified"}</p>
                 </div>
                 {(() => {
-                  const selectedFeatures = selectedProperty.features || [];
+                  const selectedFeatures: string[] = Array.isArray(selectedProperty.features) ? selectedProperty.features : [];
                   const featureCards = selectedFeatures.map((feature: string) => {
                     const normalized = feature.toLowerCase();
                     const icon = normalized.includes("bedroom") ? BedDouble
@@ -798,7 +798,7 @@ export default function LandingPage() {
                   });
                   return featureCards.length > 0 ? (
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-                      {featureCards.map((featureCard, index) => (
+                      {featureCards.map((featureCard: { feature: string; icon: React.ElementType; label: string; value: string }, index: number) => (
                         <div key={`${featureCard.feature}-${index}`} className="rounded-xl bg-gray-50 p-3 text-center sm:text-left">
                           <featureCard.icon className="mx-auto h-5 w-5 text-gray-950 sm:mx-0" />
                           <p className="mt-2 text-lg font-medium text-gray-950">{featureCard.value}</p>
