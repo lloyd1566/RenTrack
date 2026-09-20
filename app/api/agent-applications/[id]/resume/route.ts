@@ -9,7 +9,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const { id } = await params;
     const resume = await getAgentApplicationResume(id);
     if (!resume.resume_data) return NextResponse.json({ success: false, error: "Resume not found" }, { status: 404 });
-    return new NextResponse(resume.resume_data, { headers: { "Content-Type": resume.resume_mime_type || "application/octet-stream", "Content-Disposition": `inline; filename="${resume.resume_name || "resume"}"` } });
+    // Convert Buffer to a sliced ArrayBuffer for NextResponse body compatibility
+    const bufferSlice = new Uint8Array(resume.resume_data);
+    const arrayBuffer = bufferSlice.buffer.slice(bufferSlice.byteOffset, bufferSlice.byteOffset + bufferSlice.byteLength);
+    return new NextResponse(arrayBuffer, { headers: { "Content-Type": resume.resume_mime_type || "application/octet-stream", "Content-Disposition": `inline; filename="${resume.resume_name || "resume"}"` } });
   } catch {
     return NextResponse.json({ success: false, error: "Unable to load resume" }, { status: 500 });
   }
