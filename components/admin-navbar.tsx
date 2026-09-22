@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import {
   Activity,
@@ -45,6 +45,7 @@ export function AdminNavbar({
   onMarkRead,
   onMarkAllRead,
 }: AdminNavbarProps) {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const reduceMotion = useReducedMotion();
   const [openMenu, setOpenMenu] = useState<"alerts" | "profile" | null>(null);
@@ -144,8 +145,24 @@ export function AdminNavbar({
                       <button
                         type="button"
                         key={notification.id}
-                        onClick={() => onMarkRead(notification.id)}
-                        className={cn("flex w-full gap-3 border-b border-white/[0.06] px-4 py-3 text-left transition-colors hover:bg-white/[0.04]", !notification.read && "bg-cyan-300/[0.035]")}
+                        onClick={() => {
+                          onMarkRead(notification.id);
+                          setOpenMenu(null);
+                          const title = (notification.title || "").toLowerCase();
+                          const msg = (notification.message || "").toLowerCase();
+                          if (title.includes("payment") || msg.includes("payment")) {
+                            router.push("/dashboard/payments");
+                          } else if (title.includes("user") || title.includes("agent") || title.includes("tenant") || title.includes("account")) {
+                            router.push("/dashboard/admin?tab=accounts");
+                          } else if (title.includes("property") || title.includes("unit")) {
+                            router.push(title.includes("unit") ? "/dashboard/units" : "/dashboard/properties");
+                          } else if (title.includes("health") || title.includes("diagnostic")) {
+                            router.push("/dashboard/admin?tab=health");
+                          } else {
+                            router.push("/dashboard/admin?tab=activity");
+                          }
+                        }}
+                        className={cn("flex w-full gap-3 border-b border-white/[0.06] px-4 py-3 text-left transition-colors hover:bg-white/[0.04] cursor-pointer", !notification.read && "bg-cyan-300/[0.035]")}
                       >
                         <span className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-md bg-cyan-300/10 text-cyan-200"><Activity className="h-3.5 w-3.5" /></span>
                         <span className="min-w-0">

@@ -94,11 +94,13 @@ export async function POST(request: NextRequest) {
         ? "Supabase has restricted this project because it exceeded its egress quota. Remove the spend cap or upgrade the Supabase plan, then try again."
         : isDatabaseUnavailable
         ? "Login service is temporarily unavailable. Please check the Supabase URL/network connection and try again."
-        : lowerMessage.includes("does not exist") || lowerMessage.includes("relation") || lowerMessage.includes("table")
+        : (lowerMessage.includes("relation") && lowerMessage.includes("does not exist")) ||
+          (lowerMessage.includes("table") && lowerMessage.includes("does not exist")) ||
+          (typeof error === "object" && error && (error.code === "42P01" || (error as any).status === "42P01"))
         ? "Database not initialized yet. Run scripts/supabase-schema.sql in Supabase SQL Editor first."
         : lowerMessage.includes("missing")
         ? `${rawMessage} — set this in Vercel: Project Settings → Environment Variables → NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, SUPABASE_SERVICE_ROLE_KEY`
-        : lowerMessage.includes("invalid")
+        : lowerMessage.includes("invalid") || lowerMessage.includes("not found")
         ? "Invalid email or password"
         : rawMessage || "Login failed";
     const response = NextResponse.json({ success: false, error: friendlyMessage }, { status: isDatabaseUnavailable ? 503 : 500 });

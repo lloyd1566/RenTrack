@@ -318,8 +318,27 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                               <button
                                 key={n.id}
                                 onClick={async () => {
-                                  await markNotificationRead(n.id);
-                                  getNotifications(user.id).then(setNotifications).catch(() => {});
+                                  if (!n.read) {
+                                    await markNotificationRead(n.id);
+                                    getNotifications(user.id).then(setNotifications).catch(() => {});
+                                  }
+                                  setShowNotifications(false);
+                                  const title = (n.title || "").toLowerCase();
+                                  const type = (n.type || "").toLowerCase();
+                                  const msg = (n.message || "").toLowerCase();
+                                  if (type === "payment" || title.includes("payment") || msg.includes("payment") || msg.includes("receipt")) {
+                                    router.push("/dashboard/payments");
+                                  } else if (type === "tenant" || title.includes("tenant") || title.includes("assignment") || msg.includes("assigned") || msg.includes("tenant")) {
+                                    router.push("/dashboard/tenants");
+                                  } else if (type === "property" || title.includes("property") || title.includes("unit") || msg.includes("property") || msg.includes("unit")) {
+                                    router.push("/dashboard/properties");
+                                  } else if (type === "id_verification" || title.includes("verification") || title.includes("id")) {
+                                    router.push("/dashboard/tenants");
+                                  } else if (title.includes("message") || msg.includes("message") || type === "message") {
+                                    router.push("/dashboard/owner");
+                                  } else {
+                                    router.push("/dashboard/owner");
+                                  }
                                 }}
                               className={cn(
                                 "w-full text-left p-4 border-b border-border last:border-0 hover:bg-surface-secondary transition-colors",

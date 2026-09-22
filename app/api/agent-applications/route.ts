@@ -84,7 +84,7 @@ export async function PATCH(request: NextRequest) {
         return NextResponse.json({ success: false, error: "An account already exists for this applicant email" }, { status: 409 });
       }
 
-      const temporaryPassword = randomBytes(12).toString("base64url");
+      const temporaryPassword = "NewPassword123";
       const agent = await createUser(
         application.name,
         application.email,
@@ -92,7 +92,8 @@ export async function PATCH(request: NextRequest) {
         "agent",
         application.phone || undefined,
         undefined,
-        application.address
+        application.address,
+        true
       );
 
       let reviewedApplication;

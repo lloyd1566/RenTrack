@@ -6,7 +6,7 @@ import {
   LayoutDashboard, Home, UserPlus, ClipboardCheck, Clock,
   CreditCard, FileText, Send,
   CheckCircle2, MessageSquare, Send as SendIcon, Loader2, Mail, User,
-  Search, Plus, X, Download, Users, MoreHorizontal,
+  Search, Plus, X, Download, Users, MoreHorizontal, ChevronDown, XCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -895,8 +895,8 @@ export default function AgentDashboard() {
                                   )}
                                   <DropdownMenu modal={false}>
                                    <DropdownMenuTrigger asChild>
-                                     <button className="h-8 w-8 rounded-lg flex items-center justify-center text-text-secondary hover:text-foreground hover:bg-surface-secondary transition-colors">
-                                       <MoreHorizontal className="h-4 w-4" />
+                                     <button className="h-8 px-2 rounded-lg flex items-center gap-1 text-xs font-medium text-text-secondary hover:text-foreground hover:bg-surface-secondary transition-colors border border-border">
+                                       Actions <ChevronDown className="h-3.5 w-3.5" />
                                      </button>
                                    </DropdownMenuTrigger>
                                    <DropdownMenuContent align="end" sideOffset={4} side="bottom">
@@ -922,7 +922,15 @@ export default function AgentDashboard() {
                   <h1 className="text-3xl font-bold text-foreground">Tenant Verifications</h1>
                   <p className="text-base text-text-secondary mt-1">Review and verify tenant ID documents</p>
                 </div>
+
+                {/* Pending Verifications */}
                 <Card>
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <CheckCircle2 className="h-5 w-5 text-amber-500" /> Pending Verifications
+                    </CardTitle>
+                    <CardDescription>Tenants awaiting ID verification</CardDescription>
+                  </CardHeader>
                   <CardContent className="p-6">
                     <div className="space-y-3">
                       {tenants.filter(t => t.idVerificationStatus === "pending").length === 0 ? (
@@ -950,6 +958,66 @@ export default function AgentDashboard() {
                               )}
                               <Button size="sm" className="bg-green-600 hover:bg-green-700 text-white" onClick={async () => { await updateTenantVerification(tenant.id, "approved"); toast.success("Tenant verified"); loadData(); }}>Approve</Button>
                               <Button size="sm" variant="destructive" onClick={async () => { await updateTenantVerification(tenant.id, "rejected"); toast.success("Verification rejected"); loadData(); }}>Reject</Button>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+
+                {/* Rejected Applicants */}
+                <Card className="border-red-100">
+                  <CardHeader>
+                    <CardTitle className="text-lg flex items-center gap-2">
+                      <XCircle className="h-5 w-5 text-red-500" /> Rejected Applicants
+                      {tenants.filter(t => t.idVerificationStatus === "rejected").length > 0 && (
+                        <motion.span
+                          initial={{ scale: 0 }}
+                          animate={{ scale: 1 }}
+                          className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white"
+                        >
+                          {tenants.filter(t => t.idVerificationStatus === "rejected").length}
+                        </motion.span>
+                      )}
+                    </CardTitle>
+                    <CardDescription>Tenants whose ID verification was rejected</CardDescription>
+                  </CardHeader>
+                  <CardContent className="p-6">
+                    <div className="space-y-3">
+                      {tenants.filter(t => t.idVerificationStatus === "rejected").length === 0 ? (
+                        <div className="text-center py-8">
+                          <p className="text-text-secondary text-sm">No rejected applicants</p>
+                        </div>
+                      ) : (
+                        tenants.filter(t => t.idVerificationStatus === "rejected").map((tenant) => (
+                          <div key={tenant.id} className="flex items-center justify-between p-4 rounded-xl border border-red-100 bg-red-50/30 hover:bg-red-50 transition-colors">
+                            <div className="flex items-center gap-3">
+                              <Avatar src={tenant.avatarUrl} fallback={getInitials(tenant.name)} />
+                              <div>
+                                <p className="font-medium text-foreground">{tenant.name}</p>
+                                <p className="text-xs text-text-secondary">{tenant.email}</p>
+                                {tenant.phone && <p className="text-xs text-text-tertiary">{tenant.phone}</p>}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant="destructive" className="text-xs">Rejected</Badge>
+                              {tenant.idVerificationUrl && (
+                                <a href={tenant.idVerificationUrl} target="_blank" rel="noopener noreferrer">
+                                  <Button size="sm" variant="outline">View ID</Button>
+                                </a>
+                              )}
+                              <Button
+                                size="sm"
+                                className="bg-green-600 hover:bg-green-700 text-white"
+                                onClick={async () => {
+                                  await updateTenantVerification(tenant.id, "approved");
+                                  toast.success("Tenant approved");
+                                  loadData();
+                                }}
+                              >
+                                Re-approve
+                              </Button>
                             </div>
                           </div>
                         ))
@@ -1196,7 +1264,7 @@ export default function AgentDashboard() {
                                    <DropdownMenuTrigger asChild>
                                      <button type="button" className="inline-flex items-center justify-center rounded-lg border border-border bg-surface px-2.5 py-1.5 text-xs font-medium text-foreground hover:bg-surface-secondary">
                                        Actions
-                                       <MoreHorizontal className="ml-1 h-3.5 w-3.5" />
+                                       <ChevronDown className="ml-1 h-3.5 w-3.5" />
                                      </button>
                                    </DropdownMenuTrigger>
                                    <DropdownMenuContent align="end" sideOffset={4} side="bottom">

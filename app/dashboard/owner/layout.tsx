@@ -155,16 +155,20 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
       // ignore
     }
 
-    if (notification.title === "New Agent Applicant") {
+    const title = (notification.title || "").toLowerCase();
+    const type = (notification.type || "").toLowerCase();
+    const msg = (notification.message || "").toLowerCase();
+
+    if (title.includes("agent") || title.includes("applicant")) {
       router.push("/dashboard/owner#agents");
-    } else if (notification.title === "Agent application approved") {
-      router.push("/dashboard/owner#agents");
-    } else if (notification.type === "property") {
-      router.push(notification.title === "New Unit Added" ? "/dashboard/units" : "/dashboard/properties");
-    } else if (notification.type === "payment") {
+    } else if (title.includes("message") || msg.includes("message") || title.includes("chat")) {
+      router.push("/dashboard/owner#assignments");
+    } else if (type === "property" || title.includes("property") || title.includes("unit")) {
+      router.push(title.includes("unit") ? "/dashboard/units" : "/dashboard/properties");
+    } else if (type === "payment" || title.includes("payment") || msg.includes("payment") || msg.includes("rent")) {
       router.push("/dashboard/owner#financial");
-    } else if (notification.type === "tenant") {
-      router.push("/dashboard/owner#create-tenant");
+    } else if (type === "tenant" || title.includes("tenant") || title.includes("assignment")) {
+      router.push("/dashboard/owner#assignments");
     }
   };
 

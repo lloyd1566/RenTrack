@@ -382,9 +382,9 @@ export default function LandingPage() {
                 animate={{ opacity: 1, x: 0 }}
                 transition={{ duration: 0.45, delay: 0.35, ease: "easeOut" }}
               >
-                 Rental property marketplace
-               </motion.span>
-             </motion.div>
+                HedgeHomes Realty & Brokerage
+              </motion.span>
+            </motion.div>
 
              <motion.h1
                initial={{ opacity: 0, y: 24 }}

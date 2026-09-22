@@ -395,7 +395,7 @@ export async function initDatabase() {
   return initDbPromise;
 }
 
-export async function createUser(name: string, email: string, password: string, role: string, phone?: string, paymentPin?: string, address?: string) {
+export async function createUser(name: string, email: string, password: string, role: string, phone?: string, paymentPin?: string, address?: string, emailVerified = false) {
   const id = `usr_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   const hashedPassword = await bcrypt.hash(password, 10);
   const { error } = await getAdminSupabase().from("users").insert({
@@ -407,14 +407,14 @@ export async function createUser(name: string, email: string, password: string, 
     phone: phone || null,
     payment_pin_hash: paymentPin ? hashSecret(paymentPin) : null,
     payment_pin_set_at: paymentPin ? new Date().toISOString() : null,
-    email_verified: false,
+    email_verified: emailVerified,
     verification_token: null,
     verification_expires_at: null,
     address: address || null,
     created_at: new Date().toISOString(),
   });
   if (error) throw error;
-  return { id, name, email: email.toLowerCase(), role, phone, address, createdAt: new Date().toISOString() };
+  return { id, name, email: email.toLowerCase(), role, phone, address, emailVerified, createdAt: new Date().toISOString() };
 }
 
 export async function findUserByEmail(email: string) {

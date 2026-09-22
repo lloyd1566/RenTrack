@@ -156,6 +156,42 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
     }
   };
 
+  const handleNotificationClick = async (n: Notification) => {
+    if (!n.read) {
+      await markNotificationRead(n.id).catch(() => {});
+      setNotifications((current) => current.map((notification) => notification.id === n.id ? { ...notification, read: true } : notification));
+      window.dispatchEvent(new Event("renttrack-notifications-updated"));
+    }
+    setShowNotifications(false);
+
+    const title = (n.title || "").toLowerCase();
+    const type = (n.type || "").toLowerCase();
+    const msg = (n.message || "").toLowerCase();
+
+    if (title.includes("message") || msg.includes("message") || title.includes("chat")) {
+      setActiveTab("messages");
+      window.location.hash = "messages";
+    } else if (title.includes("inquiry") || msg.includes("inquiry")) {
+      setActiveTab("inquiries");
+      window.location.hash = "inquiries";
+    } else if (type === "payment" || title.includes("payment") || msg.includes("payment") || msg.includes("rent")) {
+      setActiveTab("payments");
+      window.location.hash = "payments";
+    } else if (type === "property" || title.includes("property") || title.includes("unit") || msg.includes("property") || msg.includes("unit")) {
+      setActiveTab("properties");
+      window.location.hash = "properties";
+    } else if (type === "tenant" || title.includes("tenant") || title.includes("assign") || msg.includes("assign")) {
+      setActiveTab("assign");
+      window.location.hash = "assign";
+    } else if (type === "id_verification" || title.includes("verification") || title.includes("id")) {
+      setActiveTab("profile" as any);
+      window.location.hash = "profile";
+    } else {
+      setActiveTab("overview");
+      window.location.hash = "overview";
+    }
+  };
+
   useEffect(() => {
     if (!user || !isAuthenticated) {
       router.push("/login");
@@ -198,6 +234,52 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
                 </span>
               )}
             </button>
+            <AnimatePresence initial={false}>
+              {showNotifications && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  className="absolute right-0 mt-2 w-72 sm:w-80 rounded-2xl border border-border bg-surface shadow-dropdown overflow-hidden z-50"
+                >
+                  <div className="p-3 border-b border-border flex items-center justify-between gap-2">
+                    <h3 className="font-semibold text-foreground text-sm">Notifications</h3>
+                    {unreadCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          await markAllNotificationsRead(user.id);
+                          setNotifications((current) => current.map((notification) => ({ ...notification, read: true })));
+                          window.dispatchEvent(new Event("renttrack-notifications-updated"));
+                        }}
+                        className="text-xs text-primary-600 hover:text-primary-700"
+                      >
+                        Mark all read
+                      </button>
+                    )}
+                  </div>
+                  <div className="max-h-72 overflow-y-auto">
+                    {notifications.length === 0 ? (
+                      <p className="px-4 py-6 text-center text-xs text-text-secondary">No notifications yet</p>
+                    ) : (
+                      notifications.slice(0, 10).map((n) => (
+                        <button
+                          key={n.id}
+                          onClick={() => handleNotificationClick(n)}
+                          className={cn(
+                            "w-full text-left p-3 border-b border-border last:border-0 hover:bg-surface-secondary transition-colors cursor-pointer",
+                            !n.read && "bg-primary-50/50"
+                          )}
+                        >
+                          <p className="text-xs font-medium text-foreground">{n.title}</p>
+                          <p className="text-[11px] text-text-secondary mt-0.5 line-clamp-2">{n.message}</p>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
       </div>
@@ -419,16 +501,9 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
                           notifications.slice(0, 10).map((n) => (
                             <button
                               key={n.id}
-                              onClick={async () => {
-                                if (!n.read) {
-                                  await markNotificationRead(n.id);
-                                  setNotifications((current) => current.map((notification) => notification.id === n.id ? { ...notification, read: true } : notification));
-                                  window.dispatchEvent(new Event("renttrack-notifications-updated"));
-                                }
-                                setShowNotifications(false);
-                              }}
+                              onClick={() => handleNotificationClick(n)}
                               className={cn(
-                                "w-full text-left p-4 border-b border-border last:border-0 hover:bg-surface-secondary transition-colors",
+                                "w-full text-left p-4 border-b border-border last:border-0 hover:bg-surface-secondary transition-colors cursor-pointer",
                                 !n.read && "bg-primary-50/50"
                               )}
                             >

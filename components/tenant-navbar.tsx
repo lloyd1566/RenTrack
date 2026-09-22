@@ -146,6 +146,35 @@ export default function TenantNavbar() {
     }
   };
 
+  const handleNotificationClick = async (n: Notification) => {
+    if (!user) return;
+    if (!n.read) {
+      await markNotificationRead(n.id).catch(() => {});
+      getNotifications(user.id).then(setNotifications).catch(() => {});
+      window.dispatchEvent(new Event("renttrack-notifications-updated"));
+    }
+    setShowNotifications(false);
+    setMobileOpen(false);
+
+    const title = (n.title || "").toLowerCase();
+    const type = (n.type || "").toLowerCase();
+    const msg = (n.message || "").toLowerCase();
+
+    if (title.includes("message") || msg.includes("message") || title.includes("chat")) {
+      router.push("/dashboard/tenant/messages");
+    } else if (type === "payment" || title.includes("payment") || msg.includes("payment") || msg.includes("rent") || msg.includes("balance")) {
+      router.push("/dashboard/tenant/payments");
+    } else if (type === "property" || title.includes("unit") || title.includes("lease") || msg.includes("unit") || msg.includes("lease")) {
+      router.push("/dashboard/tenant/units");
+    } else if (title.includes("support") || title.includes("complaint") || title.includes("rating") || msg.includes("complaint")) {
+      router.push("/dashboard/tenant/ratings");
+    } else if (type === "id_verification" || title.includes("verification") || title.includes("profile")) {
+      router.push("/dashboard/tenant/settings");
+    } else {
+      router.push("/dashboard/tenant");
+    }
+  };
+
   return (
     <nav
       data-tenant-navbar
@@ -303,7 +332,7 @@ export default function TenantNavbar() {
                           <p className="px-3 py-8 text-center text-xs text-gray-500">No notifications yet</p>
                         ) : (
                           notifications.map((n) => (
-                            <button key={n.id} onClick={async () => { if (!user) return; await markNotificationRead(n.id); getNotifications(user.id).then(setNotifications).catch(() => {}); }} className={cn("w-full text-left p-4 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors dark:border-gray-700", !n.read && "bg-blue-50 dark:bg-blue-900/10")}>
+                            <button key={n.id} onClick={() => handleNotificationClick(n)} className={cn("w-full text-left p-4 border-b border-gray-100 last:border-0 hover:bg-gray-50 transition-colors dark:border-gray-700 cursor-pointer", !n.read && "bg-blue-50 dark:bg-blue-900/10")}>
                               <div className="flex gap-3">
                                 <div className={cn("flex h-8 w-8 items-center justify-center rounded-lg shrink-0", n.type === "payment" && "bg-green-50 text-green-600 dark:bg-green-900/20 dark:text-green-400", n.type === "tenant" && "bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400", n.type === "property" && "bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400", n.type === "system" && "bg-purple-50 text-purple-600 dark:bg-purple-900/20 dark:text-purple-400")}>
                                   {n.type === "payment" && <CreditCard className="h-4 w-4" />}
@@ -515,10 +544,10 @@ export default function TenantNavbar() {
               ) : (
                 <div className="space-y-2">
                   {notifications.slice(0, 5).map((n) => (
-                    <div key={n.id} className={cn("p-2.5 rounded-lg", !n.read && "bg-blue-50 dark:bg-blue-900/10")}>
+                    <button type="button" key={n.id} onClick={() => handleNotificationClick(n)} className={cn("w-full text-left p-2.5 rounded-lg transition-colors cursor-pointer", !n.read ? "bg-blue-50 dark:bg-blue-900/10" : "hover:bg-gray-50 dark:hover:bg-gray-800")}>
                       <p className="text-sm font-medium text-gray-900 dark:text-white">{n.title}</p>
                       <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{n.message}</p>
-                    </div>
+                    </button>
                   ))}
                 </div>
               )}

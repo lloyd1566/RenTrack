@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, error: "Email already exists" }, { status: 409 });
     }
 
-    const user = await createUser(name, email, password, role, phone || undefined, undefined, address || undefined);
+    const user = await createUser(name, email, password, role, phone || undefined, undefined, address || undefined, true);
     await logAudit(auth.userId, "user_created", { createdUserId: user.id, name: user.name, role: user.role }, (request as any).ip, (request as any).headers?.get("user-agent"));
 
     let emailSent = false;

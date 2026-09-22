@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Users, UserPlus, Mail, Phone, MapPin, X, Eye, EyeOff, Trash2, MessageSquare, Pencil, Clock3, Shield, Search } from "lucide-react";
+import { Users, UserPlus, Mail, Phone, MapPin, X, Eye, EyeOff, Trash2, MessageSquare, Pencil, Clock3, Shield, Search, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";
@@ -67,13 +67,14 @@ export default function OwnerAgentsPage() {
   const [messagingAgent, setMessagingAgent] = useState<UserRecord | null>(null);
   const [editForm, setEditForm] = useState({ name: "", email: "", phone: "", address: "" });
   const [applications, setApplications] = useState<AgentApplication[]>([]);
-  const [agentView, setAgentView] = useState<"agents" | "applicants">("agents");
+  const [rejectedApplications, setRejectedApplications] = useState<AgentApplication[]>([]);
+  const [agentView, setAgentView] = useState<"agents" | "applicants" | "rejected">("agents");
   const [selectedApplication, setSelectedApplication] = useState<AgentApplication | null>(null);
   const [agentSearch, setAgentSearch] = useState("");
 
   useEffect(() => {
     const requestedView = searchParams.get("view");
-    if (requestedView === "agents" || requestedView === "applicants") {
+    if (requestedView === "agents" || requestedView === "applicants" || requestedView === "rejected") {
       setAgentView(requestedView);
     }
   }, [searchParams]);
@@ -100,6 +101,7 @@ export default function OwnerAgentsPage() {
       const agentRecords = await getAgents();
       setAgents(agentRecords);
       setApplications(await getAgentApplications("pending"));
+      setRejectedApplications(await getAgentApplications("rejected"));
 
       const stats: Record<string, { properties: number; tenants: number; payments: number }> = {};
       await Promise.all(
@@ -213,6 +215,7 @@ export default function OwnerAgentsPage() {
       if (!result?.success) throw new Error(result?.error || "Unable to review application");
 
       setApplications((current) => current.filter((item) => item.id !== selectedApplication.id));
+      setRejectedApplications((current) => current.filter((item) => item.id !== selectedApplication.id));
       if (status === "approved" && result.agent) {
         setAgents((current) => [result.agent, ...current]);
         if (result.emailSent) {
@@ -221,6 +224,7 @@ export default function OwnerAgentsPage() {
           toast.error(`Agent account was created, but the credentials email failed. Temporary password: ${result.temporaryPassword}`);
         }
       } else {
+        setRejectedApplications((current) => [{ ...selectedApplication, status: "rejected", reviewedAt: new Date().toISOString() }, ...current]);
         toast.success("Applicant rejected");
       }
       setSelectedApplication(null);
@@ -250,13 +254,14 @@ export default function OwnerAgentsPage() {
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }} className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-foreground">{agentView === "agents" ? "Agents" : "Agent Applicants"}</h2>
+          <h2 className="text-2xl font-bold text-foreground">{agentView === "agents" ? "Agents" : agentView === "applicants" ? "Agent Applicants" : "Rejected Applicants"}</h2>
           <p className="text-text-secondary text-sm mt-1">Manage agents for your properties</p>
         </div>
         <div className="flex items-center gap-2">
           <select value={agentView} onChange={(event) => setAgentView(event.target.value as typeof agentView)} className="h-9 rounded-lg border border-border bg-surface px-3 text-sm">
             <option value="agents">List of Agents</option>
             <option value="applicants">List of Applicants ({applications.length})</option>
+            <option value="rejected">List of Rejected ({rejectedApplications.length})</option>
           </select>
           <Button onClick={openRegister}>
             <UserPlus className="h-4 w-4 mr-1.5" />
@@ -273,6 +278,24 @@ export default function OwnerAgentsPage() {
               <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-700">New applicant</Badge>
             </button>
           ))}
+        </div>
+      )}
+
+      {agentView === "rejected" && (
+        <div className="space-y-3">
+          {rejectedApplications.length === 0 ? (
+            <div className="rounded-2xl border border-border p-10 text-center text-text-secondary">No rejected applicants.</div>
+          ) : (
+            rejectedApplications.map((application) => (
+              <div key={application.id} className="flex w-full items-center justify-between rounded-2xl border border-red-100 bg-red-50/40 p-4">
+                <div>
+                  <p className="font-semibold text-foreground">{application.name}</p>
+                  <p className="text-sm text-text-secondary">{application.email} · {application.address}</p>
+                </div>
+                <Badge variant="outline" className="border-red-200 bg-red-50 text-red-700">Rejected</Badge>
+              </div>
+            ))
+          )}
         </div>
       )}
 
