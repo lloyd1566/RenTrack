@@ -56,6 +56,8 @@ export default function AdminDashboard() {
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState<"all" | "admin" | "owner" | "agent" | "tenant">("all");
+  const [unitSearch, setUnitSearch] = useState("");
+  const [unitStatusFilter, setUnitStatusFilter] = useState<"all" | "occupied" | "vacant" | "maintenance">("all");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [diagnosisResults, setDiagnosisResults] = useState<Record<string, string> | null>(null);
   const [isRunningDiagnosis, setIsRunningDiagnosis] = useState(false);
@@ -675,11 +677,32 @@ export default function AdminDashboard() {
       {activeTab === "units" && (
         <Card className="border border-gray-200">
           <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-gray-900">
-              <Home className="h-5 w-5 text-gray-600" />
-              Units
-            </CardTitle>
-            <CardDescription>Manage units across all properties</CardDescription>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-gray-900">
+                  <Home className="h-5 w-5 text-gray-600" />
+                  Units
+                </CardTitle>
+                <CardDescription>Manage units across all properties</CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    value={unitSearch}
+                    onChange={(e) => setUnitSearch(e.target.value)}
+                    placeholder="Search units..."
+                    className="pl-9 h-9 w-full sm:w-64"
+                  />
+                </div>
+                <Select value={unitStatusFilter} onChange={(e) => setUnitStatusFilter(e.target.value as any)} className="h-9 w-full sm:w-40">
+                  <option value="all">All Status</option>
+                  <option value="occupied">Occupied</option>
+                  <option value="vacant">Vacant</option>
+                  <option value="maintenance">Maintenance</option>
+                </Select>
+              </div>
+            </div>
           </CardHeader>
           <CardContent>
             {units.length === 0 ? (
@@ -697,30 +720,36 @@ export default function AdminDashboard() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {units.map((u, i) => (
-                      <motion.tr
-                        key={u.id}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: i * 0.05, duration: 0.3 }}
-                        className="border-b border-border/50 hover:bg-surface-secondary"
-                      >
-                        <TableCell className="font-medium">{u.unitNumber}</TableCell>
-                        <TableCell className="text-text-secondary">{properties.find((p) => p.id === u.propertyId)?.name || u.propertyId}</TableCell>
-                        <TableCell>{u.floor ?? "-"}</TableCell>
-                        <TableCell className="font-medium">{formatCurrency(u.rentAmount || 0)}</TableCell>
-                        <TableCell>
-                          <span className={cn(
-                            "inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium",
-                            u.status === "occupied" && "bg-green-50 text-green-600",
-                            u.status === "vacant" && "bg-gray-50 text-gray-600",
-                            u.status === "maintenance" && "bg-amber-50 text-amber-600",
-                          )}>
-                            {u.status}
-                          </span>
-                        </TableCell>
-                      </motion.tr>
-                    ))}
+                    {units
+                      .filter((u) => {
+                        const matchesSearch = !unitSearch || u.unitNumber.toLowerCase().includes(unitSearch.toLowerCase()) || properties.find((p) => p.id === u.propertyId)?.name.toLowerCase().includes(unitSearch.toLowerCase());
+                        const matchesStatus = unitStatusFilter === "all" || u.status === unitStatusFilter;
+                        return matchesSearch && matchesStatus;
+                      })
+                      .map((u, i) => (
+                        <motion.tr
+                          key={u.id}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: i * 0.05, duration: 0.3 }}
+                          className="border-b border-border/50 hover:bg-surface-secondary"
+                        >
+                          <TableCell className="font-medium">{u.unitNumber}</TableCell>
+                          <TableCell className="text-text-secondary">{properties.find((p) => p.id === u.propertyId)?.name || u.propertyId}</TableCell>
+                          <TableCell>{u.floor ?? "-"}</TableCell>
+                          <TableCell className="font-medium">{formatCurrency(u.rentAmount || 0)}</TableCell>
+                          <TableCell>
+                            <span className={cn(
+                              "inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium",
+                              u.status === "occupied" && "bg-green-50 text-green-600",
+                              u.status === "vacant" && "bg-gray-50 text-gray-600",
+                              u.status === "maintenance" && "bg-amber-50 text-amber-600",
+                            )}>
+                              {u.status}
+                            </span>
+                          </TableCell>
+                        </motion.tr>
+                      ))}
                   </TableBody>
                 </Table>
               </div>

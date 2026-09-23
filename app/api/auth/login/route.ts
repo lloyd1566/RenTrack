@@ -48,13 +48,22 @@ export async function POST(request: NextRequest) {
         setTimeout(() => reject(new Error("Database lookup timed out")), 5000);
       }),
     ]);
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[login] user found:", !!user, user?.email, user?.role, "emailVerified:", user?.emailVerified, "hasPassword:", !!user?.password);
+    }
     if (!user) {
+      if (process.env.NODE_ENV !== "production") {
+        console.log("[login] user not found for email:", sanitizedEmail);
+      }
       recordFailedAttempt(rateLimitKey);
       const response = NextResponse.json({ success: false, error: "Invalid email or password" }, { status: 401 });
       return withSecurityHeaders(withCorsHeaders(request, response));
     }
 
     const pwOk = await bcrypt.compare(String(password), user.password);
+    if (process.env.NODE_ENV !== "production") {
+      console.log("[login] password compare result:", pwOk, "for email:", sanitizedEmail);
+    }
     if (!pwOk) {
       recordFailedAttempt(rateLimitKey);
       await logAudit(user.id, "login_failed", { email: user.email, reason: "invalid_password" }, getClientIp(request), request.headers.get("user-agent") || "unknown").catch(() => {});

@@ -247,3 +247,13 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   status TEXT DEFAULT 'new' CHECK (status IN ('new', 'read', 'replied')),
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
+
+CREATE OR REPLACE FUNCTION exec_sql(sql text, params text[] DEFAULT '{}')
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+  EXECUTE sql USING params;
+END;
+$$;

@@ -293,7 +293,7 @@ export default function LandingPage() {
   };
 
   return (
-    <main className="relative min-h-screen overflow-x-hidden bg-slate-50 text-slate-900">
+    <main className="relative min-h-screen overflow-x-hidden bg-slate-50 text-slate-900" suppressHydrationWarning>
       {/* â”€â”€â”€ Navigation â”€â”€â”€ */}
       <nav className="fixed left-0 right-0 top-0 z-50 border-b border-slate-200/80 bg-white/80 shadow-sm backdrop-blur-md transition-colors duration-300 hover:bg-white/90">
         <div className="w-full px-4 sm:px-6 lg:px-8">

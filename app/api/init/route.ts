@@ -15,18 +15,23 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    await initDatabase();
-    await findOrCreateAdmin();
+    const initResult = await initDatabase();
+    console.log("[init] database init result:", initResult);
+    const adminResult = await findOrCreateAdmin();
+    console.log("[init] admin result:", adminResult);
     if (process.env.OWNER_PASSWORD) {
-      await findOrCreateOwner();
+      const ownerResult = await findOrCreateOwner();
+      console.log("[init] owner result:", ownerResult);
     }
     const response = NextResponse.json({
       success: true,
       message: "Database initialized successfully",
+      admin: adminResult ? { email: adminResult.email, name: adminResult.name } : null,
     });
     return withSecurityHeaders(withCorsHeaders(request, response));
   } catch (error) {
     console.error("Init error:", error);
-    return NextResponse.json({ success: false, error: "Database initialization failed" }, { status: 500 });
+    const message = error instanceof Error ? error.message : "Database initialization failed";
+    return NextResponse.json({ success: false, error: message }, { status: 500 });
   }
 }

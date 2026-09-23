@@ -14,7 +14,6 @@ import { toast } from "sonner";
 import {
   LayoutDashboard,
   Users,
-  Building2,
   Home,
   UserPlus,
   CreditCard,
@@ -55,7 +54,6 @@ const navSections: NavSection[] = [
   {
     title: "Management",
     items: [
-      { label: "Properties", href: "/dashboard/admin?tab=properties", tab: "properties", icon: Building2 },
       { label: "Units", href: "/dashboard/admin?tab=units", tab: "units", icon: Home },
       { label: "Tenants", href: "/dashboard/admin?tab=tenants", tab: "tenants", icon: UserPlus },
       { label: "Payments", href: "/dashboard/admin?tab=payments", tab: "payments", icon: CreditCard },
