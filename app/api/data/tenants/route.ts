@@ -136,7 +136,7 @@ export async function PATCH(request: NextRequest) {
 
       if (code === "PGRST116" || message.includes("0 rows") || details.includes("0 rows")) {
         const { data: userRow, error: userError } = await getAdminSupabase()
-          .from("users")
+          .schema("public").from("users")
           .select("*")
           .eq("id", tenantId)
           .eq("role", "tenant")

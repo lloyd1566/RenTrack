@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
     const agentIds: string[] = [];
 
     if (agentId) {
-      const { data: selectedAgent } = await getAdminSupabase().from("users").select("id, email").eq("id", agentId).single();
+      const { data: selectedAgent } = await getAdminSupabase().schema("public").from("users").select("id, email").eq("id", agentId).single();
       if (selectedAgent) {
         const email = (selectedAgent as any).email;
         const idVal = (selectedAgent as any).id;

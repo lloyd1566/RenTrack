@@ -14,9 +14,6 @@ export interface User {
   role: UserRole;
   phone?: string;
   address?: string;
-  languages?: string;
-  hobbies?: string;
-  aboutMe?: string;
   gender?: string;
   birthdate?: string;
   country?: string;

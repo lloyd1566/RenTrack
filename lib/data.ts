@@ -65,12 +65,9 @@ export interface TenantRecord {
   allowMessages?: boolean;
   dataSharing?: boolean;
   experience?: string;
-  aboutMe?: string;
   gender?: string;
   birthdate?: string;
   country?: string;
-  languages?: string;
-  hobbies?: string;
 }
 
 export interface UserRecord {
@@ -88,12 +85,9 @@ export interface UserRecord {
   lastLoginAt?: string | null;
   lastSeenAt?: string | null;
   experience?: string;
-  aboutMe?: string;
   gender?: string;
   birthdate?: string;
   country?: string;
-  languages?: string;
-  hobbies?: string;
 }
 
 export interface Payment {
@@ -460,12 +454,9 @@ export async function registerAgent(data: {
   phone?: string;
   address?: string;
   experience?: string;
-  aboutMe?: string;
   gender?: string;
   birthdate?: string;
   country?: string;
-  languages?: string;
-  hobbies?: string;
 }): Promise<UserRecord & { needsOtp?: boolean; devOtp?: string }> {
   const result = await apiPost("/api/auth/users", { ...data, role: "agent" });
   if (result && result.success) {
@@ -479,12 +470,9 @@ export async function registerAgent(data: {
       address: data.address,
       createdAt: new Date().toISOString(),
       experience: data.experience,
-      aboutMe: data.aboutMe,
       gender: data.gender,
       birthdate: data.birthdate,
       country: data.country,
-      languages: data.languages,
-      hobbies: data.hobbies,
       needsOtp: result.needsOtp,
       devOtp: result.devOtp,
     } as UserRecord & { needsOtp?: boolean; devOtp?: string };
@@ -744,7 +732,7 @@ export async function getUsers(): Promise<UserRecord[]> {
 
 export async function getSampleUserIds(): Promise<Set<string>> {
   const users = await getUsers();
-  const sampleEmails = ["admin@renttrack.com", "owner@renttrack.com", "renttrackowner@gmail.com", "agent@renttrack.com", "tenant@renttrack.com"];
+  const sampleEmails = ["admin@renttrack.com", "renttrackowner@gmail.com"];
   return new Set(users.filter(u => sampleEmails.includes(u.email.toLowerCase())).map(u => u.id));
 }
 

@@ -10,6 +10,12 @@ export async function GET(request: NextRequest) {
 
     const enabled = await getMaintenanceMode();
     const response = NextResponse.json({ success: true, enabled });
+    response.cookies.set("maintenance_mode", String(enabled), {
+      path: "/",
+      maxAge: 86400,
+      httpOnly: true,
+      sameSite: "lax",
+    });
     return withSecurityHeaders(withCorsHeaders(request, response));
   } catch (error) {
     console.error("Get maintenance mode error:", error);
@@ -28,6 +34,12 @@ export async function POST(request: NextRequest) {
 
     await setMaintenanceMode(enabled);
     const response = NextResponse.json({ success: true, enabled });
+    response.cookies.set("maintenance_mode", String(enabled), {
+      path: "/",
+      maxAge: enabled ? 86400 : 0,
+      httpOnly: true,
+      sameSite: "lax",
+    });
     return withSecurityHeaders(withCorsHeaders(request, response));
   } catch (error) {
     console.error("Update maintenance mode error:", error);

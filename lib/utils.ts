@@ -79,19 +79,12 @@ export function getInitials(name?: string): string {
 
 export const SAMPLE_ACCOUNT_EMAILS = [
   "admin@renttrack.com",
-  "owner@renttrack.com",
   "renttrackowner@gmail.com",
-  "agent@renttrack.com",
-  "tenant@renttrack.com",
 ] as const;
 
 export function isSampleAccount(email: string): boolean {
   const lower = email.toLowerCase();
-  return lower === "admin@renttrack.com" ||
-    lower === "owner@renttrack.com" ||
-    lower === "renttrackowner@gmail.com" ||
-    lower === "agent@renttrack.com" ||
-    lower === "tenant@renttrack.com";
+  return lower === "admin@renttrack.com" || lower === "renttrackowner@gmail.com";
 }
 
 export function generateId(): string {

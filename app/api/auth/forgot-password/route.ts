@@ -15,7 +15,7 @@ export async function POST(request: NextRequest) {
 
     const adminClient = getAdminSupabase();
     const { data: user, error } = await adminClient
-      .from("users")
+      .schema("public").from("users")
       .select("id, name, email, role")
       .eq("email", email)
       .single();
@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString();
 
     const { error: updateError } = await adminClient
-      .from("users")
+      .schema("public").from("users")
       .update({ verification_token: resetToken, verification_expires_at: expiresAt })
       .eq("id", user.id);
 

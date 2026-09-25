@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUserId, getCurrentUser } from "@/lib/security";
-import { findUserById, updateUserIdVerification } from "@/lib/db";
+import { findUserById, updateUserIdVerification, initDatabase } from "@/lib/db";
 import { logAudit } from "@/lib/db";
 import { withSecurityHeaders, withCorsHeaders, getClientIp } from "@/lib/security-headers";
 
 export async function PATCH(request: NextRequest) {
   try {
+    await initDatabase();
+
     const currentUser = await getCurrentUser(request);
     if (!currentUser) {
       return NextResponse.json({ success: false, error: "Not authenticated" }, { status: 401 });

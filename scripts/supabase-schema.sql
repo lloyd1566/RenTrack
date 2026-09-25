@@ -1,27 +1,89 @@
--- RentTrack Complete Supabase Schema
+-- RentTrack Complete Supabase Schema - Separate Tables Design
 
-CREATE TABLE IF NOT EXISTS users (
+CREATE SCHEMA IF NOT EXISTS public;
+SET search_path TO public;
+
+-- ============================================
+-- CORE AUTH TABLES (Separate by Role)
+-- ============================================
+
+-- Admins (created by system only)
+CREATE TABLE IF NOT EXISTS admins (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL,
   email TEXT UNIQUE NOT NULL,
   password TEXT,
-  role TEXT NOT NULL CHECK (role IN ('admin', 'owner', 'agent', 'tenant')),
   phone TEXT,
+  email_verified BOOLEAN DEFAULT TRUE,
+  verification_token TEXT,
+  verification_expires_at TIMESTAMPTZ,
+  last_login_at TIMESTAMPTZ,
+  last_seen_at TIMESTAMPTZ,
+  is_online BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Owners (created by admin only)
+CREATE TABLE IF NOT EXISTS owners (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  email TEXT UNIQUE NOT NULL,
+  password TEXT,
+  phone TEXT,
+  address TEXT,
+  email_verified BOOLEAN DEFAULT TRUE,
+  verification_token TEXT,
+  verification_expires_at TIMESTAMPTZ,
+  last_login_at TIMESTAMPTZ,
+  last_seen_at TIMESTAMPTZ,
+  is_online BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  created_by TEXT REFERENCES admins(id)
+);
+
+-- Agents (created by owner/admin only via approval)
+CREATE TABLE IF NOT EXISTS agents (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  email TEXT UNIQUE NOT NULL,
+  password TEXT,
+  phone TEXT,
+  address TEXT NOT NULL CHECK (address IN ('Cebu', 'Manila', 'Davao', 'Butuan')),
+  license_number TEXT,
+  specialization TEXT,
+  experience TEXT DEFAULT '0 Years',
+  avatar_url TEXT,
+  id_verification_url TEXT,
+  id_verification_status TEXT DEFAULT 'pending' CHECK (id_verification_status IN ('pending', 'approved', 'rejected')),
+  email_verified BOOLEAN DEFAULT TRUE,
+  verification_token TEXT,
+  verification_expires_at TIMESTAMPTZ,
+  last_login_at TIMESTAMPTZ,
+  last_seen_at TIMESTAMPTZ,
+  is_online BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMPTZ DEFAULT NOW(),
+  created_by TEXT REFERENCES owners(id)
+);
+
+-- Public Users / Tenants (self-registration allowed)
+CREATE TABLE IF NOT EXISTS public.users (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  email TEXT UNIQUE NOT NULL,
+  password TEXT,
+  role TEXT NOT NULL DEFAULT 'tenant' CHECK (role IN ('admin', 'owner', 'agent', 'tenant')),
+  phone TEXT,
+  address TEXT,
   payment_pin_hash TEXT,
   payment_pin_set_at TIMESTAMPTZ,
   email_verified BOOLEAN DEFAULT FALSE,
   verification_token TEXT,
   verification_expires_at TIMESTAMPTZ,
-  address TEXT,
   login_otp TEXT,
   login_otp_expires_at TIMESTAMPTZ,
-  languages TEXT,
-  hobbies TEXT,
-  about_me TEXT,
   gender TEXT,
   birthdate DATE,
   country TEXT,
-  experience TEXT DEFAULT '0 Years',
   avatar_url TEXT,
   id_verification_url TEXT,
   id_verification_status TEXT DEFAULT 'pending' CHECK (id_verification_status IN ('pending', 'approved', 'rejected')),
@@ -36,9 +98,67 @@ CREATE TABLE IF NOT EXISTS users (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+ALTER TABLE public.users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'tenant' CHECK (role IN ('admin', 'owner', 'agent', 'tenant'));
+
+ALTER TABLE public.users DROP COLUMN IF EXISTS languages;
+ALTER TABLE public.users DROP COLUMN IF EXISTS hobbies;
+ALTER TABLE public.users DROP COLUMN IF EXISTS about_me;
+
+INSERT INTO public.users (
+  id,
+  name,
+  email,
+  password,
+  role,
+  phone,
+  email_verified,
+  verification_token,
+  verification_expires_at,
+  created_at
+)
+VALUES
+  (
+    'usr_builtin_admin',
+    'System Administrator',
+    'admin@renttrack.com',
+    '$2b$10$28P2/SB3muVLzXxanHxrnOTuCa/S.oGeM/j.H7Q3zmuVeFDJ.bdDC',
+    'admin',
+    '+63 900 000 0000',
+    TRUE,
+    NULL,
+    NULL,
+    NOW()
+  ),
+  (
+    'usr_builtin_owner',
+    'Property Owner',
+    'renttrackowner@gmail.com',
+    '$2b$10$EDMO6/akEKnhWFFklmU2SOzPVj.Hed8iY7.6ateecNEB/yKUhQlBG',
+    'owner',
+    '+63 900 000 0001',
+    TRUE,
+    NULL,
+    NULL,
+    NOW()
+  )
+ON CONFLICT (email) DO UPDATE
+SET
+  role = EXCLUDED.role,
+  email_verified = TRUE,
+  password = COALESCE(public.users.password, EXCLUDED.password),
+  verification_token = NULL,
+  verification_expires_at = NULL;
+
+NOTIFY pgrst, 'reload schema';
+
+-- ============================================
+-- SUPPORTING TABLES
+-- ============================================
+
 CREATE TABLE IF NOT EXISTS uploads (
   id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL,
+  user_type TEXT NOT NULL CHECK (user_type IN ('admin', 'owner', 'agent', 'user')),
   type TEXT NOT NULL CHECK (type IN ('avatar', 'id_verification', 'property', 'unit', 'receipt')),
   data BYTEA NOT NULL,
   mime_type TEXT NOT NULL,
@@ -56,10 +176,10 @@ CREATE TABLE IF NOT EXISTS properties (
   monthly_revenue DECIMAL(12,2) DEFAULT 0,
   status TEXT DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  created_by TEXT REFERENCES users(id),
+  created_by TEXT REFERENCES owners(id),
+  agent_id TEXT REFERENCES agents(id),
   image_url TEXT,
   image_urls JSONB DEFAULT '[]'::jsonb,
-  agent_id TEXT REFERENCES users(id),
   features JSONB DEFAULT '[]'::jsonb,
   condition TEXT,
   availability_status TEXT DEFAULT 'Available'
@@ -81,6 +201,7 @@ CREATE TABLE IF NOT EXISTS units (
 
 CREATE TABLE IF NOT EXISTS tenants (
   id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   name TEXT NOT NULL,
   email TEXT,
   phone TEXT,
@@ -97,7 +218,7 @@ CREATE TABLE IF NOT EXISTS tenants (
   status TEXT DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
   assignment_status TEXT DEFAULT '' CHECK (assignment_status IN ('', 'pending', 'confirmed', 'rejected')),
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  created_by TEXT REFERENCES users(id)
+  created_by TEXT
 );
 
 CREATE TABLE IF NOT EXISTS move_out_requests (
@@ -108,7 +229,7 @@ CREATE TABLE IF NOT EXISTS move_out_requests (
   property_name TEXT,
   reason TEXT,
   status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
-  reviewed_by TEXT REFERENCES users(id),
+  reviewed_by TEXT,
   reviewed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -136,15 +257,16 @@ CREATE TABLE IF NOT EXISTS payments (
   gcash_name TEXT,
   receipt_url TEXT,
   notes TEXT,
-  verified_by TEXT REFERENCES users(id),
+  verified_by TEXT,
   verified_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  created_by TEXT REFERENCES users(id)
+  created_by TEXT
 );
 
 CREATE TABLE IF NOT EXISTS notifications (
   id TEXT PRIMARY KEY,
-  user_id TEXT REFERENCES users(id),
+  user_id TEXT NOT NULL,
+  user_type TEXT NOT NULL CHECK (user_type IN ('admin', 'owner', 'agent', 'user')),
   title TEXT NOT NULL,
   message TEXT,
   type TEXT DEFAULT 'system' CHECK (type IN ('payment', 'tenant', 'property', 'system', 'id_verification')),
@@ -164,14 +286,15 @@ CREATE TABLE IF NOT EXISTS agent_applications (
   resume_name TEXT,
   resume_mime_type TEXT,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
-  reviewed_by TEXT REFERENCES users(id),
+  reviewed_by TEXT,
   reviewed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS payment_verification_codes (
   id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL,
+  user_type TEXT NOT NULL CHECK (user_type IN ('admin', 'owner', 'agent', 'user')),
   purpose TEXT NOT NULL,
   code_hash TEXT NOT NULL,
   expires_at TIMESTAMPTZ NOT NULL,
@@ -181,7 +304,8 @@ CREATE TABLE IF NOT EXISTS payment_verification_codes (
 
 CREATE TABLE IF NOT EXISTS audit_logs (
   id TEXT PRIMARY KEY,
-  user_id TEXT REFERENCES users(id) ON DELETE SET NULL,
+  user_id TEXT,
+  user_type TEXT CHECK (user_type IN ('admin', 'owner', 'agent', 'user')),
   action TEXT NOT NULL,
   ip_address TEXT,
   user_agent TEXT,
@@ -191,25 +315,26 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 
 CREATE TABLE IF NOT EXISTS ratings (
   id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  user_id TEXT NOT NULL,
+  user_type TEXT NOT NULL CHECK (user_type IN ('admin', 'owner', 'agent', 'user')),
   target_type TEXT NOT NULL CHECK (target_type IN ('property', 'unit', 'support')),
   target_id TEXT NOT NULL,
   rating INTEGER NOT NULL CHECK (rating >= 1 AND rating <= 5),
   comment TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(user_id, target_type, target_id)
+  UNIQUE(user_id, user_type, target_type, target_id)
 );
 
 CREATE TABLE IF NOT EXISTS complaints (
   id TEXT PRIMARY KEY,
-  tenant_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  tenant_id TEXT NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
   target_type TEXT NOT NULL CHECK (target_type IN ('property', 'unit', 'support')),
   target_id TEXT NOT NULL,
   subject TEXT NOT NULL,
   message TEXT NOT NULL,
   status TEXT DEFAULT 'open' CHECK (status IN ('open', 'in_progress', 'resolved', 'closed')),
   priority TEXT DEFAULT 'medium' CHECK (priority IN ('low', 'medium', 'high', 'urgent')),
-  assigned_to TEXT REFERENCES users(id),
+  assigned_to TEXT,
   resolved_at TIMESTAMPTZ,
   response_text TEXT,
   response_by TEXT,
@@ -220,8 +345,10 @@ CREATE TABLE IF NOT EXISTS complaints (
 
 CREATE TABLE IF NOT EXISTS messages (
   id TEXT PRIMARY KEY,
-  sender_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  receiver_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  sender_id TEXT NOT NULL,
+  sender_type TEXT NOT NULL CHECK (sender_type IN ('admin', 'owner', 'agent', 'user')),
+  receiver_id TEXT NOT NULL,
+  receiver_type TEXT NOT NULL CHECK (receiver_type IN ('admin', 'owner', 'agent', 'user')),
   subject TEXT,
   body TEXT NOT NULL,
   read BOOLEAN DEFAULT FALSE,
@@ -237,7 +364,7 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   sender_name TEXT,
   sender_email TEXT,
   sender_phone TEXT,
-  agent_id TEXT,
+  agent_id TEXT REFERENCES agents(id),
   agent_name TEXT,
   reply_text TEXT,
   reply_token TEXT,
@@ -248,6 +375,10 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
+-- ============================================
+-- RPC FUNCTION
+-- ============================================
+
 CREATE OR REPLACE FUNCTION exec_sql(sql text, params text[] DEFAULT '{}')
 RETURNS void
 LANGUAGE plpgsql
@@ -257,3 +388,9 @@ BEGIN
   EXECUTE sql USING params;
 END;
 $$;
+
+-- ============================================
+-- REFRESH POSTGREST CACHE
+-- ============================================
+
+NOTIFY pgrst, 'reload schema';

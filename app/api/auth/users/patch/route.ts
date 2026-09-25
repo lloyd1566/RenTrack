@@ -42,7 +42,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const snakeUpdates = camelToSnake(updates);
-    const { data: updatedUser, error } = await getAdminSupabase().from("users").update(snakeUpdates).eq("id", userId).select().single();
+    const { data: updatedUser, error } = await getAdminSupabase().schema("public").from("users").update(snakeUpdates).eq("id", userId).select().single();
     if (error) throw error;
 
     await logAudit(auth.userId, "user_updated", { targetUserId: userId, fields: Object.keys(updates) }, auth.ip, auth.userAgent);

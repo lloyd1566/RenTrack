@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { findUserById, updateUserPresence } from "@/lib/db";
+import { findUserById, updateUserPresence, initDatabase } from "@/lib/db";
 import { getSessionUserId } from "@/lib/security";
 
 export async function GET(request: NextRequest) {
   try {
+    await initDatabase();
+
     const userId = getSessionUserId(request);
     if (!userId) {
       return NextResponse.json({ success: false, error: "Not authenticated" }, { status: 401 });

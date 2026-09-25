@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
 
     const targetRole = recipientRole === "owner" ? "owner" : "admin";
     const { data: users } = await getAdminSupabase()
-      .from("users")
+      .schema("public").from("users")
       .select("id")
       .eq("role", targetRole);
 

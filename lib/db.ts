@@ -111,9 +111,6 @@ export async function initDatabase() {
   statements.push(`ALTER TABLE users ADD COLUMN IF NOT EXISTS address TEXT`);
   statements.push(`ALTER TABLE users ADD COLUMN IF NOT EXISTS login_otp TEXT`);
   statements.push(`ALTER TABLE users ADD COLUMN IF NOT EXISTS login_otp_expires_at TIMESTAMPTZ`);
-  statements.push(`ALTER TABLE users ADD COLUMN IF NOT EXISTS languages TEXT`);
-  statements.push(`ALTER TABLE users ADD COLUMN IF NOT EXISTS hobbies TEXT`);
-  statements.push(`ALTER TABLE users ADD COLUMN IF NOT EXISTS about_me TEXT`);
   statements.push(`ALTER TABLE users ADD COLUMN IF NOT EXISTS gender TEXT`);
   statements.push(`ALTER TABLE users ADD COLUMN IF NOT EXISTS birthdate DATE`);
   statements.push(`ALTER TABLE users ADD COLUMN IF NOT EXISTS country TEXT`);
@@ -374,19 +371,44 @@ export async function initDatabase() {
   statements.push(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS visitor_replied_at TIMESTAMPTZ`);
   statements.push(`ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'new' CHECK (status IN ('new', 'read', 'replied'))`);
 
-  for (const sqlText of statements) {
-    try {
-      await getAdminSupabase().rpc("exec_sql", { sql: sqlText });
-    } catch (err) {
-      console.error("initDatabase statement failed:", sqlText, err);
-    }
-  }
+    const migrationFunction = `CREATE OR REPLACE FUNCTION exec_migration(sql text) RETURNS void LANGUAGE plpgsql SECURITY DEFINER AS $$
+DECLARE stmt text;
+BEGIN
+  IF sql IS NULL OR trim(sql) = '' THEN
+    RETURN;
+  END IF;
+  FOR stmt IN
+    SELECT regexp_split_to_table(sql, ';')
+  LOOP
+    stmt := trim(stmt);
+    IF stmt <> '' THEN
+      BEGIN
+        EXECUTE stmt;
+      EXCEPTION
+        WHEN OTHERS THEN
+          RAISE WARNING 'exec_migration skipped statement: %', SQLERRM;
+      END;
+    END IF;
+  END LOOP;
+END;
+$$;`;
+    await getAdminSupabase().rpc("exec_sql", { sql: migrationFunction });
 
-  try {
-    await getAdminSupabase().rpc("exec_sql", { sql: "NOTIFY pgrst, 'reload schema'" });
-  } catch (err) {
-    console.error("Failed to reload PostgREST schema:", err);
-  }
+    const batch = statements.join("\n");
+    try {
+      const { error } = await getAdminSupabase().rpc("exec_migration", { sql: batch });
+      if (error) {
+        console.error("initDatabase batch failed:", error.message);
+      }
+    } catch (err) {
+      console.error("initDatabase batch error:", err);
+    }
+
+    try {
+      await getAdminSupabase().rpc("exec_sql", { sql: "NOTIFY pgrst, 'reload schema'" });
+    } catch (err) {
+      console.error("Failed to reload PostgREST schema:", err);
+    }
 
     console.log("✅ Database tables initialized");
     dbInitialized = true;
@@ -398,7 +420,7 @@ export async function initDatabase() {
 export async function createUser(name: string, email: string, password: string, role: string, phone?: string, paymentPin?: string, address?: string, emailVerified = false) {
   const id = `usr_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
   const hashedPassword = await bcrypt.hash(password, 10);
-  const { error } = await getAdminSupabase().from("users").insert({
+  let { error } = await getAdminSupabase().schema("public").from("users").insert({
     id,
     name,
     email: email.toLowerCase(),
@@ -413,32 +435,89 @@ export async function createUser(name: string, email: string, password: string, 
     address: address || null,
     created_at: new Date().toISOString(),
   });
+  if (isPublicUsersSchemaCacheError(error)) {
+    await reloadPostgrestSchema();
+    ({ error } = await getAdminSupabase().schema("public").from("users").insert({
+      id,
+      name,
+      email: email.toLowerCase(),
+      password: hashedPassword,
+      role,
+      phone: phone || null,
+      payment_pin_hash: paymentPin ? hashSecret(paymentPin) : null,
+      payment_pin_set_at: paymentPin ? new Date().toISOString() : null,
+      email_verified: emailVerified,
+      verification_token: null,
+      verification_expires_at: null,
+      address: address || null,
+      created_at: new Date().toISOString(),
+    }));
+  }
   if (error) throw error;
   return { id, name, email: email.toLowerCase(), role, phone, address, emailVerified, createdAt: new Date().toISOString() };
 }
 
+function isSchemaCacheError(error: any): boolean {
+  if (!error) return false;
+  const message = typeof error?.message === "string" ? error.message : "";
+  return message.includes("schema cache") || error?.code === "PGRST205";
+}
+
+function isPublicUsersSchemaCacheError(error: any): boolean {
+  if (!error) return false;
+  const message = typeof error?.message === "string" ? error.message : "";
+  return message.includes("schema cache") || error?.code === "PGRST205";
+}
+
+async function reloadPostgrestSchema(): Promise<void> {
+  try {
+    const { error } = await getAdminSupabase().rpc("exec_sql", {
+      sql: "NOTIFY pgrst, 'reload schema'",
+    });
+    if (error) {
+      console.warn("Failed to reload PostgREST schema:", error.message);
+    }
+  } catch (err: any) {
+    if (isSchemaCacheError(err)) {
+      console.warn("Cannot reload PostgREST schema: exec_sql not in schema cache, relying on schema being applied");
+    } else {
+      console.warn("Failed to reload PostgREST schema:", err?.message);
+    }
+  }
+}
+
 export async function findUserByEmail(email: string) {
-  const { data, error } = await getAdminSupabase().from("users").select("*").eq("email", email.toLowerCase()).single();
-  if (error && error.code !== "PGRST116") throw new Error(`Failed to query user: ${error.message}`);
+  let result = await getAdminSupabase().schema("public").from("users").select("*").eq("email", email.toLowerCase()).single();
+  if (isPublicUsersSchemaCacheError(result.error)) {
+    await reloadPostgrestSchema();
+    result = await getAdminSupabase().schema("public").from("users").select("*").eq("email", email.toLowerCase()).single();
+  }
+  const { data, error } = result;
+  if (error && error.code !== "PGRST116" && !isPublicUsersSchemaCacheError(error)) throw new Error(`Failed to query user: ${error.message}`);
   if (!data) return null;
   return mapUserRow(data);
 }
 
 export async function findUserById(id: string) {
-  const { data, error } = await getAdminSupabase().from("users").select("*").eq("id", id).single();
-  if (error && error.code !== "PGRST116") throw new Error(`Failed to query user: ${error.message}`);
+  let result = await getAdminSupabase().schema("public").from("users").select("*").eq("id", id).single();
+  if (isPublicUsersSchemaCacheError(result.error)) {
+    await reloadPostgrestSchema();
+    result = await getAdminSupabase().schema("public").from("users").select("*").eq("id", id).single();
+  }
+  const { data, error } = result;
+  if (error && error.code !== "PGRST116" && !isPublicUsersSchemaCacheError(error)) throw new Error(`Failed to query user: ${error.message}`);
   if (!data) return null;
   return mapUserRow(data);
 }
 
 export async function setUserPaymentPin(userId: string, paymentPin: string) {
   const hashedPin = await bcrypt.hash(paymentPin.trim(), 10);
-  const { error } = await getAdminSupabase().from("users").update({ payment_pin_hash: hashedPin, payment_pin_set_at: new Date().toISOString() }).eq("id", userId);
+  const { error } = await getAdminSupabase().schema("public").from("users").update({ payment_pin_hash: hashedPin, payment_pin_set_at: new Date().toISOString() }).eq("id", userId);
   if (error) throw error;
 }
 
 export async function verifyUserPaymentPin(userId: string, paymentPin: string) {
-  const { data, error } = await getAdminSupabase().from("users").select("payment_pin_hash").eq("id", userId).single();
+  const { data, error } = await getAdminSupabase().schema("public").from("users").select("payment_pin_hash").eq("id", userId).single();
   if (error || !data) return false;
   const storedHash = data.payment_pin_hash as string | null | undefined;
   if (!storedHash) return false;
@@ -490,7 +569,7 @@ export async function createEmailVerificationToken(userId: string, email: string
   const token = `${Date.now()}_${Math.random().toString(36).substring(2, 15)}${Math.random().toString(36).substring(2, 15)}`;
   const expiresAt = new Date(Date.now() + ttlHours * 60 * 60 * 1000).toISOString();
   const { error } = await supabase
-    .from("users")
+    .schema("public").from("users")
     .update({ verification_token: token, verification_expires_at: expiresAt, email_verified: false })
     .eq("id", userId);
   if (error) throw error;
@@ -498,13 +577,13 @@ export async function createEmailVerificationToken(userId: string, email: string
 }
 
 export async function verifyEmailToken(token: string) {
-  const { data, error } = await getAdminSupabase().from("users").select("id, email, verification_expires_at").eq("verification_token", token).single();
+  const { data, error } = await getAdminSupabase().schema("public").from("users").select("id, email, verification_expires_at").eq("verification_token", token).single();
   if (error || !data) return { success: false, error: "Invalid verification token" };
   if (new Date(data.verification_expires_at) < new Date()) {
     return { success: false, error: "Verification token has expired" };
   }
   const { error: updateError } = await supabase
-    .from("users")
+    .schema("public").from("users")
     .update({ email_verified: true, verification_token: null, verification_expires_at: null })
     .eq("id", data.id);
   if (updateError) throw updateError;
@@ -515,13 +594,13 @@ export async function createLoginOtp(userId: string, ttlMinutes = 10) {
   const otp = String(Math.floor(100000 + Math.random() * 900000));
   const otpHash = await bcrypt.hash(otp, 10);
   const expiresAt = new Date(Date.now() + ttlMinutes * 60 * 1000).toISOString();
-  const { error } = await getAdminSupabase().from("users").update({ login_otp: otpHash, login_otp_expires_at: expiresAt }).eq("id", userId);
+  const { error } = await getAdminSupabase().schema("public").from("users").update({ login_otp: otpHash, login_otp_expires_at: expiresAt }).eq("id", userId);
   if (error) throw error;
   return otp;
 }
 
 export async function verifyLoginOtp(userId: string, otp: string) {
-  const { data, error } = await getAdminSupabase().from("users").select("login_otp, login_otp_expires_at").eq("id", userId).single();
+  const { data, error } = await getAdminSupabase().schema("public").from("users").select("login_otp, login_otp_expires_at").eq("id", userId).single();
   if (error || !data) return { success: false, error: "User not found" };
   const storedHash = data.login_otp as string | null | undefined;
   if (!storedHash) return { success: false, error: "No verification code found" };
@@ -530,7 +609,7 @@ export async function verifyLoginOtp(userId: string, otp: string) {
   if (new Date(data.login_otp_expires_at) < new Date()) {
     return { success: false, error: "Verification code has expired" };
   }
-  const { error: updateError } = await getAdminSupabase().from("users").update({ login_otp: null, login_otp_expires_at: null }).eq("id", userId);
+  const { error: updateError } = await getAdminSupabase().schema("public").from("users").update({ login_otp: null, login_otp_expires_at: null }).eq("id", userId);
   if (updateError) throw updateError;
   return { success: true };
 }
@@ -547,8 +626,24 @@ export async function updateUserPresence(userId: string, options: { markLogin?: 
     payload.last_login_at = nowIso;
   }
 
-  const { error } = await getAdminSupabase().from("users").update(payload).eq("id", userId);
+  const { error } = await getAdminSupabase().schema("public").from("users").update(payload).eq("id", userId);
   if (error) console.error("User presence update error:", error);
+}
+
+export async function ensureBuiltInAccount(email: string) {
+  const normalizedEmail = email.toLowerCase().trim();
+  const adminEmail = (process.env.ADMIN_EMAIL || "admin@renttrack.com").toLowerCase().trim();
+  const ownerEmail = (process.env.OWNER_EMAIL || "renttrackowner@gmail.com").toLowerCase().trim();
+  const tasks: Promise<unknown>[] = [];
+
+  if (normalizedEmail === adminEmail && process.env.ADMIN_PASSWORD) {
+    tasks.push(findOrCreateAdmin());
+  }
+  if (normalizedEmail === ownerEmail && process.env.OWNER_PASSWORD) {
+    tasks.push(findOrCreateOwner());
+  }
+
+  await Promise.allSettled(tasks);
 }
 
 export async function logAudit(userId: string, action: string, details?: Record<string, any>, ipAddress?: string, userAgent?: string) {
@@ -577,8 +672,14 @@ export async function findOrCreateAdmin() {
   }
 
   const adminClient = getAdminSupabase();
-  const { data: existing, error: lookupError } = await adminClient.from("users").select("*").eq("email", email).single();
-  if (lookupError && lookupError.code !== "PGRST116") {
+  let { data: existing, error: lookupError } = await adminClient.schema("public").from("users").select("*").eq("email", email).single();
+  if (isPublicUsersSchemaCacheError(lookupError)) {
+    await reloadPostgrestSchema();
+    const retry = await adminClient.schema("public").from("users").select("*").eq("email", email).single();
+    existing = retry.data;
+    lookupError = retry.error;
+  }
+  if (lookupError && lookupError.code !== "PGRST116" && !isPublicUsersSchemaCacheError(lookupError)) {
     throw new Error(`Failed to query admin: ${lookupError.message}`);
   }
   const admin = existing as any;
@@ -586,16 +687,16 @@ export async function findOrCreateAdmin() {
   if (admin) {
     const resetBuiltInPassword = process.env.FORCE_BUILTIN_PASSWORD_RESET === "true";
     if (admin.role !== role) {
-      const { error } = await adminClient.from("users").update({ role, phone, email_verified: true, verification_token: null, verification_expires_at: null }).eq("id", admin.id);
+      const { error } = await adminClient.schema("public").from("users").update({ role, phone, email_verified: true, verification_token: null, verification_expires_at: null }).eq("id", admin.id);
       if (error) throw new Error(`Failed to update admin: ${error.message}`);
       console.log("Admin role corrected for:", email);
     } else {
-      const { error } = await adminClient.from("users").update({ email_verified: true, verification_token: null, verification_expires_at: null }).eq("id", admin.id);
+      const { error } = await adminClient.schema("public").from("users").update({ email_verified: true, verification_token: null, verification_expires_at: null }).eq("id", admin.id);
       if (error) throw new Error(`Failed to update admin: ${error.message}`);
     }
     if (resetBuiltInPassword) {
       const passwordHash = await bcrypt.hash(password, 10);
-      const { error } = await adminClient.from("users").update({ password: passwordHash }).eq("id", admin.id);
+      const { error } = await adminClient.schema("public").from("users").update({ password: passwordHash }).eq("id", admin.id);
       if (error) throw new Error(`Failed to reset built-in admin password: ${error.message}`);
       console.log("Built-in administrator password reset for:", email);
     }
@@ -606,7 +707,7 @@ export async function findOrCreateAdmin() {
 
   const id = `usr_admin_${Date.now()}`;
   const hashedDefault = await bcrypt.hash(password, 10);
-  const { error } = await adminClient.from("users").insert({
+  const { error } = await adminClient.schema("public").from("users").insert({
     id,
     name,
     email,
@@ -625,8 +726,13 @@ export async function findOrCreateAdmin() {
 }
 
 export async function getAllUsers() {
-  const { data, error } = await getAdminSupabase().from("users").select("*").order("created_at", { ascending: false });
-  if (error) throw error;
+  let result = await getAdminSupabase().schema("public").from("users").select("*").order("created_at", { ascending: false });
+  if (isPublicUsersSchemaCacheError(result.error)) {
+    await reloadPostgrestSchema();
+    result = await getAdminSupabase().schema("public").from("users").select("*").order("created_at", { ascending: false });
+  }
+  const { data, error } = result;
+  if (error && !isPublicUsersSchemaCacheError(error)) throw error;
   return (data || []).map((u: any) => snakeToCamel(u));
 }
 
@@ -814,8 +920,13 @@ export async function deleteUnit(id: string) {
 }
 
 export async function getTenants() {
-  const { data: users, error: usersError } = await getAdminSupabase().from("users").select("*").eq("role", "tenant").order("created_at", { ascending: false });
-  if (usersError) throw usersError;
+  let usersResult = await getAdminSupabase().schema("public").from("users").select("*").eq("role", "tenant").order("created_at", { ascending: false });
+  if (isPublicUsersSchemaCacheError(usersResult.error)) {
+    await reloadPostgrestSchema();
+    usersResult = await getAdminSupabase().schema("public").from("users").select("*").eq("role", "tenant").order("created_at", { ascending: false });
+  }
+  const { data: users, error: usersError } = usersResult;
+  if (usersError && !isPublicUsersSchemaCacheError(usersError)) throw usersError;
 
   const { data: tenantRecords, error: tenantsError } = await getAdminSupabase().from("tenants").select("*");
   if (tenantsError) throw tenantsError;
@@ -879,7 +990,7 @@ export async function createTenant(data: any, userId: string) {
 export async function deleteTenant(userId: string) {
   const { error: tenantError } = await getAdminSupabase().from("tenants").delete().eq("id", userId);
   if (tenantError) throw tenantError;
-  const { error: userError } = await getAdminSupabase().from("users").delete().eq("id", userId);
+  const { error: userError } = await getAdminSupabase().schema("public").from("users").delete().eq("id", userId);
   if (userError) throw userError;
 }
 
@@ -1070,7 +1181,7 @@ export async function getAgentApplicationResume(id: string) {
     .select("resume_data, resume_name, resume_mime_type").eq("id", id).single();
   if (error || !data) throw error || new Error("Resume not found");
 
-  let raw = data.resume_data || "";
+  const raw = data.resume_data || "";
   let buffer: Buffer;
   if (typeof raw === "string") {
     if (raw.startsWith("\\x")) {
@@ -1256,12 +1367,12 @@ export async function deleteUpload(id: string) {
 }
 
 export async function updateUserAvatar(userId: string, url: string) {
-  const { error } = await getAdminSupabase().from("users").update({ avatar_url: url }).eq("id", userId);
+  const { error } = await getAdminSupabase().schema("public").from("users").update({ avatar_url: url }).eq("id", userId);
   if (error) throw error;
 }
 
 export async function updateUserIdVerification(userId: string, url: string, status: string) {
-  const { error } = await getAdminSupabase().from("users").update({ id_verification_url: url, id_verification_status: status }).eq("id", userId);
+  const { error } = await getAdminSupabase().schema("public").from("users").update({ id_verification_url: url, id_verification_status: status }).eq("id", userId);
   if (error) throw error;
 }
 
@@ -1341,7 +1452,7 @@ export async function getConversations(userId: string) {
     latestByOther.set(otherId, msg);
   }
   const { data: otherUsers } = others.length > 0
-    ? await getAdminSupabase().from("users").select("*").in("id", others)
+    ? await getAdminSupabase().schema("public").from("users").select("*").in("id", others)
     : { data: [] };
   const userMap = new Map((otherUsers || []).map((u: any) => [u.id, u]));
   const unreadBySender = new Map<string, number>();
@@ -1455,22 +1566,28 @@ export async function findOrCreateOwner() {
   }
 
   const adminClient = getAdminSupabase();
-  const { data: existing } = await adminClient.from("users").select("*").eq("email", email).single();
+  let { data: existing, error: lookupError } = await adminClient.schema("public").from("users").select("*").eq("email", email).single();
+  if (isPublicUsersSchemaCacheError(lookupError)) {
+    await reloadPostgrestSchema();
+    const retry = await adminClient.schema("public").from("users").select("*").eq("email", email).single();
+    existing = retry.data;
+    lookupError = retry.error;
+  }
   const owner = existing as any;
 
   if (owner) {
     const resetBuiltInPassword = process.env.FORCE_BUILTIN_PASSWORD_RESET === "true";
     if (owner.role !== role) {
-      const { error } = await adminClient.from("users").update({ role, phone, email_verified: true, verification_token: null, verification_expires_at: null }).eq("id", owner.id);
+      const { error } = await adminClient.schema("public").from("users").update({ role, phone, email_verified: true, verification_token: null, verification_expires_at: null }).eq("id", owner.id);
       if (error) throw new Error(`Failed to update owner: ${error.message}`);
       console.log("Owner role corrected for:", email);
     } else {
-      const { error } = await adminClient.from("users").update({ email_verified: true, verification_token: null, verification_expires_at: null }).eq("id", owner.id);
+      const { error } = await adminClient.schema("public").from("users").update({ email_verified: true, verification_token: null, verification_expires_at: null }).eq("id", owner.id);
       if (error) throw new Error(`Failed to update owner: ${error.message}`);
     }
     if (resetBuiltInPassword) {
       const passwordHash = await bcrypt.hash(password, 10);
-      const { error } = await adminClient.from("users").update({ password: passwordHash }).eq("id", owner.id);
+      const { error } = await adminClient.schema("public").from("users").update({ password: passwordHash }).eq("id", owner.id);
       if (error) throw new Error(`Failed to reset built-in owner password: ${error.message}`);
       console.log("Built-in owner password reset for:", email);
     }
@@ -1479,7 +1596,7 @@ export async function findOrCreateOwner() {
 
   const id = `usr_owner_${Date.now()}`;
   const hashedDefault = await bcrypt.hash(password, 10);
-  const { error } = await adminClient.from("users").insert({
+  const { error } = await adminClient.schema("public").from("users").insert({
     id, name, email, password: hashedDefault, role, phone, email_verified: true,
     verification_token: null, verification_expires_at: null, created_at: new Date().toISOString(),
   });
@@ -1499,20 +1616,20 @@ export async function deleteUser(id: string) {
     admin.from("payments").update({ verified_by: null }).eq("verified_by", id),
     admin.from("complaints").update({ assigned_to: null }).eq("assigned_to", id),
   ]);
-  const { error } = await admin.from("users").delete().eq("id", id);
+  const { error } = await admin.schema("public").from("users").delete().eq("id", id);
   if (error) throw error;
 }
 
 export async function resetUserPassword(id: string, newPassword: string) {
   const hashed = await bcrypt.hash(newPassword, 10);
-  const { data, error } = await getAdminSupabase().from("users").update({ password: hashed }).eq("id", id).select().single();
+  const { data, error } = await getAdminSupabase().schema("public").from("users").update({ password: hashed }).eq("id", id).select().single();
   if (error) throw error;
   return snakeToCamel(data);
 }
 
 export async function updateUser(id: string, updates: any) {
   const snakeUpdates = camelToSnake(updates);
-  const { data, error } = await getAdminSupabase().from("users").update(snakeUpdates).eq("id", id).select().single();
+  const { data, error } = await getAdminSupabase().schema("public").from("users").update(snakeUpdates).eq("id", id).select().single();
   if (error) throw error;
   return snakeToCamel(data);
 }

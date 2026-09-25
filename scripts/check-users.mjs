@@ -1,20 +1,23 @@
+import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 
+dotenv.config({ path: "./.env.local" });
+
 const supabase = createClient(
-  "https://lhuefuonrqfjkjjvrzvh.supabase.co",
-  "sb_publishable_NDK9BxpzXjw3xVo42O_TlA_pUZn1Ls4",
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY,
   { auth: { autoRefreshToken: false, persistSession: false } }
 );
 
 async function checkUsers() {
-  const { data, error } = await supabase.from("users").select("*");
+  const { data, error } = await supabase.schema("public").from("users").select("*");
   if (error) {
     console.log("Error:", error.message);
     return;
   }
   console.log("Users in database:");
   for (const u of data || []) {
-    console.log(`- ID: ${u.id}, Email: ${u.email}, Role: ${u.role}, Password starts with: ${u.password?.substring(0, 10)}...`);
+    console.log(`- ID: ${u.id}, Email: ${u.email}, Role: ${u.role}, Email verified: ${u.email_verified}`);
   }
 }
 

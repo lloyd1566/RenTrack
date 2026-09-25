@@ -1,8 +1,11 @@
+import dotenv from "dotenv";
 import { createClient } from "@supabase/supabase-js";
 
+dotenv.config({ path: "./.env.local" });
+
 const supabase = createClient(
-  "https://lhuefuonrqfjkjjvrzvh.supabase.co",
-  "sb_publishable_NDK9BxpzXjw3xVo42O_TlA_pUZn1Ls4",
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY,
   { auth: { autoRefreshToken: false, persistSession: false } }
 );
 
@@ -11,7 +14,7 @@ async function checkTables() {
   
   for (const table of tables) {
     try {
-      const { data, error, count } = await supabase.from(table).select('*', { count: 'exact', head: true });
+      const { error, count } = await supabase.schema("public").from(table).select('*', { count: 'exact', head: true });
       console.log(`${table}: exists=${!error}, count=${count ?? 'unknown'}, error=${error?.message || 'none'}`);
     } catch (e) {
       console.log(`${table}: ERROR - ${e}`);

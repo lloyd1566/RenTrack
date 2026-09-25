@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAllUsers, findUserById, findUserByEmail, deleteUser, createUser } from "@/lib/db";
+import { getAllUsers, findUserById, findUserByEmail, deleteUser, createUser, initDatabase } from "@/lib/db";
 import { getCurrentUser } from "@/lib/security";
 import {
   requireRole, sanitizeResponse, withSecurityHeaders, withCorsHeaders,
@@ -11,6 +11,8 @@ import bcrypt from "bcryptjs";
 
 export async function GET(request: NextRequest) {
   try {
+    await initDatabase();
+
     const auth = await requireRole(request, ["admin", "owner"]);
     if (auth instanceof NextResponse) return auth;
 
@@ -25,6 +27,8 @@ export async function GET(request: NextRequest) {
 
 export async function POST(request: NextRequest) {
   try {
+    await initDatabase();
+
     const auth = await requireRole(request, ["admin", "owner"]);
     if (auth instanceof NextResponse) return auth;
 
@@ -82,6 +86,8 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    await initDatabase();
+
     const auth = await requireRole(request, ["admin", "owner"]);
     if (auth instanceof NextResponse) return auth;
 

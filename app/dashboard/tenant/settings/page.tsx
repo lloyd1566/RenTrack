@@ -65,9 +65,6 @@ export default function TenantSettingsPage() {
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [languages, setLanguages] = useState(user?.languages || "");
-  const [hobbies, setHobbies] = useState(user?.hobbies || "");
-  const [aboutMe, setAboutMe] = useState(user?.aboutMe || "");
   const [gender, setGender] = useState(user?.gender || "");
   const [birthdate, setBirthdate] = useState(user?.birthdate || "");
   const [country, setCountry] = useState(user?.country || "");
@@ -87,9 +84,6 @@ export default function TenantSettingsPage() {
       setName(user.name);
       setEmail(user.email);
       setPhone(user.phone || "");
-      setLanguages(user.languages || "");
-      setHobbies(user.hobbies || "");
-      setAboutMe(user.aboutMe || "");
       setGender(user.gender || "");
       setBirthdate(user.birthdate || "");
       setCountry(user.country || "");
@@ -102,9 +96,6 @@ export default function TenantSettingsPage() {
       setName(user.name);
       setEmail(user.email);
       setPhone(user.phone || "");
-      setLanguages(user.languages || "");
-      setHobbies(user.hobbies || "");
-      setAboutMe(user.aboutMe || "");
       setGender(user.gender || "");
       setBirthdate(user.birthdate || "");
       setCountry(user.country || "");
@@ -142,7 +133,7 @@ export default function TenantSettingsPage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ id: user?.id, name, email, phone, languages, hobbies, aboutMe, gender, birthdate, country, address }),
+        body: JSON.stringify({ id: user?.id, name, email, phone, gender, birthdate, country, address }),
       });
       const result = await res.json();
       if (result.success) {
@@ -264,8 +255,6 @@ export default function TenantSettingsPage() {
     birthdate,
     country,
     address,
-    languages,
-    aboutMe,
     avatarUrl: user.avatarUrl,
     idVerificationUrl: user.idVerificationUrl,
   };

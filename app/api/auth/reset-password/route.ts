@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/security";
-import { findUserById, resetUserPassword } from "@/lib/db";
+import { findUserById, resetUserPassword, initDatabase } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import { sendEmail, getSiteUrl } from "@/lib/mail";
 import {
@@ -12,6 +12,8 @@ import { logAudit } from "@/lib/db";
 
 export async function POST(request: NextRequest) {
   try {
+    await initDatabase();
+
     const rateLimit = await withRateLimit(request, `reset_password:${getClientIp(request)}`);
     if (rateLimit) return rateLimit;
 

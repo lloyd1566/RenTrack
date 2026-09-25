@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
 
     const adminClient = getAdminSupabase();
     const { data: user, error } = await adminClient
-      .from("users")
+      .schema("public").from("users")
       .select("id, name, email, role, verification_expires_at")
       .eq("verification_token", token)
       .single();
@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
 
     const hashedPassword = await bcrypt.hash(newPassword, 10);
     const { error: updateError } = await adminClient
-      .from("users")
+      .schema("public").from("users")
       .update({
         password: hashedPassword,
         verification_token: null,

@@ -17,7 +17,7 @@ function looksHashed(pw) {
 
 async function run() {
   console.log("Fetching users...");
-  const { data: users, error } = await supabase.from("users").select("id, email, password");
+  const { data: users, error } = await supabase.schema("public").from("users").select("id, email, password");
   if (error) {
     console.error("Failed to fetch users:", error.message);
     process.exit(1);

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { findUserByEmail, logAudit, updateUserPresence } from "@/lib/db";
+import { findUserByEmail, logAudit, updateUserPresence, initDatabase, ensureBuiltInAccount } from "@/lib/db";
 import { regenerateSession } from "@/lib/security";
 import { checkRateLimit, recordFailedAttempt, clearRateLimit } from "@/lib/auth-security";
 import { validateApiRequest, withRateLimit } from "@/lib/api-security";
@@ -8,6 +8,8 @@ import { withSecurityHeaders, withCorsHeaders, getClientIp, sanitizeString } fro
 
 export async function POST(request: NextRequest) {
   try {
+    await initDatabase();
+
     const validation = validateApiRequest(request);
     if (validation) return validation;
 
@@ -41,6 +43,8 @@ export async function POST(request: NextRequest) {
       }, { status: 429 });
       return withSecurityHeaders(withCorsHeaders(request, response));
     }
+
+    await ensureBuiltInAccount(sanitizedEmail);
 
     const user = await Promise.race([
       findUserByEmail(sanitizedEmail),

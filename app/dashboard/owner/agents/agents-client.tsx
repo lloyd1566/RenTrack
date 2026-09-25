@@ -85,11 +85,8 @@ export default function OwnerAgentsPage() {
     password: "",
     phone: "",
     address: "",
-    aboutMe: "",
     gender: "",
     birthdate: "",
-    languages: "",
-    hobbies: "",
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -124,7 +121,7 @@ export default function OwnerAgentsPage() {
   }, [loadData]);
 
   const openRegister = () => {
-    setAgentForm({ name: "", email: "", password: "", phone: "", address: "", aboutMe: "", gender: "", birthdate: "", languages: "", hobbies: "" });
+    setAgentForm({ name: "", email: "", password: "", phone: "", address: "", gender: "", birthdate: "" });
     setShowAgentPassword(false);
     setIsRegisterOpen(true);
   };
@@ -132,7 +129,7 @@ export default function OwnerAgentsPage() {
   const closeRegister = () => {
     setIsRegisterOpen(false);
     setShowAgentPassword(false);
-    setAgentForm({ name: "", email: "", password: "", phone: "", address: "", aboutMe: "", gender: "", birthdate: "", languages: "", hobbies: "" });
+    setAgentForm({ name: "", email: "", password: "", phone: "", address: "", gender: "", birthdate: "" });
   };
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -151,7 +148,7 @@ export default function OwnerAgentsPage() {
     try {
       const agent = await registerAgent(agentForm);
       setAgents([agent, ...agents]);
-      setAgentForm({ name: "", email: "", password: "", phone: "", address: "", aboutMe: "", gender: "", birthdate: "", languages: "", hobbies: "" });
+      setAgentForm({ name: "", email: "", password: "", phone: "", address: "", gender: "", birthdate: "" });
       toast.success("Agent registered successfully!");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to register agent";
@@ -548,9 +545,6 @@ export default function OwnerAgentsPage() {
                 {agent.country && (
                   <div className="text-[10px] text-text-tertiary">Country: {agent.country}</div>
                 )}
-                {agent.languages && (
-                  <div className="text-[10px] text-text-tertiary">Languages: {agent.languages}</div>
-                )}
               </div>
               {agentStats[agent.id] && (
                 <div className="grid grid-cols-3 gap-2 mb-4">
@@ -738,31 +732,7 @@ export default function OwnerAgentsPage() {
                     <p className="text-sm font-medium text-foreground">{viewingAgent.country}</p>
                   </div>
                 )}
-                {viewingAgent.languages && (
-                  <div className="p-4 rounded-xl bg-surface-secondary">
-                    <p className="text-xs text-text-secondary mb-1">Languages</p>
-                    <p className="text-sm font-medium text-foreground">{viewingAgent.languages}</p>
-                  </div>
-                )}
               </div>
-
-              {viewingAgent.hobbies && (
-                <div>
-                  <p className="text-xs text-text-secondary mb-2">Hobbies</p>
-                  <div className="flex flex-wrap gap-2">
-                    {viewingAgent.hobbies.split(",").map((hobby, idx) => (
-                      <Badge key={idx} variant="outline" className="text-[10px] capitalize">{hobby.trim()}</Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {viewingAgent.aboutMe && (
-                <div>
-                  <p className="text-xs text-text-secondary mb-2">About Me</p>
-                  <p className="text-sm text-foreground leading-relaxed">{viewingAgent.aboutMe}</p>
-                </div>
-              )}
 
               {agentStats[viewingAgent.id] && (
                 <div>

@@ -15,7 +15,6 @@ import {
   LayoutDashboard,
   Users,
   Home,
-  UserPlus,
   CreditCard,
   Activity,
   FileText,
@@ -55,7 +54,6 @@ const navSections: NavSection[] = [
     title: "Management",
     items: [
       { label: "Units", href: "/dashboard/admin?tab=units", tab: "units", icon: Home },
-      { label: "Tenants", href: "/dashboard/admin?tab=tenants", tab: "tenants", icon: UserPlus },
       { label: "Payments", href: "/dashboard/admin?tab=payments", tab: "payments", icon: CreditCard },
     ],
   },

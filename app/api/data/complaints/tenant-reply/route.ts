@@ -38,7 +38,7 @@ export async function PATCH(request: NextRequest) {
         type: "system",
       });
     } else {
-      const { data: staff } = await getAdminSupabase().from("users").select("id").in("role", ["admin", "owner", "agent"]);
+      const { data: staff } = await getAdminSupabase().schema("public").from("users").select("id").in("role", ["admin", "owner", "agent"]);
       for (const member of staff || []) {
         await createNotification({
           userId: member.id,

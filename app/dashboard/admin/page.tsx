@@ -37,7 +37,7 @@ import CreateTenantModal from "@/components/create-tenant-modal";
 const fadeInUp = { hidden: { opacity: 0, y: 20 }, visible: { opacity: 1, y: 0, transition: { duration: 0.5 } } };
 
 export default function AdminDashboard() {
-  const { user, login } = useAuth();
+  const { user } = useAuth();
   const searchParams = useSearchParams();
   const router = useRouter();
   const activeTab = searchParams.get("tab") || "overview";
@@ -58,6 +58,8 @@ export default function AdminDashboard() {
   const [roleFilter, setRoleFilter] = useState<"all" | "admin" | "owner" | "agent" | "tenant">("all");
   const [unitSearch, setUnitSearch] = useState("");
   const [unitStatusFilter, setUnitStatusFilter] = useState<"all" | "occupied" | "vacant" | "maintenance">("all");
+  const [tenantSearch, setTenantSearch] = useState("");
+  const [tenantStatusFilter, setTenantStatusFilter] = useState<"all" | "active" | "inactive">("all");
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [diagnosisResults, setDiagnosisResults] = useState<Record<string, string> | null>(null);
   const [isRunningDiagnosis, setIsRunningDiagnosis] = useState(false);
@@ -65,6 +67,10 @@ export default function AdminDashboard() {
   const [systemConfig, setSystemConfig] = useState<Record<string, string>>({});
   const [editingConfig, setEditingConfig] = useState<string | null>(null);
   const [configDraft, setConfigDraft] = useState<string>("");
+  const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const [announcementTitle, setAnnouncementTitle] = useState("");
+  const [announcementMessage, setAnnouncementMessage] = useState("");
+  const [isSendingAnnouncement, setIsSendingAnnouncement] = useState(false);
   const [conversations, setConversations] = useState<any[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<any>(null);
   const [isMessagingOpen, setIsMessagingOpen] = useState(false);
@@ -135,6 +141,10 @@ export default function AdminDashboard() {
     fetch("/api/admin/config", { credentials: "include" })
       .then(res => res.json())
       .then(data => { if (data.success && data.config) setSystemConfig(data.config); })
+      .catch(() => {});
+    fetch("/api/admin/maintenance/mode", { credentials: "include" })
+      .then(res => res.json())
+      .then(data => { if (data.success) setMaintenanceMode(data.enabled); })
       .catch(() => {});
   }, [loadData]);
 
@@ -762,7 +772,7 @@ export default function AdminDashboard() {
       {activeTab === "tenants" && (
         <Card className="border border-gray-200">
           <CardHeader>
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
               <div>
                 <CardTitle className="flex items-center gap-2 text-gray-900">
                   <UserPlus className="h-5 w-5 text-gray-600" />
@@ -770,10 +780,26 @@ export default function AdminDashboard() {
                 </CardTitle>
                 <CardDescription>Manage tenant accounts and assignments</CardDescription>
               </div>
-              <Button size="sm" onClick={() => setShowCreateTenant(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
-                <Plus className="h-4 w-4 mr-1.5" />
-                Create Tenant
-              </Button>
+              <div className="flex items-center gap-2">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    value={tenantSearch}
+                    onChange={(e) => setTenantSearch(e.target.value)}
+                    placeholder="Search tenants..."
+                    className="pl-9 h-9 w-full sm:w-64"
+                  />
+                </div>
+                <Select value={tenantStatusFilter} onChange={(e) => setTenantStatusFilter(e.target.value as any)} className="h-9 w-full sm:w-40">
+                  <option value="all">All Status</option>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </Select>
+                <Button size="sm" onClick={() => setShowCreateTenant(true)} className="bg-blue-600 hover:bg-blue-700 text-white">
+                  <Plus className="h-4 w-4 mr-1.5" />
+                  Create Tenant
+                </Button>
+              </div>
             </div>
           </CardHeader>
           <CardContent>
@@ -792,29 +818,35 @@ export default function AdminDashboard() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {tenants.map((t, i) => (
-                      <motion.tr
-                        key={t.id}
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: i * 0.05, duration: 0.3 }}
-                        className="border-b border-border/50 hover:bg-surface-secondary"
-                      >
-                        <TableCell className="font-medium">{t.name}</TableCell>
-                        <TableCell className="text-text-secondary">{t.email}</TableCell>
-                        <TableCell className="text-text-secondary">{t.phone}</TableCell>
-                        <TableCell>{t.unitNumber || "-"}</TableCell>
-                        <TableCell>
-                          <span className={cn(
-                            "inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium",
-                            t.status === "active" && "bg-green-50 text-green-600",
-                            t.status === "inactive" && "bg-gray-50 text-gray-600",
-                          )}>
-                            {t.status}
-                          </span>
-                        </TableCell>
-                      </motion.tr>
-                    ))}
+                    {tenants
+                      .filter((t) => {
+                        const matchesSearch = !tenantSearch || t.name.toLowerCase().includes(tenantSearch.toLowerCase()) || t.email.toLowerCase().includes(tenantSearch.toLowerCase());
+                        const matchesStatus = tenantStatusFilter === "all" || t.status === tenantStatusFilter;
+                        return matchesSearch && matchesStatus;
+                      })
+                      .map((t, i) => (
+                        <motion.tr
+                          key={t.id}
+                          initial={{ opacity: 0, x: -20 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: i * 0.05, duration: 0.3 }}
+                          className="border-b border-border/50 hover:bg-surface-secondary"
+                        >
+                          <TableCell className="font-medium">{t.name}</TableCell>
+                          <TableCell className="text-text-secondary">{t.email}</TableCell>
+                          <TableCell className="text-text-secondary">{t.phone}</TableCell>
+                          <TableCell>{t.unitNumber || "-"}</TableCell>
+                          <TableCell>
+                            <span className={cn(
+                              "inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium",
+                              t.status === "active" && "bg-green-50 text-green-600",
+                              t.status === "inactive" && "bg-gray-50 text-gray-600",
+                            )}>
+                              {t.status}
+                            </span>
+                          </TableCell>
+                        </motion.tr>
+                      ))}
                   </TableBody>
                 </Table>
               </div>
@@ -1310,59 +1342,7 @@ export default function AdminDashboard() {
         />
       )}
 
-      {/* Demo Accounts Tab */}
-      {activeTab === "demo" && (
-        <Card className="border border-gray-200">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-gray-900">
-              <UserPlus className="h-5 w-5 text-gray-600" />
-              Quick Demo Login
-            </CardTitle>
-            <CardDescription>Click a role below to instantly log in as that built-in account</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {[
-                { role: "Property Owner", email: "owner@renttrack.com", password: "owner", icon: Users, color: "bg-blue-600 text-white", description: "Property and unit management", route: "/dashboard/owner" },
-                { role: "Property Owner 2", email: "renttrackowner@gmail.com", password: "RentrackOwner", icon: Users, color: "bg-indigo-600 text-white", description: "RentTrack owner account", route: "/dashboard/owner" },
-                { role: "Agent", email: "agent@renttrack.com", password: "agent", icon: Users, color: "bg-amber-500 text-white", description: "Tenant and payment management", route: "/dashboard" },
-                { role: "Tenant", email: "tenant@renttrack.com", password: "tenant", icon: Users, color: "bg-green-600 text-white", description: "Rental and payment access", route: "/dashboard/tenant" },
-              ].map((account, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: i * 0.1, duration: 0.3 }}
-                >
-                  <Card
-                    className="border-2 border-dashed border-gray-200 hover:border-gray-300 transition-all hover:shadow-lg cursor-pointer"
-                    onClick={() => {
-                      login(account.email, account.password).then((success) => {
-                        if (success) {
-                          window.location.href = account.route;
-                        }
-                      });
-                    }}
-                  >
-                    <CardContent className="p-6 text-center">
-                      <div className={`h-16 w-16 rounded-full flex items-center justify-center text-white mx-auto mb-4 shadow-lg ${account.color}`}>
-                        <account.icon className="h-8 w-8" />
-                      </div>
-                      <h3 className="text-lg font-semibold text-gray-900 mb-1">{account.role}</h3>
-                      <p className="text-xs text-gray-500 mb-4">{account.description}</p>
-                      <motion.div whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}>
-                        <Button size="sm" className="w-full bg-gray-900 hover:bg-gray-800 text-white">
-                          Login as {account.role}
-                        </Button>
-                      </motion.div>
-                    </CardContent>
-                  </Card>
-                </motion.div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+
 
       {/* System Activity Tab */}
       {activeTab === "activity" && (
@@ -1697,6 +1677,110 @@ export default function AdminDashboard() {
                   </div>
                 );
               })}
+            </div>
+
+            <div className="mt-6 rounded-xl border border-gray-200 bg-white p-5">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="h-9 w-9 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600">
+                    <Settings className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-gray-900">Maintenance Mode</p>
+                    <p className="text-xs text-gray-500">Temporarily pause access for non-admin users</p>
+                  </div>
+                </div>
+                <button
+                  onClick={async () => {
+                    const newMode = !maintenanceMode;
+                    try {
+                      const res = await fetch("/api/admin/maintenance/mode", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ enabled: newMode }),
+                      });
+                      const data = await res.json();
+                      if (data.success) {
+                        setMaintenanceMode(data.enabled);
+                        document.cookie = `maintenance_mode=${data.enabled ? "true" : "false"}; path=/; max-age=${data.enabled ? 86400 : 0}`;
+                        toast.success(`Maintenance mode ${data.enabled ? "enabled" : "disabled"}`);
+                      } else {
+                        toast.error(data.error || "Failed to update maintenance mode");
+                      }
+                    } catch {
+                      toast.error("Failed to update maintenance mode");
+                    }
+                  }}
+                  className="relative inline-flex h-6 w-11 items-center rounded-full border border-gray-200 transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-400"
+                  style={{ backgroundColor: maintenanceMode ? "#22c55e" : "#e5e7eb" }}
+                >
+                  <span className="inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform" style={{ transform: maintenanceMode ? "translateX(20px)" : "translateX(2px)" }} />
+                </button>
+              </div>
+              {maintenanceMode && (
+                <p className="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                  Maintenance mode is active. Non-admin users will be redirected to the maintenance page.
+                </p>
+              )}
+            </div>
+
+            <div className="mt-8 rounded-xl border border-gray-200 bg-white p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="h-9 w-9 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
+                  <Bell className="h-4 w-4" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">System Announcement</p>
+                  <p className="text-xs text-gray-500">Send a maintenance or system notice to all users</p>
+                </div>
+              </div>
+              <div className="space-y-3">
+                <Input
+                  value={announcementTitle}
+                  onChange={(e) => setAnnouncementTitle(e.target.value)}
+                  placeholder="Announcement title, e.g. Scheduled Maintenance"
+                  className="h-10"
+                />
+                <textarea
+                  value={announcementMessage}
+                  onChange={(e) => setAnnouncementMessage(e.target.value)}
+                  rows={4}
+                  placeholder="Describe the maintenance window, expected downtime, and when systems will be back online..."
+                  className="w-full rounded-xl border border-gray-200 p-3 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/10"
+                />
+                <Button
+                  onClick={async () => {
+                    if (!announcementTitle.trim() || !announcementMessage.trim()) {
+                      toast.error("Title and message are required");
+                      return;
+                    }
+                    setIsSendingAnnouncement(true);
+                    try {
+                      const res = await fetch("/api/admin/announcements", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ title: announcementTitle.trim(), message: announcementMessage.trim() }),
+                      });
+                      const data = await res.json();
+                      if (data.success) {
+                        toast.success(`Announcement sent to ${data.count} users`);
+                        setAnnouncementTitle("");
+                        setAnnouncementMessage("");
+                      } else {
+                        toast.error(data.error || "Failed to send announcement");
+                      }
+                    } catch {
+                      toast.error("Failed to send announcement");
+                    } finally {
+                      setIsSendingAnnouncement(false);
+                    }
+                  }}
+                  disabled={isSendingAnnouncement}
+                  className="bg-blue-600 hover:bg-blue-700 text-white"
+                >
+                  {isSendingAnnouncement ? "Sending..." : "Send Announcement"}
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>

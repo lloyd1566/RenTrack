@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getSessionUserId } from "@/lib/security";
-import { getAdminSupabase, findUserById } from "@/lib/db";
+import { getAdminSupabase, findUserById, initDatabase } from "@/lib/db";
 import bcrypt from "bcryptjs";
 import {
   requireAuth, validateApiRequest, withSecurityHeaders, withCorsHeaders,
@@ -8,11 +8,13 @@ import {
 } from "@/lib/api-security";
 import { logAudit } from "@/lib/db";
 
-const ALLOWED_UPDATE_FIELDS = ["name", "email", "phone", "languages", "hobbies", "aboutMe", "gender", "birthdate", "country", "address", "experience"];
+const ALLOWED_UPDATE_FIELDS = ["name", "email", "phone", "gender", "birthdate", "country", "address", "experience"];
 const PASSWORD_FIELDS = ["currentPassword", "newPassword"];
 
 export async function PATCH(request: NextRequest) {
   try {
+    await initDatabase();
+
     const auth = await requireAuth(request);
     if (auth instanceof NextResponse) return auth;
 
@@ -43,7 +45,7 @@ export async function PATCH(request: NextRequest) {
 
       const newHash = await bcrypt.hash(newPassword, 10);
       const { error: passwordError } = await getAdminSupabase()
-        .from("users")
+        .schema("public").from("users")
         .update({ password: newHash })
         .eq("id", auth.userId);
 
@@ -62,7 +64,7 @@ export async function PATCH(request: NextRequest) {
       if (!ALLOWED_UPDATE_FIELDS.includes(key)) continue;
       if (val === undefined || val === null) continue;
 
-      const dbKey = key === "aboutMe" ? "about_me" : key;
+      const dbKey = key;
 
       if (dbKey === "email") {
         const sanitized = String(val).toLowerCase().trim().replace(/[^a-zA-Z0-9@._+-]/g, "");
@@ -87,7 +89,7 @@ export async function PATCH(request: NextRequest) {
     }
 
     const { error } = await getAdminSupabase()
-      .from("users")
+      .schema("public").from("users")
       .update(updateData)
       .eq("id", auth.userId);
 

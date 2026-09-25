@@ -32,11 +32,11 @@ export async function POST(request: NextRequest) {
     } else if (type === "id_verification") {
       await updateUserIdVerification(userId, url, "pending");
 
-      const uploader = await getAdminSupabase().from("users").select("name, email, role").eq("id", userId).single();
+      const uploader = await getAdminSupabase().schema("public").from("users").select("name, email, role").eq("id", userId).single();
       const uploaderName = uploader.data?.name || "A user";
       const uploaderRole = uploader.data?.role || "user";
 
-      const admins = await getAdminSupabase().from("users").select("id").in("role", ["admin", "owner"]);
+      const admins = await getAdminSupabase().schema("public").from("users").select("id").in("role", ["admin", "owner"]);
       for (const admin of admins.data || []) {
         await createNotification({
           userId: admin.id,

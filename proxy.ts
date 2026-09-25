@@ -12,6 +12,19 @@ export function proxy(request: NextRequest) {
     return withSecurityHeaders(response);
   }
 
+  const maintenanceCookie = request.cookies.get("maintenance_mode");
+  const isMaintenance = maintenanceCookie?.value === "true";
+
+  if (isMaintenance) {
+    const isAdminRoute = pathname.startsWith("/dashboard/admin") || pathname.startsWith("/dashboard/owner") || pathname === "/maintenance";
+    if (!isAdminRoute) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/maintenance";
+      const response = NextResponse.redirect(url, 302);
+      return withSecurityHeaders(response);
+    }
+  }
+
   const response = NextResponse.next();
   return withSecurityHeaders(response);
 }

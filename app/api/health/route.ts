@@ -8,7 +8,7 @@ export async function GET(request: NextRequest) {
     const [{ count: propertiesCount = 0 } = {}, { count: unitsCount = 0 } = {}, { count: tenantsCount = 0 } = {}] = await Promise.all([
       getAdminSupabase().from("properties").select("*", { count: "exact", head: true }),
       getAdminSupabase().from("units").select("*", { count: "exact", head: true }),
-      getAdminSupabase().from("users").select("*", { count: "exact", head: true }).eq("role", "tenant"),
+      getAdminSupabase().schema("public").from("users").select("*", { count: "exact", head: true }).eq("role", "tenant"),
     ]);
 
     const checks = {

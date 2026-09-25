@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     // Send owner notifications in background without blocking response
     void (async () => {
       try {
-        const owners = await getAdminSupabase().from("users").select("id").in("role", ["owner", "admin"]);
+        const owners = await getAdminSupabase().schema("public").from("users").select("id").in("role", ["owner", "admin"]);
         await Promise.all((owners.data || []).map((owner: { id: string }) => createNotification({
           userId: owner.id, title: "New Agent Applicant", message: `${name} applied to become an agent in ${address}.`, type: "system", read: false,
         })));

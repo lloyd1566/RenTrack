@@ -6,9 +6,6 @@ export interface UserProfile {
   birthdate?: string;
   country?: string;
   address?: string;
-  languages?: string;
-  hobbies?: string;
-  aboutMe?: string;
   experience?: string;
   avatarUrl?: string;
   idVerificationUrl?: string;

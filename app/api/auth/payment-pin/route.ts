@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { findUserById, setUserPaymentPin } from "@/lib/db";
+import { findUserById, setUserPaymentPin, initDatabase } from "@/lib/db";
 import { getSessionUserId } from "@/lib/security";
 import bcrypt from "bcryptjs";
 import {
@@ -10,6 +10,8 @@ import { logAudit } from "@/lib/db";
 
 export async function PATCH(request: NextRequest) {
   try {
+    await initDatabase();
+
     const auth = await requireAuth(request);
     if (auth instanceof NextResponse) return auth;
 
