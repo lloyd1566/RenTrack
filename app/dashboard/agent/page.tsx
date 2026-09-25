@@ -432,7 +432,7 @@ export default function AgentDashboard() {
                         </div>
                         <div className="flex items-center gap-3">
                           <p className="text-5xl font-bold text-foreground">{stat.value}</p>
-                          {(stat.tab === "assign" && pendingTenants.length > 0) || (stat.tab === "payments" && pendingPayments.length > 0) ? (
+                          {(stat.tab === "units" && pendingTenants.length > 0) || (stat.tab === "payments" && pendingPayments.length > 0) ? (
                             <motion.span
                               initial={{ scale: 0, x: -8 }}
                               animate={{ scale: 1, x: 0 }}
