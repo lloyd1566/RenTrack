@@ -338,9 +338,6 @@ export default function OwnerAgentsPage() {
                 {agent.gender && (
                   <div className="text-[10px] text-text-tertiary">Gender: {agent.gender}</div>
                 )}
-                {agent.country && (
-                  <div className="text-[10px] text-text-tertiary">Country: {agent.country}</div>
-                )}
               </div>
               {agentStats[agent.id] && (
                 <div className="grid grid-cols-3 gap-2 mb-4">
@@ -485,12 +482,6 @@ export default function OwnerAgentsPage() {
                   <div className="p-4 rounded-xl bg-surface-secondary">
                     <p className="text-xs text-text-secondary mb-1">Birthdate</p>
                     <p className="text-sm font-medium text-foreground">{viewingAgent.birthdate}</p>
-                  </div>
-                )}
-                {viewingAgent.country && (
-                  <div className="p-4 rounded-xl bg-surface-secondary">
-                    <p className="text-xs text-text-secondary mb-1">Country</p>
-                    <p className="text-sm font-medium text-foreground">{viewingAgent.country}</p>
                   </div>
                 )}
               </div>

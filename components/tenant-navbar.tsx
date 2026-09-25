@@ -9,6 +9,7 @@ import { X, ChevronDown, Loader2, Bell, Home, CreditCard, FileText, Building2, L
 import { cn, formatDate } from "@/lib/utils";
 import { useAuth } from "@/lib/auth";
 import { getNotifications, getUnreadMessageCount, markAllNotificationsRead, markNotificationRead, Notification } from "@/lib/data";
+import { getNotificationDashboardHref } from "@/lib/notification-routing";
 import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
 
@@ -155,24 +156,7 @@ export default function TenantNavbar() {
     }
     setShowNotifications(false);
     setMobileOpen(false);
-
-    const title = (n.title || "").toLowerCase();
-    const type = (n.type || "").toLowerCase();
-    const msg = (n.message || "").toLowerCase();
-
-    if (title.includes("message") || msg.includes("message") || title.includes("chat")) {
-      router.push("/dashboard/tenant/messages");
-    } else if (type === "payment" || title.includes("payment") || msg.includes("payment") || msg.includes("rent") || msg.includes("balance")) {
-      router.push("/dashboard/tenant/payments");
-    } else if (type === "property" || title.includes("unit") || title.includes("lease") || msg.includes("unit") || msg.includes("lease")) {
-      router.push("/dashboard/tenant/units");
-    } else if (title.includes("support") || title.includes("complaint") || title.includes("rating") || msg.includes("complaint")) {
-      router.push("/dashboard/tenant/ratings");
-    } else if (type === "id_verification" || title.includes("verification") || title.includes("profile")) {
-      router.push("/dashboard/tenant/settings");
-    } else {
-      router.push("/dashboard/tenant");
-    }
+    router.push(getNotificationDashboardHref(n, user.role));
   };
 
   return (

@@ -30,16 +30,14 @@ import { toast } from "sonner";
 import MessagingModal from "@/components/messaging-modal";
 import ProfilePanel from "@/components/profile-panel";
 
-type Step = "overview" | "properties" | "assign" | "tenants" | "payments" | "history" | "messages" | "verifications" | "inquiries" | "profile";
+type Step = "overview" | "units" | "properties" | "assign" | "tenants" | "payments" | "history" | "messages" | "verifications" | "inquiries" | "profile";
 
 const flowSteps: { key: Step; label: string; icon: React.ElementType }[] = [
   { key: "overview", label: "Overview", icon: LayoutDashboard },
-  { key: "properties", label: "Properties", icon: Home },
-  { key: "assign", label: "Assign Unit", icon: ClipboardCheck },
+  { key: "units", label: "Units", icon: Home },
   { key: "tenants", label: "Tenants", icon: Users },
   { key: "verifications", label: "Verifications", icon: CheckCircle2 },
   { key: "payments", label: "Payments", icon: CreditCard },
-  { key: "history", label: "History", icon: FileText },
   { key: "messages", label: "Messages", icon: Send },
   { key: "inquiries", label: "Inquiries", icon: Mail },
   { key: "profile", label: "Profile", icon: User },
@@ -255,9 +253,11 @@ export default function AgentDashboard() {
 
   useEffect(() => {
     const readHash = () => {
-      const hash = window.location.hash.replace("#", "");
+      const rawHash = window.location.hash.replace("#", "");
+      const hash = rawHash === "properties" || rawHash === "assign" ? "units" : rawHash === "history" ? "payments" : rawHash;
       if (hash && flowSteps.some((s) => s.key === hash)) {
         setActiveTab(hash as Step);
+        if (rawHash !== hash) window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}#${hash}`);
         if (hash === "overview" && userRef.current) {
           loadDataRef.current();
         }
@@ -308,8 +308,8 @@ export default function AgentDashboard() {
         setSelectedUnit(null);
         setAssignForm({ unitId: "", propertyName: "", unitNumber: "", rentAmount: 0, contractStart: "" });
         toast.success("Assignment submitted for owner confirmation!");
-        setActiveTab("assign");
-        window.location.hash = "assign";
+        setActiveTab("units");
+        window.location.hash = "units";
         notifyAdmins({
           title: "New Assignment Pending",
           message: `${selectedTenant.name} has been assigned to ${assignForm.propertyName || property?.name || "a unit"}. Please review and confirm.`,
@@ -417,9 +417,9 @@ export default function AgentDashboard() {
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                   {[
-                    { label: "Properties", value: properties.length, icon: Home, color: "from-primary-500 to-primary-600", tab: "properties" as const },
-                    { label: "Active Tenants", value: activeTenants.length, icon: UserPlus, color: "from-secondary-500 to-secondary-600", tab: "assign" as const },
-                    { label: "Pending", value: pendingTenants.length, icon: Clock, color: "from-amber-500 to-amber-600", tab: "assign" as const },
+                    { label: "Units", value: units.length, icon: Home, color: "from-primary-500 to-primary-600", tab: "units" as const },
+                    { label: "Active Tenants", value: activeTenants.length, icon: UserPlus, color: "from-secondary-500 to-secondary-600", tab: "units" as const },
+                    { label: "Pending", value: pendingTenants.length, icon: Clock, color: "from-amber-500 to-amber-600", tab: "units" as const },
                     { label: "Payments Due", value: pendingPayments.length, icon: CreditCard, color: "from-accent-500 to-accent-600", tab: "payments" as const },
                   ].map((stat, i) => (
                     <Card key={i} onClick={async () => { await loadData(); setActiveTab(stat.tab); window.location.hash = stat.tab; }} className="hover:shadow-lg transition-all duration-300 cursor-pointer hover:scale-105 active:scale-95">
@@ -439,7 +439,7 @@ export default function AgentDashboard() {
                               transition={{ type: "spring", stiffness: 500, damping: 15 }}
                               className="flex h-6 w-6 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-lg"
                             >
-                              {stat.tab === "assign" ? pendingTenants.length : pendingPayments.length}
+                              {stat.tab === "units" ? pendingTenants.length : pendingPayments.length}
                             </motion.span>
                           ) : null}
                         </div>
@@ -450,15 +450,15 @@ export default function AgentDashboard() {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   <Card className="min-h-[340px]">
                     <CardHeader>
-                      <CardTitle className="text-3xl font-bold">Recent Properties</CardTitle>
-                      <CardDescription>Latest registered properties</CardDescription>
+                      <CardTitle className="text-3xl font-bold">Recent Units</CardTitle>
+                      <CardDescription>Latest properties and their available units</CardDescription>
                     </CardHeader>
                     <CardContent className="p-8">
                       <div className="space-y-3">
                         {properties.slice(0, 5).map((property) => (
                           <button
                             key={property.id}
-                            onClick={() => { setActiveTab("properties"); window.location.hash = "properties"; }}
+                            onClick={() => { setActiveTab("units"); window.location.hash = "units"; }}
                             className="w-full flex items-center justify-between p-4 rounded-xl border border-border hover:bg-surface-secondary transition-colors text-left"
                           >
                             <div className="flex items-center gap-4">
@@ -516,11 +516,18 @@ export default function AgentDashboard() {
             )}
 
             {/* PROPERTIES & UNITS */}
-            {activeTab === "properties" && (
+            {activeTab === "units" && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
                 <div>
-                  <h1 className="text-3xl font-bold text-foreground">Available Properties & Units</h1>
-                  <p className="text-base text-text-secondary mt-1">Browse properties and their units</p>
+                  <div className="flex flex-wrap items-end justify-between gap-4">
+                    <div>
+                      <h1 className="text-3xl font-bold text-foreground">Units</h1>
+                      <p className="text-base text-text-secondary mt-1">Browse available units by property</p>
+                    </div>
+                    <Button type="button" variant="outline" onClick={() => document.getElementById("agent-unit-assignment")?.scrollIntoView({ behavior: "smooth", block: "start" })}>
+                      <ClipboardCheck className="mr-2 h-4 w-4" /> Assign a tenant
+                    </Button>
+                  </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
                   {properties.map((property) => {
@@ -580,12 +587,14 @@ export default function AgentDashboard() {
               </motion.div>
             )}
 
-            {/* ASSIGN UNIT */}
-            {activeTab === "assign" && (
+            {/* ASSIGN TENANT — part of the Units section */}
+            {activeTab === "units" && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
                 <div>
-                  <h1 className="text-3xl font-bold text-foreground">Assign Tenant to Unit</h1>
-                  <p className="text-base text-text-secondary mt-1">Select a tenant and assign them to an available unit</p>
+                  <div id="agent-unit-assignment" className="scroll-mt-6">
+                    <h2 className="text-2xl font-bold text-foreground">Assign a tenant</h2>
+                    <p className="text-base text-text-secondary mt-1">Select a tenant and assign them to an available unit</p>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -603,7 +612,7 @@ export default function AgentDashboard() {
                             </div>
                           </div>
                           {["owner", "admin"].includes(user?.role || "") && (
-                            <Button size="sm" onClick={() => { setActiveTab("tenants"); window.location.hash = "tenants"; }} className="bg-blue-600 hover:bg-blue-700 text-white">
+                              <Button size="sm" onClick={() => { setActiveTab("tenants"); window.location.hash = "tenants"; }} className="bg-blue-600 hover:bg-blue-700 text-white">
                               <Plus className="h-4 w-4 mr-1" /> Register
                             </Button>
                           )}
@@ -900,7 +909,7 @@ export default function AgentDashboard() {
                                      </button>
                                    </DropdownMenuTrigger>
                                    <DropdownMenuContent align="end" sideOffset={4} side="bottom">
-                                    <DropdownMenuItem onSelect={() => { setSelectedTenant(tenant); setActiveTab("assign"); }}>Assign Unit</DropdownMenuItem>
+                                    <DropdownMenuItem onSelect={() => { setSelectedTenant(tenant); setActiveTab("units"); window.location.hash = "units"; }}>Assign Unit</DropdownMenuItem>
                                     <DropdownMenuItem onSelect={() => { setSelectedTenant(tenant); setActiveTab("verifications"); }}>View Verification</DropdownMenuItem>
                                     <DropdownMenuItem onSelect={() => window.location.href = `mailto:${tenant.email}`}>Send Email</DropdownMenuItem>
                                   </DropdownMenuContent>
@@ -1109,7 +1118,7 @@ export default function AgentDashboard() {
             )}
 
             {/* PAYMENT HISTORY */}
-            {activeTab === "history" && (
+            {activeTab === "payments" && (
               <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
                 <div>
                   <h1 className="text-3xl font-bold text-foreground">Payment History</h1>

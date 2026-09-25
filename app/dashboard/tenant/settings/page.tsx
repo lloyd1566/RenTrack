@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   User, Edit3, Upload, Save, Eye, EyeOff, Key, Shield, CheckCircle2,
-  Camera, Phone, Mail, MapPin, Calendar as CalendarIcon, Globe, X,
+  Camera, Phone, Mail, MapPin, Calendar as CalendarIcon, X,
 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -67,7 +67,6 @@ export default function TenantSettingsPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [gender, setGender] = useState(user?.gender || "");
   const [birthdate, setBirthdate] = useState(user?.birthdate || "");
-  const [country, setCountry] = useState(user?.country || "");
   const [address, setAddress] = useState(user?.address || "");
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
@@ -86,7 +85,6 @@ export default function TenantSettingsPage() {
       setPhone(user.phone || "");
       setGender(user.gender || "");
       setBirthdate(user.birthdate || "");
-      setCountry(user.country || "");
       setAddress(user.address || "");
       userIdRef.current = user.id;
       didSyncRef.current = true;
@@ -98,7 +96,6 @@ export default function TenantSettingsPage() {
       setPhone(user.phone || "");
       setGender(user.gender || "");
       setBirthdate(user.birthdate || "");
-      setCountry(user.country || "");
       setAddress(user.address || "");
       userIdRef.current = user.id;
       didSyncRef.current = true;
@@ -133,7 +130,7 @@ export default function TenantSettingsPage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ id: user?.id, name, email, phone, gender, birthdate, country, address }),
+        body: JSON.stringify({ id: user?.id, name, email, phone, gender, birthdate, address }),
       });
       const result = await res.json();
       if (result.success) {
@@ -253,7 +250,6 @@ export default function TenantSettingsPage() {
     phone: user.phone,
     gender,
     birthdate,
-    country,
     address,
     avatarUrl: user.avatarUrl,
     idVerificationUrl: user.idVerificationUrl,
@@ -416,7 +412,6 @@ export default function TenantSettingsPage() {
                        { label: "Phone Number", value: user.phone || "Not set", icon: Phone },
                        { label: "Gender", value: user.gender || "Not specified", icon: User },
                        { label: "Birthdate", value: user.birthdate ? new Date(user.birthdate).toLocaleDateString("en-PH", { month: "long", day: "numeric", year: "numeric" }) : "Not specified", icon: CalendarIcon },
-                       { label: "Country", value: user.country || "Not specified", icon: Globe },
                        { label: "Address", value: user.address || "Not set", icon: MapPin },
                      ].map((item, i) => (
                       <motion.div
@@ -577,7 +572,6 @@ export default function TenantSettingsPage() {
                          { label: "Phone Number", value: phone, setter: setPhone, placeholder: "+63 XXX XXX XXXX" },
                          { label: "Gender", value: gender, setter: setGender, placeholder: "Male / Female / Other" },
                          { label: "Birthdate", value: birthdate, setter: setBirthdate, type: "date" },
-                         { label: "Country", value: country, setter: setCountry, placeholder: "Philippines" },
                          { label: "Address", value: address, setter: setAddress, placeholder: "Your full address" },
                        ].map((field, i) => (
                         <motion.div

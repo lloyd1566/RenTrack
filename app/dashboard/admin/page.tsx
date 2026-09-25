@@ -288,6 +288,7 @@ export default function AdminDashboard() {
     (roleFilter === "all" || u.role === roleFilter) &&
     (u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (u.address || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
       u.role.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
@@ -555,6 +556,7 @@ export default function AdminDashboard() {
                     <TableRow>
                       <TableHead>User</TableHead>
                       <TableHead>Email</TableHead>
+                      <TableHead>Address</TableHead>
                       <TableHead>Role</TableHead>
                       <TableHead>Created</TableHead>
                       <TableHead className="text-right">Actions</TableHead>
@@ -577,6 +579,7 @@ export default function AdminDashboard() {
                         </div>
                       </TableCell>
                       <TableCell className="text-text-secondary">{u.email}</TableCell>
+                      <TableCell className="max-w-sm whitespace-normal break-words text-text-secondary">{u.address || "Not provided"}</TableCell>
                       <TableCell>
                         <motion.span
                           whileHover={{ scale: 1.05 }}

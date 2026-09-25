@@ -17,7 +17,12 @@ export async function GET(request: NextRequest) {
     if (auth instanceof NextResponse) return auth;
 
     const users = await getAllUsers();
-    const safeUsers = users.map(u => sanitizeResponse(u));
+    const safeUsers = users.map(u => {
+      const safeUser = sanitizeResponse(u);
+      // Only administrators may view other users' residential addresses.
+      if (auth.user?.role !== "admin") delete (safeUser as Record<string, unknown>).address;
+      return safeUser;
+    });
     return NextResponse.json({ success: true, users: safeUsers });
   } catch (error) {
     console.error("Get users error:", error);

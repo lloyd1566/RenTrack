@@ -108,9 +108,6 @@ export default function TenantRentManagerPage() {
                         <Badge variant="outline" className="text-[10px] capitalize bg-emerald-50 text-emerald-600 border-emerald-200">
                           Agent
                         </Badge>
-                        {agent.experience && agent.experience !== "0 Years" && (
-                          <span className="text-xs text-gray-500">{agent.experience}</span>
-                        )}
                       </div>
                     </div>
                   </div>

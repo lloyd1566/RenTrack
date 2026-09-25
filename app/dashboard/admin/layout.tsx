@@ -9,6 +9,7 @@ import AdminSidebar from "@/components/admin-sidebar";
 import AccountRequestReviewModal from "@/components/account-request-review-modal";
 import { Avatar } from "@/components/ui/avatar";
 import { Bell, ChevronDown } from "lucide-react";
+import { getNotificationDashboardHref } from "@/lib/notification-routing";
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const { user, isAuthenticated, isLoading } = useAuth();
@@ -76,7 +77,8 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const handleNotificationClick = async (notification: Notification) => {
     setShowNotifications(false);
-    if (notification.title === "Account Creation Request") {
+    const isAccountCreationRequest = notification.title === "Account Creation Request";
+    if (isAccountCreationRequest) {
       const loadedRequest = accountRequests.find((conv) => conv.lastMessage?.body === notification.message)
         || accountRequests[0];
       if (loadedRequest) {
@@ -96,6 +98,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       refreshNotificationsCount();
     } catch {
       // ignore
+    }
+    if (!isAccountCreationRequest) {
+      router.push(getNotificationDashboardHref(notification, user?.role || "admin"));
     }
   };
 

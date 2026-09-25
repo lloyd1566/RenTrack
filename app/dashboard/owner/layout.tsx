@@ -18,6 +18,7 @@ import MessagingPanel from "@/components/messaging-panel";
 import MessagingModal from "@/components/messaging-modal";
 import AccountRequestReviewModal from "@/components/account-request-review-modal";
 import { Avatar } from "@/components/ui/avatar";
+import { getNotificationDashboardHref } from "@/lib/notification-routing";
 
 const navItems = [
   { label: "Overview", tab: "overview", href: "/dashboard/owner#overview", icon: LayoutDashboard },
@@ -134,7 +135,8 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
 
   const handleNotificationClick = async (notification: Notification) => {
     setShowNotifications(false);
-    if (notification.title === "Account Creation Request") {
+    const isAccountCreationRequest = notification.title === "Account Creation Request";
+    if (isAccountCreationRequest) {
       const loadedRequest = accountRequests.find((conv) => conv.lastMessage?.body === notification.message)
         || accountRequests[0];
       if (loadedRequest) {
@@ -154,21 +156,13 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
     } catch {
       // ignore
     }
-
-    const title = (notification.title || "").toLowerCase();
-    const type = (notification.type || "").toLowerCase();
-    const msg = (notification.message || "").toLowerCase();
-
-    if (title.includes("agent") || title.includes("applicant")) {
-      router.push("/dashboard/owner#agents");
-    } else if (title.includes("message") || msg.includes("message") || title.includes("chat")) {
-      router.push("/dashboard/owner#assignments");
-    } else if (type === "property" || title.includes("property") || title.includes("unit")) {
-      router.push(title.includes("unit") ? "/dashboard/units" : "/dashboard/properties");
-    } else if (type === "payment" || title.includes("payment") || msg.includes("payment") || msg.includes("rent")) {
-      router.push("/dashboard/owner#financial");
-    } else if (type === "tenant" || title.includes("tenant") || title.includes("assignment")) {
-      router.push("/dashboard/owner#assignments");
+    if (!isAccountCreationRequest) {
+      const href = getNotificationDashboardHref(notification, user?.role || "owner");
+      if (href === "/dashboard/owner#messages") {
+        setShowMessages(true);
+      } else {
+        router.push(href);
+      }
     }
   };
 
@@ -189,6 +183,10 @@ export default function OwnerLayout({ children }: { children: React.ReactNode })
   useEffect(() => {
     const readHash = () => {
       const hash = window.location.hash.replace("#", "");
+      if (hash === "messages") {
+        setShowMessages(true);
+        return;
+      }
       if (hash && navItems.some((item) => item.tab === hash)) {
         setActiveTab(hash);
       }

@@ -8,7 +8,7 @@ import {
 } from "@/lib/api-security";
 import { logAudit } from "@/lib/db";
 
-const ALLOWED_UPDATE_FIELDS = ["name", "email", "phone", "gender", "birthdate", "country", "address", "experience"];
+const ALLOWED_UPDATE_FIELDS = ["name", "email", "phone", "gender", "birthdate", "address"];
 const PASSWORD_FIELDS = ["currentPassword", "newPassword"];
 
 export async function PATCH(request: NextRequest) {

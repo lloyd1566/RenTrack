@@ -9,28 +9,34 @@ import { useAuth } from "@/lib/auth";
 import Link from "next/link";
 import { Avatar } from "@/components/ui/avatar";
 import {
-  LayoutDashboard, Home, ClipboardCheck, Clock,
-  CreditCard, FileText, Send, LogOut, ChevronRight, Menu, X,
-  Loader2, ChevronDown, ChevronLeft, Bell, KeyRound, Mail, User,
+  LayoutDashboard, Home, CreditCard, Send, LogOut, ChevronRight, Menu, X,
+  Loader2, ChevronDown, ChevronLeft, Bell, Mail, User, Search,
 } from "lucide-react";
 import { getNotifications, getUnreadMessageCount, getUnreadInquiryCount, markNotificationRead, markAllNotificationsRead, Notification } from "@/lib/data";
 import { getProperties, Property } from "@/lib/data";
 import MessagingPanel from "@/components/messaging-panel";
 import MessagingModal from "@/components/messaging-modal";
+import { getNotificationDashboardHref } from "@/lib/notification-routing";
 
 const navItems = [
-  { label: "Overview", tab: "overview", href: "/dashboard/agent#overview", icon: LayoutDashboard },
-  { label: "Properties", tab: "properties", href: "/dashboard/agent#properties", icon: Home },
-  { label: "Assign Unit", tab: "assign", href: "/dashboard/agent#assign", icon: ClipboardCheck },
-  { label: "Payments", tab: "payments", href: "/dashboard/agent#payments", icon: CreditCard },
-  { label: "History", tab: "history", href: "/dashboard/agent#history", icon: FileText },
-  { label: "Messages", tab: "messages", href: "/dashboard/agent#messages", icon: Send },
-  { label: "Inquiries", tab: "inquiries", href: "/dashboard/agent#inquiries", icon: Mail },
+  { label: "Overview", tab: "overview", href: "/dashboard/agent#overview", icon: LayoutDashboard, category: "Workspace" },
+  { label: "Units", tab: "units", href: "/dashboard/agent#units", icon: Home, category: "Operations" },
+  { label: "Payments", tab: "payments", href: "/dashboard/agent#payments", icon: CreditCard, category: "Finance" },
+  { label: "Inquiries", tab: "inquiries", href: "/dashboard/agent#inquiries", icon: Mail, category: "Communication" },
 ];
 
+const navCategories = ["All categories", "Workspace", "Operations", "Finance", "Communication"] as const;
+const agentContentTabs = ["messages", "profile", "tenants", "verifications"];
+
+function normalizeAgentTab(tab: string) {
+  if (tab === "properties" || tab === "assign") return "units";
+  if (tab === "history") return "payments";
+  return tab;
+}
+
 function getTabFromHash() {
-  const hash = window.location.hash.replace("#", "");
-  if (hash && navItems.some((item) => item.tab === hash)) return hash;
+  const hash = normalizeAgentTab(window.location.hash.replace("#", ""));
+  if (hash && (navItems.some((item) => item.tab === hash) || agentContentTabs.includes(hash))) return hash;
   return "overview";
 }
 
@@ -41,6 +47,8 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
   const [activeTab, setActiveTab] = useState(getTabFromHash);
+  const [navSearch, setNavSearch] = useState("");
+  const [navCategory, setNavCategory] = useState<(typeof navCategories)[number]>("All categories");
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showMessages, setShowMessages] = useState(false);
@@ -70,9 +78,11 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     const readHash = () => {
-      const hash = window.location.hash.replace("#", "");
-      if (hash && (navItems.some((item) => item.tab === hash) || hash === "profile")) {
+      const rawHash = window.location.hash.replace("#", "");
+      const hash = normalizeAgentTab(rawHash);
+      if (hash && (navItems.some((item) => item.tab === hash) || agentContentTabs.includes(hash))) {
         setActiveTab(hash as any);
+        if (rawHash !== hash) window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}#${hash}`);
       }
     };
     readHash();
@@ -139,6 +149,17 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
   };
 
   const unreadCount = notifications.filter((n) => !n.read).length;
+  const filteredNavItems = navItems.filter((item) => {
+    const matchesSearch = item.label.toLowerCase().includes(navSearch.trim().toLowerCase());
+    const matchesCategory = navCategory === "All categories" || item.category === navCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  const openAgentTab = (tab: string) => {
+    const normalizedTab = normalizeAgentTab(tab);
+    setActiveTab(normalizedTab as any);
+    window.location.hash = normalizedTab;
+  };
 
   const handleOpenNotifications = async () => {
     const nextOpen = !showNotifications;
@@ -164,32 +185,15 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
     }
     setShowNotifications(false);
 
-    const title = (n.title || "").toLowerCase();
-    const type = (n.type || "").toLowerCase();
-    const msg = (n.message || "").toLowerCase();
-
-    if (title.includes("message") || msg.includes("message") || title.includes("chat")) {
-      setActiveTab("messages");
-      window.location.hash = "messages";
-    } else if (title.includes("inquiry") || msg.includes("inquiry")) {
-      setActiveTab("inquiries");
-      window.location.hash = "inquiries";
-    } else if (type === "payment" || title.includes("payment") || msg.includes("payment") || msg.includes("rent")) {
-      setActiveTab("payments");
-      window.location.hash = "payments";
-    } else if (type === "property" || title.includes("property") || title.includes("unit") || msg.includes("property") || msg.includes("unit")) {
-      setActiveTab("properties");
-      window.location.hash = "properties";
-    } else if (type === "tenant" || title.includes("tenant") || title.includes("assign") || msg.includes("assign")) {
-      setActiveTab("assign");
-      window.location.hash = "assign";
-    } else if (type === "id_verification" || title.includes("verification") || title.includes("id")) {
-      setActiveTab("profile" as any);
-      window.location.hash = "profile";
-    } else {
-      setActiveTab("overview");
-      window.location.hash = "overview";
+    const href = getNotificationDashboardHref(n, "agent");
+    const destination = new URL(href, window.location.origin);
+    const tab = normalizeAgentTab(destination.hash.replace("#", ""));
+    if (destination.pathname === window.location.pathname && destination.hash) {
+      if (tab) setActiveTab(tab as any);
+      window.location.hash = tab || destination.hash.replace("#", "");
+      return;
     }
+    router.push(`${destination.pathname}${destination.search}${destination.hash}`);
   };
 
   useEffect(() => {
@@ -217,7 +221,7 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
   }
 
   return (
-    <div className="min-h-screen bg-surface flex-1">
+      <div className="min-h-screen bg-surface flex-1">
       {/* Mobile header */}
       <div className="lg:hidden flex items-center justify-between p-4 border-b border-border bg-surface sticky top-0 z-10">
         <button onClick={() => setSidebarOpen(!sidebarOpen)} className="p-2 rounded-lg hover:bg-surface-secondary">
@@ -225,6 +229,41 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
         </button>
         <span className="font-semibold text-base">Agent Panel</span>
         <div className="flex items-center gap-1">
+          <div className="relative">
+            <button
+              onClick={() => setShowUserMenu(!showUserMenu)}
+              aria-label="Open profile menu"
+              aria-expanded={showUserMenu}
+              className="relative rounded-lg p-1.5 hover:bg-surface-secondary"
+            >
+              <Avatar src={user.avatarUrl} fallback={user.name.split(" ").map((name: string) => name[0]).join("").toUpperCase().slice(0, 2)} size="sm" />
+            </button>
+            <AnimatePresence initial={false}>
+              {showUserMenu && (
+                <motion.div
+                  initial={{ opacity: 0, y: 8, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 8, scale: 0.98 }}
+                  className="absolute right-0 mt-2 w-56 rounded-2xl border border-border bg-surface shadow-dropdown overflow-hidden z-50"
+                >
+                  <div className="p-3 border-b border-border">
+                    <p className="text-sm font-semibold text-foreground truncate">{user.name}</p>
+                    <p className="text-xs text-text-secondary truncate">{user.email}</p>
+                  </div>
+                  <div className="p-1.5">
+                    <button onClick={() => { setShowUserMenu(false); openAgentTab("messages"); }} className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-text-secondary hover:bg-surface-secondary hover:text-foreground w-full transition-colors">
+                      <Send className="h-4 w-4" />
+                      <span className="flex-1 text-left">Messages</span>
+                      {unreadMessageCount > 0 && <span className="min-w-5 h-5 px-1 flex items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">{unreadMessageCount}</span>}
+                    </button>
+                    <button onClick={() => { setShowUserMenu(false); openAgentTab("profile"); }} className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-text-secondary hover:bg-surface-secondary hover:text-foreground w-full transition-colors">
+                      <User className="h-4 w-4" /> My Profile
+                    </button>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
           <div className="relative">
             <button onClick={() => setShowNotifications(!showNotifications)} className="p-2 rounded-lg hover:bg-surface-secondary relative">
               <Bell className="h-5 w-5" />
@@ -295,8 +334,19 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
               {sidebarOpen && <span className="font-bold text-foreground text-sm">Agent Panel</span>}
             </Link>
           </div>
+          {sidebarOpen && (
+            <div className="space-y-2 px-3 pt-3">
+              <label className="relative block">
+                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
+                <input value={navSearch} onChange={(event) => setNavSearch(event.target.value)} placeholder="Search navigation" aria-label="Search navigation" className="h-10 w-full rounded-xl border border-border bg-surface-secondary pl-9 pr-3 text-sm text-foreground placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary-500/30" />
+              </label>
+              <select aria-label="Filter navigation category" value={navCategory} onChange={(event) => setNavCategory(event.target.value as (typeof navCategories)[number])} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary-500/30">
+                {navCategories.map((category) => <option key={category} value={category}>{category}</option>)}
+              </select>
+            </div>
+          )}
           <nav className="overflow-y-auto p-3 space-y-0.5">
-            {navItems.map((item) => {
+            {filteredNavItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.tab;
               return (
@@ -316,11 +366,6 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
                 >
                   <Icon className={cn("h-4 w-4 shrink-0", isActive ? "text-primary-600" : "text-text-tertiary")} />
                   {sidebarOpen && <span className="truncate">{item.label}</span>}
-                  {item.tab === "messages" && unreadMessageCount > 0 && (
-                    <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
-                      {unreadMessageCount}
-                    </span>
-                  )}
                   {item.tab === "inquiries" && unreadInquiryCount > 0 && (
                     <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
                       {unreadInquiryCount}
@@ -330,6 +375,7 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
                 </button>
               );
             })}
+            {sidebarOpen && filteredNavItems.length === 0 && <p className="px-3 py-4 text-xs text-text-tertiary">No sections match your filters.</p>}
           </nav>
           <div className="mt-auto p-3">
             <button
@@ -372,8 +418,17 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
                     <X className="h-4 w-4" />
                   </button>
                 </div>
-          <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
-                  {navItems.map((item) => {
+                <div className="space-y-2 px-3 pt-3">
+                  <label className="relative block">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
+                    <input value={navSearch} onChange={(event) => setNavSearch(event.target.value)} placeholder="Search navigation" aria-label="Search navigation" className="h-10 w-full rounded-xl border border-border bg-surface-secondary pl-9 pr-3 text-sm text-foreground placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary-500/30" />
+                  </label>
+                  <select aria-label="Filter navigation category" value={navCategory} onChange={(event) => setNavCategory(event.target.value as (typeof navCategories)[number])} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary-500/30">
+                    {navCategories.map((category) => <option key={category} value={category}>{category}</option>)}
+                  </select>
+                </div>
+                <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
+                  {filteredNavItems.map((item) => {
                     const Icon = item.icon;
                     const isActive = activeTab === item.tab;
                     return (
@@ -394,11 +449,6 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
                       >
                         <Icon className={cn("h-4 w-4 shrink-0", isActive ? "text-primary-600" : "text-text-tertiary")} />
                         <span className="truncate">{item.label}</span>
-                        {item.tab === "messages" && unreadMessageCount > 0 && (
-                          <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
-                            {unreadMessageCount}
-                          </span>
-                        )}
                         {item.tab === "inquiries" && unreadInquiryCount > 0 && (
                           <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
                             {unreadInquiryCount}
@@ -407,16 +457,8 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
                       </button>
                     );
                   })}
+                  {filteredNavItems.length === 0 && <p className="px-3 py-4 text-xs text-text-tertiary">No sections match your filters.</p>}
                 </nav>
-                <div className="p-3 border-t border-border">
-                  <button
-                    onClick={() => router.push("/dashboard/agent#messages")}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-base font-medium text-text-secondary hover:bg-surface-secondary hover:text-foreground transition-colors"
-                  >
-                    <Send className="h-4 w-4" />
-                    {sidebarOpen && <span className="truncate">Messages</span>}
-                  </button>
-                </div>
                 <div className="p-3 border-t border-border">
                   <button
                     onClick={() => setShowLogoutModal(true)}
@@ -546,7 +588,15 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
                       </div>
                       <div className="p-1.5">
                         <button
-                          onClick={() => { setShowUserMenu(false); window.location.hash = "profile"; }}
+                          onClick={() => { setShowUserMenu(false); openAgentTab("messages"); }}
+                          className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-text-secondary hover:bg-surface-secondary hover:text-foreground w-full transition-colors"
+                        >
+                          <Send className="h-4 w-4" />
+                          <span className="flex-1 text-left">Messages</span>
+                          {unreadMessageCount > 0 && <span className="min-w-5 h-5 px-1 flex items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">{unreadMessageCount}</span>}
+                        </button>
+                        <button
+                          onClick={() => { setShowUserMenu(false); openAgentTab("profile"); }}
                           className="flex items-center gap-3 px-3 py-2 rounded-xl text-sm text-text-secondary hover:bg-surface-secondary hover:text-foreground w-full transition-colors"
                         >
                           <User className="h-4 w-4" />

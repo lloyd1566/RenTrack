@@ -4,9 +4,7 @@ export interface UserProfile {
   phone?: string;
   gender?: string;
   birthdate?: string;
-  country?: string;
   address?: string;
-  experience?: string;
   avatarUrl?: string;
   idVerificationUrl?: string;
   idVerificationStatus?: string;
@@ -20,7 +18,6 @@ export function calculateProfileCompleteness(profile: UserProfile): { percentage
     { key: "avatarUrl", label: "Profile Picture" },
     { key: "gender", label: "Gender" },
     { key: "birthdate", label: "Birthdate" },
-    { key: "country", label: "Country" },
     { key: "address", label: "Address" },
     { key: "idVerificationUrl", label: "ID Verification" },
   ];

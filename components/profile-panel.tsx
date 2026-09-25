@@ -34,9 +34,7 @@ export default function ProfilePanel() {
   const [showPassword, setShowPassword] = useState(false);
   const [gender, setGender] = useState(user?.gender || "");
   const [birthdate, setBirthdate] = useState(user?.birthdate || "");
-  const [country, setCountry] = useState(user?.country || "");
   const [address, setAddress] = useState(user?.address || "");
-  const [experience, setExperience] = useState(user?.experience || "");
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingAvatar, setIsUploadingAvatar] = useState(false);
   const [isUploadingId, setIsUploadingId] = useState(false);
@@ -52,9 +50,7 @@ export default function ProfilePanel() {
       setPhone(user.phone || "");
       setGender(user.gender || "");
       setBirthdate(user.birthdate || "");
-      setCountry(user.country || "");
       setAddress(user.address || "");
-      setExperience(user.experience || "");
       userIdRef.current = user.id;
       didSyncRef.current = true;
       return;
@@ -65,9 +61,7 @@ export default function ProfilePanel() {
       setPhone(user.phone || "");
       setGender(user.gender || "");
       setBirthdate(user.birthdate || "");
-      setCountry(user.country || "");
       setAddress(user.address || "");
-      setExperience(user.experience || "");
       userIdRef.current = user.id;
       didSyncRef.current = true;
     }
@@ -81,7 +75,7 @@ export default function ProfilePanel() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ id: user?.id, name, email, phone, gender, birthdate, country, address, experience }),
+        body: JSON.stringify({ id: user?.id, name, email, phone, gender, birthdate, address }),
       });
       const result = await res.json();
       if (result.success) {
@@ -301,8 +295,8 @@ export default function ProfilePanel() {
                     <p className="text-sm font-medium text-foreground">{birthdate ? new Date(birthdate).toLocaleDateString() : "Not specified"}</p>
                   </motion.div>
                   <motion.div whileHover={{ scale: 1.02 }} className="p-3 rounded-xl hover:bg-surface-secondary transition-colors">
-                    <label className="block text-sm font-medium text-text-secondary mb-1">Country</label>
-                    <p className="text-sm font-medium text-foreground">{country || "Not specified"}</p>
+                    <label className="block text-sm font-medium text-text-secondary mb-1">Address</label>
+                    <p className="text-sm font-medium text-foreground">{address || user?.address || "Not set"}</p>
                   </motion.div>
                 </div>
               </CardContent>
@@ -369,8 +363,6 @@ export default function ProfilePanel() {
                        { label: "Address", value: address, onChange: setAddress, placeholder: "Your full address" },
                        { label: "Gender", value: gender, onChange: setGender, type: "select", options: ["", "Male", "Female", "Other", "Prefer not to say"] },
                        { label: "Birthdate", value: birthdate, onChange: setBirthdate, type: "date", placeholder: "" },
-                       { label: "Experience", value: experience, onChange: setExperience, placeholder: "e.g. 2 Years" },
-                       { label: "Country", value: country, onChange: setCountry, placeholder: "e.g. Philippines" },
                      ].map((field, index) => (
                        <motion.div
                          key={field.label}

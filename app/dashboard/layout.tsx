@@ -32,6 +32,7 @@ import { Button } from "@/components/ui/button";
 import { getNotifications, markNotificationRead, markAllNotificationsRead, getUnreadMessageCount, Notification } from "@/lib/data";
 import Link from "next/link";
 import MessagingPanel from "@/components/messaging-panel";
+import { getNotificationDashboardHref } from "@/lib/notification-routing";
 
 interface NavItem {
   label: string;
@@ -43,7 +44,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { label: "My Dashboard", href: "/dashboard/tenant", icon: LayoutDashboard, roles: ["tenant"] },
   { label: "Overview", href: "/dashboard/owner", icon: LayoutDashboard, roles: ["admin", "owner", "agent"] },
-  { label: "Properties", href: "/dashboard/properties", icon: Building2, roles: ["admin", "owner", "agent"] },
+  { label: "Properties", href: "/dashboard/properties", icon: Building2, roles: ["admin"] },
   { label: "Units", href: "/dashboard/units", icon: Home, roles: ["admin", "owner", "agent"] },
   { label: "Tenants", href: "/dashboard/tenants", icon: Users, roles: ["admin", "owner", "agent"] },
   { label: "Agents", href: "/dashboard/owner/agents", icon: Users, roles: ["owner"] },
@@ -318,27 +319,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                               <button
                                 key={n.id}
                                 onClick={async () => {
-                                  if (!n.read) {
-                                    await markNotificationRead(n.id);
-                                    getNotifications(user.id).then(setNotifications).catch(() => {});
-                                  }
+                                  if (!n.read) await markNotificationRead(n.id).catch(() => undefined);
+                                  getNotifications(user.id).then(setNotifications).catch(() => {});
                                   setShowNotifications(false);
-                                  const title = (n.title || "").toLowerCase();
-                                  const type = (n.type || "").toLowerCase();
-                                  const msg = (n.message || "").toLowerCase();
-                                  if (type === "payment" || title.includes("payment") || msg.includes("payment") || msg.includes("receipt")) {
-                                    router.push("/dashboard/payments");
-                                  } else if (type === "tenant" || title.includes("tenant") || title.includes("assignment") || msg.includes("assigned") || msg.includes("tenant")) {
-                                    router.push("/dashboard/tenants");
-                                  } else if (type === "property" || title.includes("property") || title.includes("unit") || msg.includes("property") || msg.includes("unit")) {
-                                    router.push("/dashboard/properties");
-                                  } else if (type === "id_verification" || title.includes("verification") || title.includes("id")) {
-                                    router.push("/dashboard/tenants");
-                                  } else if (title.includes("message") || msg.includes("message") || type === "message") {
-                                    router.push("/dashboard/owner");
-                                  } else {
-                                    router.push("/dashboard/owner");
-                                  }
+                                  router.push(getNotificationDashboardHref(n, user.role));
                                 }}
                               className={cn(
                                 "w-full text-left p-4 border-b border-border last:border-0 hover:bg-surface-secondary transition-colors",

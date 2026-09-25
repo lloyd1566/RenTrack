@@ -36,9 +36,7 @@ export default function SettingsPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [gender, setGender] = useState(user?.gender || "");
   const [birthdate, setBirthdate] = useState(user?.birthdate || "");
-  const [country, setCountry] = useState(user?.country || "");
   const [address, setAddress] = useState(user?.address || "");
-  const [experience, setExperience] = useState(user?.experience || "");
   const userIdRef = useRef(user?.id || null);
   const didSyncRef = useRef(false);
 
@@ -51,9 +49,7 @@ export default function SettingsPage() {
       setPhone(user.phone || "");
       setGender(user.gender || "");
       setBirthdate(user.birthdate || "");
-      setCountry(user.country || "");
       setAddress(user.address || "");
-      setExperience(user.experience || "");
       userIdRef.current = user.id;
       didSyncRef.current = true;
       return;
@@ -64,9 +60,7 @@ export default function SettingsPage() {
       setPhone(user.phone || "");
       setGender(user.gender || "");
       setBirthdate(user.birthdate || "");
-      setCountry(user.country || "");
       setAddress(user.address || "");
-      setExperience(user.experience || "");
       userIdRef.current = user.id;
       didSyncRef.current = true;
     }
@@ -85,7 +79,7 @@ export default function SettingsPage() {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ id: user?.id, name, email, phone, gender, birthdate, country, address, experience }),
+        body: JSON.stringify({ id: user?.id, name, email, phone, gender, birthdate, address }),
       });
       const result = await res.json();
       if (result.success) {
@@ -185,7 +179,6 @@ export default function SettingsPage() {
     phone,
     gender,
     birthdate,
-    country,
     address,
     avatarUrl: user?.avatarUrl,
   };
@@ -257,10 +250,6 @@ export default function SettingsPage() {
                     <label className="block text-sm font-medium text-text-secondary mb-1">Phone Number</label>
                     <p className="text-sm font-medium text-foreground">{phone || user?.phone || "Not set"}</p>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-text-secondary mb-1">Address</label>
-                    <p className="text-sm font-medium text-foreground">{address || user?.address || "Not set"}</p>
-                  </div>
               </div>
             </CardContent>
           </Card>
@@ -292,8 +281,8 @@ export default function SettingsPage() {
                   <p className="text-sm font-medium text-foreground">{birthdate ? new Date(birthdate).toLocaleDateString() : "Not specified"}</p>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-text-secondary mb-1">Country</label>
-                  <p className="text-sm font-medium text-foreground">{country || "Not specified"}</p>
+                  <label className="block text-sm font-medium text-text-secondary mb-1">Address</label>
+                  <p className="text-sm font-medium text-foreground">{address || user?.address || "Not set"}</p>
                 </div>
               </div>
             </CardContent>
@@ -357,14 +346,6 @@ export default function SettingsPage() {
                   <div>
                     <label className="block text-sm font-medium text-foreground mb-1.5">Birthdate</label>
                     <Input type="date" value={birthdate} onChange={(e) => setBirthdate(e.target.value)} />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">Experience</label>
-                    <Input value={experience} onChange={(e) => setExperience(e.target.value)} placeholder="e.g. 2 Years" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-foreground mb-1.5">Country</label>
-                    <Input value={country} onChange={(e) => setCountry(e.target.value)} placeholder="e.g. Philippines" />
                   </div>
                   {(user?.role === "tenant" || user?.role === "agent") && (
                     <div className="sm:col-span-2 pt-4 border-t border-border">
