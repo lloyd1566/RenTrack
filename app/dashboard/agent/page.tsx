@@ -67,6 +67,18 @@ export default function AgentDashboard() {
   const [selectedUnit, setSelectedUnit] = useState<Unit | null>(null);
   const [selectedTenant, setSelectedTenant] = useState<TenantRecord | null>(null);
   const [tenantSearch, setTenantSearch] = useState("");
+  const [tenantListSearch, setTenantListSearch] = useState("");
+  const [tenantListFilter, setTenantListFilter] = useState("all");
+  const [verificationSearch, setVerificationSearch] = useState("");
+  const [verificationFilter, setVerificationFilter] = useState("all");
+  const [unitSearch, setUnitSearch] = useState("");
+  const [unitStatusFilter, setUnitStatusFilter] = useState("all");
+  const [assignmentPropertyFilter, setAssignmentPropertyFilter] = useState("all");
+  const [paymentSearch, setPaymentSearch] = useState("");
+  const [messageSearch, setMessageSearch] = useState("");
+  const [messageFilter, setMessageFilter] = useState("all");
+  const [inquirySearch, setInquirySearch] = useState("");
+  const [inquiryFilter, setInquiryFilter] = useState("all");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showCreateTenantModal, setShowCreateTenantModal] = useState(false);
   const [showAccountRequestModal, setShowAccountRequestModal] = useState(false);
@@ -279,9 +291,55 @@ export default function AgentDashboard() {
   const activeTenants = tenants.filter((t) => t.status === "active");
   const pendingPayments = payments.filter((p) => p.status === "pending");
   const overduePayments = payments.filter((p) => p.status === "overdue");
-  const filteredPayments = payments.filter((p) => {
-    if (paymentFilter === "all") return true;
-    return p.status === paymentFilter;
+  const normalizedUnitSearch = unitSearch.trim().toLowerCase();
+  const filteredUnitProperties = properties.map((property) => {
+    const propertyMatchesSearch = `${property.name} ${property.location}`.toLowerCase().includes(normalizedUnitSearch);
+    const propertyUnits = units.filter((unit) => unit.propertyId === property.id);
+    const visibleUnits = propertyUnits.filter((unit) =>
+      (unitStatusFilter === "all" || unit.status === unitStatusFilter) &&
+      (!normalizedUnitSearch || propertyMatchesSearch || `unit ${unit.unitNumber} ${unit.status}`.toLowerCase().includes(normalizedUnitSearch))
+    );
+    return { property, propertyUnits, visibleUnits, propertyMatchesSearch };
+  }).filter(({ propertyUnits, visibleUnits, propertyMatchesSearch }) =>
+    (propertyMatchesSearch || visibleUnits.length > 0) &&
+    (visibleUnits.length > 0 || (propertyUnits.length === 0 && unitStatusFilter === "all" && propertyMatchesSearch))
+  );
+  const filteredVacantUnits = vacantUnits.filter((unit) =>
+    assignmentPropertyFilter === "all" || unit.propertyId === assignmentPropertyFilter
+  );
+  const filteredTenants = tenants.filter((tenant) => {
+    const matchesSearch = `${tenant.name} ${tenant.email} ${tenant.phone || ""} ${tenant.propertyName || ""} ${tenant.unitNumber || ""}`
+      .toLowerCase().includes(tenantListSearch.trim().toLowerCase());
+    const matchesFilter = tenantListFilter === "all" ||
+      (tenantListFilter === "active" && tenant.status === "active") ||
+      (tenantListFilter === "pending" && tenant.assignmentStatus === "pending") ||
+      (tenantListFilter === "inactive" && tenant.status === "inactive") ||
+      (tenantListFilter === "unassigned" && !tenant.unitId);
+    return matchesSearch && matchesFilter;
+  });
+  const filteredVerificationTenants = tenants.filter((tenant) =>
+    `${tenant.name} ${tenant.email} ${tenant.phone || ""}`.toLowerCase().includes(verificationSearch.trim().toLowerCase())
+  );
+  const pendingVerifications = filteredVerificationTenants.filter((tenant) => tenant.idVerificationStatus === "pending");
+  const rejectedVerifications = filteredVerificationTenants.filter((tenant) => tenant.idVerificationStatus === "rejected");
+  const filteredPayments = payments.filter((payment) => {
+    const matchesStatus = paymentFilter === "all" || payment.status === paymentFilter;
+    const matchesSearch = `${payment.tenantName} ${payment.propertyName}`.toLowerCase().includes(paymentSearch.trim().toLowerCase());
+    return matchesStatus && matchesSearch;
+  });
+  const filteredConversations = conversations.filter((conversation) => {
+    const matchesSearch = `${conversation.otherUser?.name || ""} ${conversation.otherUser?.email || ""} ${conversation.lastMessage?.subject || ""} ${conversation.lastMessage?.body || ""}`
+      .toLowerCase().includes(messageSearch.trim().toLowerCase());
+    const matchesFilter = messageFilter === "all" ||
+      (messageFilter === "unread" && conversation.unreadCount > 0) ||
+      (messageFilter === "read" && conversation.unreadCount === 0);
+    return matchesSearch && matchesFilter;
+  });
+  const filteredInquiries = inquiries.filter((inquiry) => {
+    const matchesSearch = `${inquiry.senderName} ${inquiry.senderEmail} ${inquiry.text} ${inquiry.replyText || ""}`
+      .toLowerCase().includes(inquirySearch.trim().toLowerCase());
+    const matchesFilter = inquiryFilter === "all" || inquiry.status === inquiryFilter;
+    return matchesSearch && matchesFilter;
   });
   const myTenants = tenants;
 
@@ -517,7 +575,7 @@ export default function AgentDashboard() {
 
             {/* PROPERTIES & UNITS */}
             {activeTab === "units" && (
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-8">
                 <div>
                   <div className="flex flex-wrap items-end justify-between gap-4">
                     <div>
@@ -529,9 +587,20 @@ export default function AgentDashboard() {
                     </Button>
                   </div>
                 </div>
+                <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4 sm:flex-row">
+                  <label className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
+                    <Input value={unitSearch} onChange={(event) => setUnitSearch(event.target.value)} placeholder="Search properties or units" aria-label="Search properties or units" className="pl-9" />
+                  </label>
+                  <select value={unitStatusFilter} onChange={(event) => setUnitStatusFilter(event.target.value)} aria-label="Filter units by status" className="h-10 rounded-xl border border-border bg-surface-secondary px-3 text-sm text-foreground sm:w-52">
+                    <option value="all">All unit statuses</option>
+                    <option value="vacant">Vacant</option>
+                    <option value="occupied">Occupied</option>
+                    <option value="maintenance">Maintenance</option>
+                  </select>
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                  {properties.map((property) => {
-                    const propertyUnits = units.filter((u) => u.propertyId === property.id);
+                  {filteredUnitProperties.map(({ property, propertyUnits, visibleUnits }) => {
                     const vacant = propertyUnits.filter((u) => u.status === "vacant");
                     return (
                       <Card key={property.id} className="hover:shadow-lg transition-shadow">
@@ -555,8 +624,10 @@ export default function AgentDashboard() {
                               <p className="text-sm font-medium text-text-secondary">Units:</p>
                               {propertyUnits.length === 0 ? (
                                 <p className="text-sm text-text-tertiary">No units registered</p>
+                              ) : visibleUnits.length === 0 ? (
+                                <p className="text-sm text-text-tertiary">No units match this filter</p>
                               ) : (
-                                propertyUnits.map((unit) => (
+                                visibleUnits.map((unit) => (
                                   <div key={unit.id} className="flex items-center justify-between p-3 rounded-lg bg-surface-secondary">
                                     <span className="text-sm font-medium">Unit {unit.unitNumber}</span>
                                     <div className="flex items-center gap-2">
@@ -583,13 +654,22 @@ export default function AgentDashboard() {
                       </CardContent>
                     </Card>
                   )}
+                  {properties.length > 0 && filteredUnitProperties.length === 0 && (
+                    <Card className="col-span-full">
+                      <CardContent className="p-10 text-center">
+                        <Search className="mx-auto mb-3 h-10 w-10 text-text-tertiary" />
+                        <p className="font-medium text-text-secondary">No units match your search or filter</p>
+                        <Button type="button" variant="outline" className="mt-4" onClick={() => { setUnitSearch(""); setUnitStatusFilter("all"); }}>Clear filters</Button>
+                      </CardContent>
+                    </Card>
+                  )}
                 </div>
               </motion.div>
             )}
 
             {/* ASSIGN TENANT — part of the Units section */}
             {activeTab === "units" && (
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6 border-t border-border pt-8">
                 <div>
                   <div id="agent-unit-assignment" className="scroll-mt-6">
                     <h2 className="text-2xl font-bold text-foreground">Assign a tenant</h2>
@@ -702,6 +782,12 @@ export default function AgentDashboard() {
                        </div>
                      </CardHeader>
                      <CardContent className="flex-1 flex flex-col">
+                       <select value={assignmentPropertyFilter} onChange={(event) => setAssignmentPropertyFilter(event.target.value)} aria-label="Filter vacant units by property" className="mb-4 h-10 rounded-xl border border-border bg-surface-secondary px-3 text-sm text-foreground">
+                         <option value="all">All properties</option>
+                         {properties.filter((property) => vacantUnits.some((unit) => unit.propertyId === property.id)).map((property) => (
+                           <option key={property.id} value={property.id}>{property.name}</option>
+                         ))}
+                       </select>
                        <div className="flex-1 overflow-y-auto space-y-3 max-h-[400px] pr-1">
                          {vacantUnits.length === 0 ? (
                            <div className="text-center py-12">
@@ -709,8 +795,13 @@ export default function AgentDashboard() {
                              <p className="text-text-secondary font-medium">No vacant units available</p>
                              <p className="text-xs text-text-tertiary mt-1">All units are currently occupied</p>
                            </div>
+                         ) : filteredVacantUnits.length === 0 ? (
+                           <div className="text-center py-10">
+                             <p className="text-text-secondary font-medium">No vacant units for this property</p>
+                             <p className="text-xs text-text-tertiary mt-1">Choose another property or select all properties</p>
+                           </div>
                          ) : (
-                           vacantUnits.map((unit) => {
+                           filteredVacantUnits.map((unit) => {
                              const property = properties.find((p) => p.id === unit.propertyId);
                              const isSelected = selectedUnit?.id === unit.id;
                              return (
@@ -857,6 +948,19 @@ export default function AgentDashboard() {
                       <UserPlus className="h-4 w-4 mr-2" /> Create Tenant
                     </Button>
                   )}
+                  <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4 sm:flex-row">
+                    <label className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
+                      <Input value={tenantListSearch} onChange={(event) => setTenantListSearch(event.target.value)} placeholder="Search tenants by name, email, or unit" aria-label="Search tenants" className="pl-9" />
+                    </label>
+                    <select value={tenantListFilter} onChange={(event) => setTenantListFilter(event.target.value)} aria-label="Filter tenants" className="h-10 rounded-xl border border-border bg-surface-secondary px-3 text-sm text-foreground sm:w-52">
+                      <option value="all">All tenants</option>
+                      <option value="active">Active</option>
+                      <option value="pending">Pending assignment</option>
+                      <option value="inactive">Inactive</option>
+                      <option value="unassigned">Unassigned</option>
+                    </select>
+                  </div>
                   <Card>
                     <CardHeader>
                       <CardTitle className="text-lg">My Tenants</CardTitle>
@@ -870,8 +974,10 @@ export default function AgentDashboard() {
                             <p className="text-text-secondary font-medium">No tenants yet</p>
                             <p className="text-xs text-text-tertiary mt-1">Register a tenant above to get started</p>
                           </div>
+                        ) : filteredTenants.length === 0 ? (
+                          <p className="py-8 text-center text-sm text-text-secondary">No tenants match your search or filter.</p>
                         ) : (
-                          myTenants.map((tenant) => (
+                          filteredTenants.map((tenant) => (
                             <div key={tenant.id} className="flex items-center justify-between p-4 rounded-xl border border-border hover:bg-surface-secondary transition-colors">
                               <div className="flex items-center gap-3">
                                 <Avatar src={tenant.avatarUrl} fallback={getInitials(tenant.name)} size="sm" />
@@ -931,8 +1037,20 @@ export default function AgentDashboard() {
                   <h1 className="text-3xl font-bold text-foreground">Tenant Verifications</h1>
                   <p className="text-base text-text-secondary mt-1">Review and verify tenant ID documents</p>
                 </div>
+                <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4 sm:flex-row">
+                  <label className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
+                    <Input value={verificationSearch} onChange={(event) => setVerificationSearch(event.target.value)} placeholder="Search tenants by name or email" aria-label="Search verification records" className="pl-9" />
+                  </label>
+                  <select value={verificationFilter} onChange={(event) => setVerificationFilter(event.target.value)} aria-label="Filter verifications by status" className="h-10 rounded-xl border border-border bg-surface-secondary px-3 text-sm text-foreground sm:w-52">
+                    <option value="all">All statuses</option>
+                    <option value="pending">Pending</option>
+                    <option value="rejected">Rejected</option>
+                  </select>
+                </div>
 
                 {/* Pending Verifications */}
+                {verificationFilter !== "rejected" && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-lg flex items-center gap-2">
@@ -942,14 +1060,14 @@ export default function AgentDashboard() {
                   </CardHeader>
                   <CardContent className="p-6">
                     <div className="space-y-3">
-                      {tenants.filter(t => t.idVerificationStatus === "pending").length === 0 ? (
+                      {pendingVerifications.length === 0 ? (
                         <div className="text-center py-12">
                           <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-3" />
                           <p className="text-text-secondary font-medium">All caught up!</p>
                           <p className="text-xs text-text-tertiary mt-1">No pending verifications</p>
                         </div>
                       ) : (
-                        tenants.filter(t => t.idVerificationStatus === "pending").map((tenant) => (
+                        pendingVerifications.map((tenant) => (
                           <div key={tenant.id} className="flex items-center justify-between p-4 rounded-xl border border-border hover:bg-surface-secondary transition-colors">
                             <div className="flex items-center gap-3">
                               <Avatar src={tenant.avatarUrl} fallback={getInitials(tenant.name)} />
@@ -974,19 +1092,21 @@ export default function AgentDashboard() {
                     </div>
                   </CardContent>
                 </Card>
+                )}
 
                 {/* Rejected Applicants */}
+                {verificationFilter !== "pending" && (
                 <Card className="border-red-100">
                   <CardHeader>
                     <CardTitle className="text-lg flex items-center gap-2">
                       <XCircle className="h-5 w-5 text-red-500" /> Rejected Applicants
-                      {tenants.filter(t => t.idVerificationStatus === "rejected").length > 0 && (
+                      {rejectedVerifications.length > 0 && (
                         <motion.span
                           initial={{ scale: 0 }}
                           animate={{ scale: 1 }}
                           className="ml-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white"
                         >
-                          {tenants.filter(t => t.idVerificationStatus === "rejected").length}
+                          {rejectedVerifications.length}
                         </motion.span>
                       )}
                     </CardTitle>
@@ -994,12 +1114,12 @@ export default function AgentDashboard() {
                   </CardHeader>
                   <CardContent className="p-6">
                     <div className="space-y-3">
-                      {tenants.filter(t => t.idVerificationStatus === "rejected").length === 0 ? (
+                      {rejectedVerifications.length === 0 ? (
                         <div className="text-center py-8">
                           <p className="text-text-secondary text-sm">No rejected applicants</p>
                         </div>
                       ) : (
-                        tenants.filter(t => t.idVerificationStatus === "rejected").map((tenant) => (
+                        rejectedVerifications.map((tenant) => (
                           <div key={tenant.id} className="flex items-center justify-between p-4 rounded-xl border border-red-100 bg-red-50/30 hover:bg-red-50 transition-colors">
                             <div className="flex items-center gap-3">
                               <Avatar src={tenant.avatarUrl} fallback={getInitials(tenant.name)} />
@@ -1034,6 +1154,7 @@ export default function AgentDashboard() {
                     </div>
                   </CardContent>
                 </Card>
+                )}
               </motion.div>
             )}
 
@@ -1064,6 +1185,19 @@ export default function AgentDashboard() {
                     </CardContent>
                   </Card>
                 </div>
+                <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4 sm:flex-row">
+                  <label className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
+                    <Input value={paymentSearch} onChange={(event) => setPaymentSearch(event.target.value)} placeholder="Search tenant or property" aria-label="Search payments" className="pl-9" />
+                  </label>
+                  <select value={paymentFilter} onChange={(event) => setPaymentFilter(event.target.value)} aria-label="Filter payments by status" className="h-10 rounded-xl border border-border bg-surface-secondary px-3 text-sm text-foreground sm:w-52">
+                    <option value="all">All statuses</option>
+                    <option value="paid">Paid</option>
+                    <option value="pending">Pending</option>
+                    <option value="overdue">Overdue</option>
+                    <option value="partial">Partial</option>
+                  </select>
+                </div>
                 <Card>
                   <CardHeader>
                     <div className="flex items-center justify-between">
@@ -1077,8 +1211,10 @@ export default function AgentDashboard() {
                     <div className="space-y-3">
                       {payments.length === 0 ? (
                         <p className="text-center py-8 text-text-secondary">No payment records yet</p>
+                      ) : filteredPayments.length === 0 ? (
+                        <p className="text-center py-8 text-text-secondary">No payments match your search or filter</p>
                       ) : (
-                        payments.slice().reverse().map((payment) => (
+                        filteredPayments.slice().reverse().map((payment) => (
                           <div key={payment.id} className="flex items-center justify-between p-4 rounded-xl border border-border hover:bg-surface-secondary transition-colors">
                             <div className="flex items-center gap-3">
                                <Avatar src={payment.tenantName ? (tenants.find(t => t.name === payment.tenantName)?.avatarUrl || "") : ""} fallback={getInitials(payment.tenantName)} size="sm" />
@@ -1119,26 +1255,13 @@ export default function AgentDashboard() {
 
             {/* PAYMENT HISTORY */}
             {activeTab === "payments" && (
-              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6">
+              <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-6 border-t border-border pt-8">
                 <div>
-                  <h1 className="text-3xl font-bold text-foreground">Payment History</h1>
+                  <h2 className="text-2xl font-bold text-foreground">Payment History</h2>
                   <p className="text-base text-text-secondary mt-1">Complete transaction history across all properties</p>
                 </div>
                 <Card>
                   <CardContent className="p-6">
-                    <div className="flex items-center gap-2 mb-4">
-                      <select
-                        value={paymentFilter}
-                        onChange={(e) => setPaymentFilter(e.target.value)}
-                        className="h-10 px-4 rounded-xl border border-border bg-surface-secondary text-sm"
-                      >
-                        <option value="all">All Status</option>
-                        <option value="paid">Paid</option>
-                        <option value="pending">Pending</option>
-                        <option value="overdue">Overdue</option>
-                        <option value="partial">Partial</option>
-                      </select>
-                    </div>
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm">
                         <thead>
@@ -1189,6 +1312,17 @@ export default function AgentDashboard() {
                   <h1 className="text-3xl font-bold text-foreground">Messages</h1>
                   <p className="text-base text-text-secondary mt-1">Communicate with owners, tenants, and landing-page visitors</p>
                 </div>
+                <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4 sm:flex-row">
+                  <label className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
+                    <Input value={messageSearch} onChange={(event) => setMessageSearch(event.target.value)} placeholder="Search messages or contacts" aria-label="Search messages" className="pl-9" />
+                  </label>
+                  <select value={messageFilter} onChange={(event) => setMessageFilter(event.target.value)} aria-label="Filter messages" className="h-10 rounded-xl border border-border bg-surface-secondary px-3 text-sm text-foreground sm:w-52">
+                    <option value="all">All messages</option>
+                    <option value="unread">Unread</option>
+                    <option value="read">Read</option>
+                  </select>
+                </div>
                 <Card>
                   <CardContent className="p-6">
                     <div className="space-y-3">
@@ -1197,8 +1331,10 @@ export default function AgentDashboard() {
                           <p className="text-text-secondary font-medium">No messages yet</p>
                           <p className="text-xs text-text-tertiary mt-1">Start a conversation with an owner or tenant</p>
                         </div>
+                      ) : filteredConversations.length === 0 ? (
+                        <p className="py-8 text-center text-sm text-text-secondary">No messages match your search or filter.</p>
                       ) : (
-                        conversations.map((conv, index) => (
+                        filteredConversations.map((conv, index) => (
                           <motion.div
                             key={conv.userId}
                             custom={index}
@@ -1236,6 +1372,18 @@ export default function AgentDashboard() {
                   <h1 className="text-3xl font-bold text-foreground">Landing Inquiries</h1>
                   <p className="text-base text-text-secondary mt-1">Messages from visitors through the landing page</p>
                 </div>
+                <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-4 sm:flex-row">
+                  <label className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
+                    <Input value={inquirySearch} onChange={(event) => setInquirySearch(event.target.value)} placeholder="Search inquiries by name, email, or message" aria-label="Search inquiries" className="pl-9" />
+                  </label>
+                  <select value={inquiryFilter} onChange={(event) => setInquiryFilter(event.target.value)} aria-label="Filter inquiries by status" className="h-10 rounded-xl border border-border bg-surface-secondary px-3 text-sm text-foreground sm:w-52">
+                    <option value="all">All inquiries</option>
+                    <option value="new">New</option>
+                    <option value="read">Read</option>
+                    <option value="replied">Replied</option>
+                  </select>
+                </div>
                 <Card>
                   <CardContent className="p-6">
                     <div className="space-y-3">
@@ -1245,8 +1393,10 @@ export default function AgentDashboard() {
                           <p className="text-text-secondary font-medium">No inquiries yet</p>
                           <p className="text-xs text-text-tertiary mt-1">When visitors contact you from the landing page, they will appear here.</p>
                         </div>
+                      ) : filteredInquiries.length === 0 ? (
+                        <p className="py-8 text-center text-sm text-text-secondary">No inquiries match your search or filter.</p>
                       ) : (
-                        inquiries.map((inq, index) => (
+                        filteredInquiries.map((inq, index) => (
                           <motion.div
                             key={inq.id}
                             custom={index}

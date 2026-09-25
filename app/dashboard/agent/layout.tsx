@@ -10,7 +10,7 @@ import Link from "next/link";
 import { Avatar } from "@/components/ui/avatar";
 import {
   LayoutDashboard, Home, CreditCard, Send, LogOut, ChevronRight, Menu, X,
-  Loader2, ChevronDown, ChevronLeft, Bell, Mail, User, Search,
+  Loader2, ChevronDown, ChevronLeft, Bell, Mail, User,
 } from "lucide-react";
 import { getNotifications, getUnreadMessageCount, getUnreadInquiryCount, markNotificationRead, markAllNotificationsRead, Notification } from "@/lib/data";
 import { getProperties, Property } from "@/lib/data";
@@ -19,13 +19,12 @@ import MessagingModal from "@/components/messaging-modal";
 import { getNotificationDashboardHref } from "@/lib/notification-routing";
 
 const navItems = [
-  { label: "Overview", tab: "overview", href: "/dashboard/agent#overview", icon: LayoutDashboard, category: "Workspace" },
-  { label: "Units", tab: "units", href: "/dashboard/agent#units", icon: Home, category: "Operations" },
-  { label: "Payments", tab: "payments", href: "/dashboard/agent#payments", icon: CreditCard, category: "Finance" },
-  { label: "Inquiries", tab: "inquiries", href: "/dashboard/agent#inquiries", icon: Mail, category: "Communication" },
+  { label: "Overview", tab: "overview", href: "/dashboard/agent#overview", icon: LayoutDashboard },
+  { label: "Units", tab: "units", href: "/dashboard/agent#units", icon: Home },
+  { label: "Payments", tab: "payments", href: "/dashboard/agent#payments", icon: CreditCard },
+  { label: "Inquiries", tab: "inquiries", href: "/dashboard/agent#inquiries", icon: Mail },
 ];
 
-const navCategories = ["All categories", "Workspace", "Operations", "Finance", "Communication"] as const;
 const agentContentTabs = ["messages", "profile", "tenants", "verifications"];
 
 function normalizeAgentTab(tab: string) {
@@ -47,8 +46,6 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
   const [showLogoutModal, setShowLogoutModal] = useState(false);
   const [logoutLoading, setLogoutLoading] = useState(false);
   const [activeTab, setActiveTab] = useState(getTabFromHash);
-  const [navSearch, setNavSearch] = useState("");
-  const [navCategory, setNavCategory] = useState<(typeof navCategories)[number]>("All categories");
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showMessages, setShowMessages] = useState(false);
@@ -149,11 +146,6 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
   };
 
   const unreadCount = notifications.filter((n) => !n.read).length;
-  const filteredNavItems = navItems.filter((item) => {
-    const matchesSearch = item.label.toLowerCase().includes(navSearch.trim().toLowerCase());
-    const matchesCategory = navCategory === "All categories" || item.category === navCategory;
-    return matchesSearch && matchesCategory;
-  });
 
   const openAgentTab = (tab: string) => {
     const normalizedTab = normalizeAgentTab(tab);
@@ -334,19 +326,8 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
               {sidebarOpen && <span className="font-bold text-foreground text-sm">Agent Panel</span>}
             </Link>
           </div>
-          {sidebarOpen && (
-            <div className="space-y-2 px-3 pt-3">
-              <label className="relative block">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
-                <input value={navSearch} onChange={(event) => setNavSearch(event.target.value)} placeholder="Search navigation" aria-label="Search navigation" className="h-10 w-full rounded-xl border border-border bg-surface-secondary pl-9 pr-3 text-sm text-foreground placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary-500/30" />
-              </label>
-              <select aria-label="Filter navigation category" value={navCategory} onChange={(event) => setNavCategory(event.target.value as (typeof navCategories)[number])} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary-500/30">
-                {navCategories.map((category) => <option key={category} value={category}>{category}</option>)}
-              </select>
-            </div>
-          )}
           <nav className="overflow-y-auto p-3 space-y-0.5">
-            {filteredNavItems.map((item) => {
+            {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = activeTab === item.tab;
               return (
@@ -375,7 +356,6 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
                 </button>
               );
             })}
-            {sidebarOpen && filteredNavItems.length === 0 && <p className="px-3 py-4 text-xs text-text-tertiary">No sections match your filters.</p>}
           </nav>
           <div className="mt-auto p-3">
             <button
@@ -418,17 +398,8 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
                     <X className="h-4 w-4" />
                   </button>
                 </div>
-                <div className="space-y-2 px-3 pt-3">
-                  <label className="relative block">
-                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-tertiary" />
-                    <input value={navSearch} onChange={(event) => setNavSearch(event.target.value)} placeholder="Search navigation" aria-label="Search navigation" className="h-10 w-full rounded-xl border border-border bg-surface-secondary pl-9 pr-3 text-sm text-foreground placeholder:text-text-tertiary focus:outline-none focus:ring-2 focus:ring-primary-500/30" />
-                  </label>
-                  <select aria-label="Filter navigation category" value={navCategory} onChange={(event) => setNavCategory(event.target.value as (typeof navCategories)[number])} className="h-10 w-full rounded-xl border border-border bg-surface px-3 text-sm text-foreground focus:outline-none focus:ring-2 focus:ring-primary-500/30">
-                    {navCategories.map((category) => <option key={category} value={category}>{category}</option>)}
-                  </select>
-                </div>
                 <nav className="flex-1 overflow-y-auto p-3 space-y-0.5">
-                  {filteredNavItems.map((item) => {
+                  {navItems.map((item) => {
                     const Icon = item.icon;
                     const isActive = activeTab === item.tab;
                     return (
@@ -457,7 +428,6 @@ export default function AgentLayout({ children }: { children: React.ReactNode })
                       </button>
                     );
                   })}
-                  {filteredNavItems.length === 0 && <p className="px-3 py-4 text-xs text-text-tertiary">No sections match your filters.</p>}
                 </nav>
                 <div className="p-3 border-t border-border">
                   <button
