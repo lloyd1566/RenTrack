@@ -493,7 +493,7 @@ export async function findUserByEmail(email: string) {
     result = await getAdminSupabase().schema("public").from("users").select("*").eq("email", email.toLowerCase()).single();
   }
   const { data, error } = result;
-  if (error && error.code !== "PGRST116" && !isPublicUsersSchemaCacheError(error)) throw new Error(`Failed to query user: ${error.message}`);
+  if (error && error.code !== "PGRST116") throw new Error(`Failed to query user: ${error.message}`);
   if (!data) return null;
   return mapUserRow(data);
 }
@@ -505,7 +505,7 @@ export async function findUserById(id: string) {
     result = await getAdminSupabase().schema("public").from("users").select("*").eq("id", id).single();
   }
   const { data, error } = result;
-  if (error && error.code !== "PGRST116" && !isPublicUsersSchemaCacheError(error)) throw new Error(`Failed to query user: ${error.message}`);
+  if (error && error.code !== "PGRST116") throw new Error(`Failed to query user: ${error.message}`);
   if (!data) return null;
   return mapUserRow(data);
 }

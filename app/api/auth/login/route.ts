@@ -96,15 +96,19 @@ export async function POST(request: NextRequest) {
     console.error("Login error:", error instanceof Error ? error.message : error);
     const rawMessage = typeof error === "object" && error && "message" in error ? String((error as any).message) : "Login failed";
     const lowerMessage = rawMessage.toLowerCase();
+    const isSchemaCacheUnavailable = lowerMessage.includes("schema cache") || (typeof error === "object" && error && (error as any).code === "PGRST205");
     const isDatabaseUnavailable = lowerMessage.includes("fetch failed")
       || lowerMessage.includes("enotfound")
       || lowerMessage.includes("econnrefused")
       || lowerMessage.includes("database lookup timed out")
       || lowerMessage.includes("exceed_egress_quota")
-      || lowerMessage.includes("service for this project is restricted");
+      || lowerMessage.includes("service for this project is restricted")
+      || isSchemaCacheUnavailable;
     const friendlyMessage =
       lowerMessage.includes("exceed_egress_quota") || lowerMessage.includes("service for this project is restricted")
         ? "Supabase has restricted this project because it exceeded its egress quota. Remove the spend cap or upgrade the Supabase plan, then try again."
+        : isSchemaCacheUnavailable
+        ? "Login service cannot access the users table. Refresh the Supabase API schema cache and confirm this deployment uses the correct Supabase project."
         : isDatabaseUnavailable
         ? "Login service is temporarily unavailable. Please check the Supabase URL/network connection and try again."
         : (lowerMessage.includes("relation") && lowerMessage.includes("does not exist")) ||
